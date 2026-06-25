@@ -1,0 +1,115 @@
+# OmniClaw Compile Manifest — Single Source of Truth
+# Read by scripts/compile_*.py and notebooks/compile_*.ipynb
+# Models referenced here NEVER live in the repo — they live on HuggingFace.
+# Compiled outputs go BACK to HuggingFace under Mer0vin8ian/.
+
+# Target hardware
+target:
+  soc: SM8750                              # Snapdragon 8 Elite
+  npu: Hexagon HTP v75                     # SD8 Elite NPU
+  qai_hub_device_qwen35:  "Snapdragon 8 Elite"      # Qwen3.5-9B (ONNX path)
+  qai_hub_device_qwenvl:  "Snapdragon 8 Elite QRD"  # Qwen3-VL (Genie SDK path)
+  qai_hub_device_gemma:   "Snapdragon 8 Elite"      # Gemma 4 12B (DLC path)
+
+# Hard caps from wiki/GPT-OSS-Reference.md
+# Hexagon v69/v75 require static shapes; max_seq_len cannot change at runtime.
+hexagon_constraints:
+  rope_fold: true                          # bake Q/K rotations into weights at export
+  disable_mha_fusion: true                 # --disable_fusion for variable-len safety
+  gelu_approx: tanh                        # FP16-native, ~0.1% error
+  layernorm_rewrite: pre_ln                # post-LN not supported on v75
+  bias_as_int32: true                      # INT8 bias overflow guard
+  scratch_size_mib: 16
+  max_dynamic_tensor_size_mib: 64
+  npu_contexts: 1                          # daemon serializes inference
+
+# ─── Models ───────────────────────────────────────────────────────────────────────────
+
+models:
+
+  # PRIMARY TARGET — vision + reasoning
+  # Novel first-ever compile: no qai_hub_models scaffold for qwen3_5 architecture.
+  # Script builds PyTorch export from scratch: RoPE fold, static shapes, PTQ W4A16.
+  qwen3_5_9b:
+    hf_repo: Qwen/Qwen3.5-9B
+    hf_revision: main
+    architecture: qwen3_5                  # brand new Feb 2026, no existing scaffold
+    params: 9000000000
+    max_seq_len: 4096
+    quantization:
+      strategy: ptq                        # no QAT variant exists for Qwen3.5
+      type: w4a16                          # weight-only INT4, activations FP16
+      calibration_tokens: 10000            # ≥10K per GPT-OSS-Reference
+      calibration_dataset: wikitext-2-raw-v1
+    output_repo: Mer0vin8ian/qwen3-5-9b-npu-sm8750
+    output_artifacts:
+      - qwen3_5_9b_htp.bin
+    expected_compile_minutes: 35
+    qai_hub_device: "Snapdragon 8 Elite"
+    runtime: genie_engine
+    script: scripts/compile_qwen3_5_9b.py  # NOT YET WRITTEN — session 5 P0
+
+  # BACKUP 1 — vision + reasoning (harder scaffold path)
+  # Higher MMMU reasoning (69.6%) vs Instruct; generates hidden thinking tokens.
+  # Uses Qwen2.5-VL-7B class as scaffold (same Qwen2-VL base architecture).
+  qwen3_vl_8b_thinking:
+    hf_repo: Qwen/Qwen3-VL-8B-Thinking
+    hf_revision: main
+    architecture: qwen3_vl
+    params: 8767100000
+    scaffold_class: qai_hub_models.models.qwen2_5_vl_7b_instruct
+    max_seq_len: 4096
+    quantization:
+      strategy: ptq
+      type: w4a16
+      calibration_tokens: 10000
+      calibration_dataset: ""
+    output_repo: Mer0vin8ian/qwen3-vl-8b-thinking-htp-v75
+    output_artifacts:
+      - qwen3_vl_8b_thinking_vision_encoder.bin
+      - qwen3_vl_8b_thinking_language_model.bin
+      - qwen3_vl_8b_thinking_projection.bin
+    expected_compile_minutes: 35
+    qai_hub_device: "Snapdragon 8 Elite QRD"
+    runtime: genie_engine
+    script: scripts/compile_qwen3_vl.py
+
+  # BACKUP 2 — text + reasoning (no re-quant, QAT pre-aligned)
+  # Google did QAT at training time → q4_0 weights ready for INT4 pack at QAI Hub.
+  gemma4_12b_qat:
+    hf_repo: google/gemma-4-12B-it-qat-q4_0-unquantized
+    hf_revision: main
+    architecture: gemma4_unified
+    params: 11959700000
+    gguf_repo: google/gemma-4-12b-it-qat
+    gguf_filename: gemma-4-12b-it-qat-Q4_0.gguf
+    max_seq_len: 8192
+    quantization:
+      strategy: qat
+      type: int4
+      calibration_tokens: 0
+      reuse_qat_alignment: true
+    output_repo: Mer0vin8ian/gemma-4-12B-it-npu-sm8750
+    output_artifacts:
+      - gemma4_12b_qat_htp.dlc
+    expected_compile_minutes: 40
+    qai_hub_device: "Snapdragon 8 Elite"
+    runtime: ort_engine
+    script: scripts/compile_gemma_qairt.py
+
+# ─── Build order ────────────────────────────────────────────────────────────────────────
+build_order:
+  - qwen3_5_9b             # PRIMARY — novel first-ever compile, no scaffold
+  - qwen3_vl_8b_thinking   # backup 1 — if qwen3_5 hard-fails
+  - gemma4_12b_qat         # backup 2 — text-only fallback
+
+# ─── Daemon binaries (built separately, NOT compiled here) ───────────────────────
+daemon_binaries:
+  genie_engine:
+    use_for: [qwen3_5_9b, qwen3_vl_8b_thinking]
+    source: built_from_qai_genie_sdk_cpp
+    status: not_yet_built
+  ort_engine:
+    use_for: [gemma4_12b_qat]
+    source: onnxruntime_qnn_ep_aarch64_android
+    status: not_yet_built
