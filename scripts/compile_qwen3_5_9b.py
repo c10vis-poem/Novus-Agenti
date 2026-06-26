@@ -106,16 +106,52 @@ from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
 config    = AutoConfig.from_pretrained(MODEL_ID, token=HF_TOKEN, trust_remote_code=False)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, token=HF_TOKEN, trust_remote_code=False)
 
-# Some unified-multimodal checkpoints nest the text config; normalize.
+# Qwen3.5-9B reports task=image-text-to-text and loads as AutoModelForMultimodalLM
+# (Hugging Face transformers >=4.51). We want only the language decoder for the
+# NPU compile — the vision encoder is a separate component compiled in a follow-up.
+# Three load strategies, in order: multimodal (extract language submodule) →
+# vision2seq (same extract) → plain CausalLM fallback (text-only checkpoints).
 text_cfg = getattr(config, "text_config", config)
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_ID,
-    torch_dtype=torch.float16,
-    device_map="cpu",
-    low_cpu_mem_usage=True,
-    token=HF_TOKEN,
-    trust_remote_code=False,
+LOAD_KW = dict(
+    torch_dtype=torch.float16, device_map="cpu", low_cpu_mem_usage=True,
+    token=HF_TOKEN, trust_remote_code=False,
 )
+full = None
+loader = None
+for loader_name in ("AutoModelForMultimodalLM", "AutoModelForVision2Seq",
+                    "AutoModelForImageTextToText", "AutoModelForCausalLM"):
+    try:
+        import transformers as _tf
+        cls = getattr(_tf, loader_name)
+        full = cls.from_pretrained(MODEL_ID, **LOAD_KW)
+        loader = loader_name
+        break
+    except (AttributeError, ValueError, KeyError) as e:
+        print(f"      {loader_name} unavailable ({type(e).__name__}); trying next ...")
+        continue
+if full is None:
+    sys.exit("[qwen3_5] No transformers Auto* class accepted this checkpoint")
+print(f"      Loaded via {loader}: {type(full).__name__}")
+
+def extract_decoder_module(root, expected_layers):
+    # Walk common submodule names to find the causal language decoder.
+    candidates = []
+    for attr in ("language_model", "text_model", "language_decoder", "lm", "model"):
+        sub = getattr(root, attr, None)
+        if sub is not None:
+            candidates.append(sub)
+            inner = getattr(sub, "model", None)
+            if inner is not None:
+                candidates.append(inner)
+    candidates.append(root)
+    for c in candidates:
+        layers = getattr(c, "layers", None) or getattr(getattr(c, "model", c), "layers", None)
+        if layers is not None and len(layers) == expected_layers:
+            return c
+    return root
+
+model = extract_decoder_module(full, getattr(text_cfg, "num_hidden_layers"))
+print(f"      Using language decoder: {type(model).__name__}")
 model.eval()
 
 NUM_LAYERS = getattr(text_cfg, "num_hidden_layers")
