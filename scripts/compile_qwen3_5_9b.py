@@ -87,7 +87,12 @@ import qai_hub as hub
 from huggingface_hub import login, HfApi
 
 login(token=HF_TOKEN)
-hub.configure(api_token=QAI_TOKEN)
+# qai-hub reads QAI_HUB_API_TOKEN from env (already set by --secrets).
+# Older versions exposed hub.configure(); newer ones don't. Call it only if present.
+if hasattr(hub, "configure"):
+    hub.configure(api_token=QAI_TOKEN)
+else:
+    os.environ.setdefault("QAI_HUB_API_TOKEN", QAI_TOKEN)
 
 # ── re-download path ─────────────────────────────────────────────────────────
 if SKIP_EXPORT:
