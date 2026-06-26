@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Voice interaction service metadata for the Horizons Assist API path.
+  When Horizons is set as the device's default assistant (Settings → Apps →
+  Default apps → Digital assistant app), the system will hand us screenshot
+  + view-tree on every assist trigger without per-session MediaProjection
+  consent.
+
+  recognitionService is required by the platform contract; we point at our
+  passthrough HorizonsRecognitionService.
+-->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.horizons.assist.HorizonsVoiceInteractionSessionService"
+    android:recognitionService="com.horizons.assist.HorizonsRecognitionService"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="false"
+    android:supportsLocalInteraction="true" />

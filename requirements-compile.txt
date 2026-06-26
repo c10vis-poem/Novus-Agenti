@@ -1,0 +1,10 @@
+# Minimal deps for the staged Colab compile of Qwen3-VL-8B → Snapdragon HTP v75.
+# Pinned loose on purpose — Colab base image already ships current torch/transformers.
+torch>=2.4
+transformers>=4.45
+accelerate>=0.34
+huggingface_hub>=0.25
+qai-hub>=0.20
+qai-hub-models[qwen2_5_vl_7b_instruct]>=0.20
+# Optional — only needed if the script falls back to a CPU/CUDA pre-export sanity pass.
+# bitsandbytes>=0.43
