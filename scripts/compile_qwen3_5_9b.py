@@ -52,8 +52,8 @@ Optional env:
 
 Run on HF Jobs (cpu-xl, ~$1/hr, 124GB RAM — no GPU needed, compile is server-side):
     hf jobs uv run --flavor cpu-xl --timeout 2h \\
-        --with torch --with transformers --with onnx --with onnxruntime \\
-        --with qai-hub --with datasets --with numpy --with huggingface_hub \\
+        --with torch --with transformers --with onnx --with onnxruntime --with onnxscript \\
+        --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \\
         --secrets HF_TOKEN --secrets QAI_HUB_API_TOKEN \\
         -e MODEL_ID=Qwen/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \\
         https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
@@ -100,6 +100,7 @@ subprocess.check_call([
     "transformers>=4.51.0",
     "onnx>=1.16.0",
     "onnxruntime",
+    "onnxscript",
     "qai-hub>=0.28.0",
     "huggingface_hub",
     "datasets",
