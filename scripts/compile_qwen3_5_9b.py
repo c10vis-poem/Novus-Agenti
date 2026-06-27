@@ -276,13 +276,31 @@ def find_submodule(root, names):
     return None, None
 
 
+# Qwen3_5ForConditionalGeneration structure (transformers >=5.x):
+#   full.model          = Qwen3_5Model (vision + language wrapper)
+#   full.model.visual   = vision encoder
+#   full.model.language_model = Qwen3_5TextModel (decoder layers + embed + norm)
+#   full.lm_head        = nn.Linear (hidden -> vocab logits)
+#
+# For text-only export we need language_model + lm_head.
+# "model" alone is WRONG — it's the full multimodal wrapper with vision assertions.
 decoder_module, decoder_path = find_submodule(full, [
-    "language_model", "model.language_model", "model"])
+    "model.language_model", "language_model"])
 
-print(f"      decoder:    {decoder_path or 'NOT FOUND'}")
+print(f"      decoder:    {decoder_path or 'NOT FOUND'} -> {type(decoder_module).__name__ if decoder_module else 'None'}")
+print(f"      lm_head:    {hasattr(full, 'lm_head')} -> {type(getattr(full, 'lm_head', None)).__name__}")
 
 if decoder_module is None:
+    print("[qwen3_5] Could not find language_model submodule. Model structure:")
+    for name, child in full.named_children():
+        print(f"          full.{name} = {type(child).__name__}")
+        for sub_name, sub_child in child.named_children():
+            print(f"              .{sub_name} = {type(sub_child).__name__}")
     sys.exit("[qwen3_5] Could not locate language decoder submodule")
+
+lm_head = getattr(full, "lm_head", None)
+if lm_head is None:
+    sys.exit("[qwen3_5] Could not locate lm_head on top-level model")
 
 NUM_LAYERS   = getattr(text_cfg, "num_hidden_layers")
 NUM_HEADS    = getattr(text_cfg, "num_attention_heads")
@@ -363,32 +381,36 @@ class UnifiedWrapper(torch.nn.Module):
         self.model = model
 
     def forward(self, input_ids, attention_mask, position_ids,
-                pixel_values, image_grid_thw):
+                pixel_values, image_grid_thw, mm_token_type_ids):
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
             pixel_values=pixel_values,
             image_grid_thw=image_grid_thw,
+            mm_token_type_ids=mm_token_type_ids,
             use_cache=False,
             return_dict=True,
         ).logits
 
 
 class TextOnlyWrapper(torch.nn.Module):
-    """Decoder-only — text inputs, no vision. Fallback for SKIP_VISION=1."""
-    def __init__(self, decoder):
+    """Decoder-only — text inputs, no vision. For SKIP_VISION=1.
+    Wraps Qwen3_5TextModel (returns last_hidden_state) + lm_head (projects to logits)."""
+    def __init__(self, language_model, lm_head):
         super().__init__()
-        self.decoder = decoder
+        self.language_model = language_model
+        self.lm_head = lm_head
 
     def forward(self, input_ids, attention_mask, position_ids):
-        return self.decoder(
+        out = self.language_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
             use_cache=False,
-            return_dict=True,
-        ).logits
+        )
+        hidden = out[0] if not hasattr(out, "last_hidden_state") else out.last_hidden_state
+        return self.lm_head(hidden)
 
 
 # -- Step 4: ONNX export -------------------------------------------------------
@@ -400,19 +422,29 @@ pos   = torch.arange(MAX_SEQ_LEN, dtype=torch.int64).unsqueeze(0)
 
 if SKIP_VISION:
     print(f"[4/7] Exporting text-only decoder -> {ONNX_MODEL} ...")
-    wrapped = TextOnlyWrapper(decoder_module).eval()
+    wrapped = TextOnlyWrapper(decoder_module, lm_head).eval()
     dummy_inputs = (ids, amask, pos)
     input_names  = ["input_ids", "attention_mask", "position_ids"]
 else:
     print(f"[4/7] Exporting unified model (text + vision) -> {ONNX_MODEL} ...")
+    spatial_merge = getattr(vis_cfg, "spatial_merge_size", 2)
+    n_vis_tokens = (GRID_T * GRID_H * GRID_W) // (spatial_merge ** 2)
+    image_token_id = getattr(config, "image_token_id", 248056)
     pixel_values   = torch.zeros((NUM_PATCHES, PATCH_DIM), dtype=torch.float16)
     image_grid_thw = torch.tensor([[GRID_T, GRID_H, GRID_W]], dtype=torch.int64)
+    # Place image tokens in input_ids so get_placeholder_mask count matches features
+    ids[:, :n_vis_tokens] = image_token_id
+    # mm_token_type_ids: 0=text, 1=image — required for M-RoPE position computation
+    mm_token_type_ids = torch.zeros((1, MAX_SEQ_LEN), dtype=torch.int32)
+    mm_token_type_ids[:, :n_vis_tokens] = 1
     print(f"      pixel_values: {list(pixel_values.shape)}, "
           f"image_grid_thw: {list(image_grid_thw.shape)} = [{GRID_T},{GRID_H},{GRID_W}]")
+    print(f"      n_vis_tokens={n_vis_tokens} (spatial_merge={spatial_merge}), "
+          f"image_token_id={image_token_id}")
     wrapped = UnifiedWrapper(full).eval()
-    dummy_inputs = (ids, amask, pos, pixel_values, image_grid_thw)
+    dummy_inputs = (ids, amask, pos, pixel_values, image_grid_thw, mm_token_type_ids)
     input_names  = ["input_ids", "attention_mask", "position_ids",
-                    "pixel_values", "image_grid_thw"]
+                    "pixel_values", "image_grid_thw", "mm_token_type_ids"]
 
 with torch.no_grad():
     torch.onnx.export(wrapped, dummy_inputs, ONNX_MODEL,
