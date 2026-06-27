@@ -1,0 +1,45 @@
+# Gradle
+.gradle/
+build/
+*/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Claude Code session state (agent worktrees, local settings)
+.claude/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.cxx/
+
+# Local config & secrets (NEVER commit keys — see Architecture §12)
+local.properties
+*.keystore
+!app/debug.keystore
+!release/debug.keystore
+*.jks
+google-services.json
+service-account*.json
+secrets.properties
+
+# On-device model weights — never committed (Architecture §4 / §7)
+*.nexa
+*.gguf
+
+# Local-only AAR drops (sherpa-onnx etc.) — greenfield drops sherpa; if a
+# local build still pulls in an AAR, keep it out of the tree.
+horizons/libs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# sherpa-onnx AAR — fetched by the downloadSherpaAar gradle task, never committed
+horizons/libs/
+
+# Logs / build artifacts
+*.log
+interaction_logs.jsonl
+*.apk
+*.aab

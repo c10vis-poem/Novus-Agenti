@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Horizons</string>
+    <string name="ime_label">Horizons Keyboard</string>
+    <string name="accessibility_label">Horizons Floating Inject</string>
+    <string name="qs_screen_ask">Screen-Ask</string>
+    <string name="accessibility_service_description">Horizons AI dock — floating mic, screen vision, and stop controls in any app.</string>
+</resources>
