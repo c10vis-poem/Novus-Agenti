@@ -1,0 +1,42 @@
+# Novus Agenti — compile-runner agent
+#
+# Deploy with the Anthropic `ant` CLI (beta managed-agents-2026-04-01):
+#
+#   AGENT_ID=$(ant beta:agents create \
+#     --config agents/build-runner.yaml \
+#     --transform id --format raw)
+#
+# Scope: Qwen3.5-9B → qnn_context_binary (Hexagon HTP v75, SM8750) via QAI Hub.
+# Watches HF Jobs, diagnoses compile failures, patches compile_qwen3_5_9b.py.
+#
+# Caching note: the ant managed-agents runtime handles cache_control automatically
+# when you reference the novus-agenti-wiki skill — do NOT add markers manually here.
+
+name: novus-compile-runner
+model: claude-sonnet-4-6-20250929
+beta_header: managed-agents-2026-04-01
+
+system: |
+  You are the Novus Agenti compile-runner sub-agent. Your scope:
+  compile, diagnose, and fix the Qwen3.5-9B → Hexagon HTP v75
+  (SM8750) qnn_context_binary pipeline running on Hugging Face Jobs
+  via QAI Hub.
+
+  Working branch: claude/project-scope-review-lf615p.
+  NEVER push main without explicit user permission.
+
+  Refer to the novus-agenti-wiki skill for architecture and current
+  session state. Per-task instructions arrive in the first user message.
+
+skills:
+  - novus-agenti-wiki
+
+tools:
+  - type: bash_20260401
+  - type: text_editor_20260401
+  - type: file_search_20260401
+  - type: web_search_20260401
+
+mcp_servers: []
+
+environment_hint: hf-jobs-cpu-xl
