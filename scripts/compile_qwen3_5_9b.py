@@ -21,15 +21,14 @@ Sources of truth (do not paraphrase elsewhere):
   - wiki/GPT-OSS-Reference.md         — Hexagon failure modes + mitigations
   - models/manifest.yaml              — build order, target devices, expected sizes
 
-Hexagon constraints applied (per GPT-OSS reference, S1-S3):
-  - RoPE fold          precompute cos/sin to FP16 tables, replace rotary with Gather
-  - Static shapes      batch=1, MAX_SEQ_LEN compile-time, valid-length scalar at runtime
-  - KV cache           stateless prefill (Qwen3.5 hybrid attention rejects DynamicCache)
-  - --disable_fusion   MHA fusion only works for static seq + INT8 weights
-  - --bias_as_int32    INT8 bias overflow guard
-  - partition override Softmax + TopK forced to CPU
-  - Scratch 16 MiB / dynamic tensor 64 MiB / single NPU context
-  - W4A16              per-channel INT4 weights, FP16 activations
+What WE handle (clean ONNX for QAI Hub):
+  - RoPE fold          precompute cos/sin to FP16 tables (Hexagon has no FP16 Sin/Cos)
+  - M-RoPE shape fix   bypass 5D/4D cat mismatch from interleaved M-RoPE
+  - Static shapes      batch=1, MAX_SEQ_LEN compile-time (Hexagon requires static dims)
+  - Stateless prefill  use_cache=False (Qwen3.5 hybrid attention rejects DynamicCache)
+
+What QAI Hub handles (we just specify device + quantization):
+  - Quantization (W4A16), fusion, bias scaling, partitioning, scratch/tensor sizing
 
 Required env (HF Jobs injects via --secrets or -e):
     HF_TOKEN              HuggingFace write token (Mer0vin8ian)
@@ -41,8 +40,6 @@ Optional env:
     OUTPUT_DIR            default /tmp
     HF_OUTPUT_REPO        default Mer0vin8ian/qwen3-5-9b-npu-sm8750
     QAI_HUB_DEVICE        default "Snapdragon 8 Elite"
-    CALIB_TOKENS          default 10000
-    CALIB_DATASET         default wikitext-2-raw-v1
     PUBLISH_HF            "1" to upload artifact after compile
     SKIP_VISION           "1" to export decoder-only (text, no vision inputs)
     SKIP_EXPORT           "1" to re-download a previous job (requires JOB_ID)
@@ -51,7 +48,7 @@ Optional env:
 Run on HF Jobs (cpu-xl, ~$1/hr, 124GB RAM — no GPU needed, compile is server-side):
     hf jobs uv run --flavor cpu-xl --timeout 2h \\
         --with torch --with transformers --with onnx --with onnxruntime \\
-        --with onnxscript --with qai-hub --with datasets --with numpy \\
+        --with onnxscript --with qai-hub --with numpy \\
         --with huggingface_hub --with accelerate \\
         --secrets HF_TOKEN -e QAI_HUB_API_TOKEN=$QAI_HUB_API_TOKEN \\
         -e MODEL_ID=Mer0vin8ian/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \\
@@ -60,7 +57,6 @@ Run on HF Jobs (cpu-xl, ~$1/hr, 124GB RAM — no GPU needed, compile is server-s
 
 import os
 import sys
-import json
 import subprocess
 
 # -- env -----------------------------------------------------------------------
@@ -72,8 +68,6 @@ MAX_SEQ_LEN    = int(os.environ.get("MAX_SEQ_LEN", "4096"))
 OUTPUT_DIR     = os.environ.get("OUTPUT_DIR", "/tmp")
 HF_OUTPUT_REPO = os.environ.get("HF_OUTPUT_REPO", "Mer0vin8ian/qwen3-5-9b-npu-sm8750")
 QAI_HUB_DEVICE = os.environ.get("QAI_HUB_DEVICE", "Snapdragon 8 Elite")
-CALIB_TOKENS   = int(os.environ.get("CALIB_TOKENS", "10000"))
-CALIB_DATASET  = os.environ.get("CALIB_DATASET", "wikitext-2-raw-v1")
 PUBLISH_HF     = os.environ.get("PUBLISH_HF", "0") == "1"
 SKIP_VISION    = os.environ.get("SKIP_VISION", "0") == "1"
 SKIP_EXPORT    = os.environ.get("SKIP_EXPORT", "0") == "1"
@@ -89,12 +83,12 @@ if SKIP_VISION:
     print("          SKIP_VISION=1 — text-only decoder export (no vision inputs)")
 
 # -- deps ----------------------------------------------------------------------
-print("[0/9] Installing dependencies ...")
+print("[0/7] Installing dependencies ...")
 subprocess.check_call([
     sys.executable, "-m", "pip", "install", "-q",
     "torch>=2.3.0", "transformers>=4.51.0", "onnx>=1.16.0",
     "onnxruntime", "onnxscript", "qai-hub>=0.28.0",
-    "huggingface_hub", "datasets", "accelerate",
+    "huggingface_hub", "accelerate",
 ])
 
 import torch
@@ -175,25 +169,10 @@ def assert_no_trig(onnx_path, stage_label):
     print(f"      [{stage_label}] ONNX OK — 0 Sin/Cos, {len(m.graph.node)} nodes total")
 
 
-def write_partition_override(path):
-    partition = {
-        "partition_overrides": [
-            {"op_types": ["Softmax"], "target": "CPU"},
-            {"op_types": ["TopK"],    "target": "CPU"},
-        ]
-    }
-    with open(path, "w") as f:
-        json.dump(partition, f, indent=2)
-
-
 COMPILE_OPTIONS_BASE = " ".join([
     "--target_runtime qnn_context_binary",
     "--quantize_full_type w4a16",
     "--quantize_weight_bits 4",
-    "--disable_fusion",
-    "--bias_as_int32",
-    "--scratch_size_mib 16",
-    "--max_dynamic_tensor_size_mib 64",
 ])
 
 
@@ -251,13 +230,12 @@ if SKIP_EXPORT:
 
 
 # -- Step 1: load model --------------------------------------------------------
-print(f"[1/9] Loading {MODEL_ID} (FP16, CPU) ...")
-from transformers import AutoConfig, AutoTokenizer
+print(f"[1/7] Loading {MODEL_ID} (FP16, CPU) ...")
+from transformers import AutoConfig
 import transformers as _tf
 
-config    = AutoConfig.from_pretrained(MODEL_ID, token=HF_TOKEN, trust_remote_code=False)
-tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, token=HF_TOKEN, trust_remote_code=False)
-text_cfg  = getattr(config, "text_config", config)
+config   = AutoConfig.from_pretrained(MODEL_ID, token=HF_TOKEN, trust_remote_code=False)
+text_cfg = getattr(config, "text_config", config)
 
 LOAD_KW = dict(
     torch_dtype=torch.float16, device_map="cpu", low_cpu_mem_usage=True,
@@ -335,12 +313,8 @@ elif not SKIP_VISION:
     print("          Set SKIP_VISION=1 for text-only, or check model config")
     sys.exit(1)
 
-PARTITION_JSON = os.path.join(OUTPUT_DIR, "partition_override.json")
-write_partition_override(PARTITION_JSON)
-
-
 # -- Step 2: RoPE fold ---------------------------------------------------------
-print("[2/9] Folding RoPE on language decoder ...")
+print("[2/7] Folding RoPE on language decoder ...")
 cos_table, sin_table = build_rope_cache(HEAD_DIM, ROPE_THETA, MAX_SEQ_LEN, ROPE_SCALING)
 patched = patch_rope(decoder_module, cos_table, sin_table, "decoder")
 if patched == 0:
@@ -348,7 +322,7 @@ if patched == 0:
 
 
 # -- Step 2.5: Module-level apply_rotary_pos_emb patch (M-RoPE 5D/4D fix) ------
-print("[2.5/9] Patching apply_rotary_pos_emb at module level ...")
+print("[2.5/7] Patching apply_rotary_pos_emb at module level ...")
 import transformers.models.qwen3_5.modeling_qwen3_5 as _qm35
 
 _ARP_COS = cos_table
@@ -377,7 +351,7 @@ print(f"      apply_rotary_pos_emb -> precomputed [1,1,S,{HEAD_DIM}] FP16 Gather
 
 
 # -- Step 3: static-shape wrapper ----------------------------------------------
-print("[3/9] Building static-shape wrapper ...")
+print("[3/7] Building static-shape wrapper ...")
 
 
 class UnifiedWrapper(torch.nn.Module):
@@ -425,12 +399,12 @@ amask = torch.ones((1, MAX_SEQ_LEN),  dtype=torch.int64)
 pos   = torch.arange(MAX_SEQ_LEN, dtype=torch.int64).unsqueeze(0)
 
 if SKIP_VISION:
-    print(f"[4/9] Exporting text-only decoder -> {ONNX_MODEL} ...")
+    print(f"[4/7] Exporting text-only decoder -> {ONNX_MODEL} ...")
     wrapped = TextOnlyWrapper(decoder_module).eval()
     dummy_inputs = (ids, amask, pos)
     input_names  = ["input_ids", "attention_mask", "position_ids"]
 else:
-    print(f"[4/9] Exporting unified model (text + vision) -> {ONNX_MODEL} ...")
+    print(f"[4/7] Exporting unified model (text + vision) -> {ONNX_MODEL} ...")
     pixel_values   = torch.zeros((NUM_PATCHES, PATCH_DIM), dtype=torch.float16)
     image_grid_thw = torch.tensor([[GRID_T, GRID_H, GRID_W]], dtype=torch.int64)
     print(f"      pixel_values: {list(pixel_values.shape)}, "
@@ -451,54 +425,23 @@ onnx_size_mb = os.path.getsize(ONNX_MODEL) // 1024 // 1024
 print(f"      ONNX size: {onnx_size_mb} MB")
 
 
-# -- Step 5: PTQ calibration data ----------------------------------------------
-print(f"[5/9] Building calibration set ({CALIB_TOKENS} tokens) ...")
-import numpy as np
-CALIB_CHUNK = min(MAX_SEQ_LEN, 1024)
-calib_ids = []
-try:
-    from datasets import load_dataset
-    ds = load_dataset("wikitext", CALIB_DATASET, split="train", streaming=True)
-    buf = []
-    for row in ds:
-        t = row.get("text", "").strip()
-        if not t: continue
-        buf.extend(tokenizer(t, add_special_tokens=False)["input_ids"])
-        if len(buf) >= CALIB_TOKENS: break
-    for start in range(0, min(len(buf), CALIB_TOKENS) - CALIB_CHUNK, CALIB_CHUNK):
-        calib_ids.append(buf[start:start + CALIB_CHUNK])
-except Exception as e:
-    print(f"      [warn] dataset failed ({e}); using synthetic tokens")
-    rng = np.random.default_rng(0)
-    for _ in range(max(1, CALIB_TOKENS // CALIB_CHUNK)):
-        calib_ids.append(rng.integers(0, VOCAB, size=CALIB_CHUNK).tolist())
-
-calib_padded = []
-for chunk in calib_ids[:32]:
-    padded = chunk + [0] * (MAX_SEQ_LEN - len(chunk))
-    calib_padded.append(padded[:MAX_SEQ_LEN])
-CALIB_NPZ = os.path.join(OUTPUT_DIR, "calib_qwen3_5_9b.npz")
-np.savez(CALIB_NPZ, input_ids=np.array(calib_padded, dtype=np.int64))
-print(f"      {len(calib_padded)} rows x {MAX_SEQ_LEN} tokens")
-
-
-# -- Step 6: QAI Hub compile ---------------------------------------------------
-print("[6/9] Submitting QAI Hub compile job ...")
+# -- Step 5: QAI Hub compile ---------------------------------------------------
+print("[5/7] Submitting QAI Hub compile job ...")
 
 compile_name = "qwen3_5_9b_unified_compile"
-extra = f"--max_seq_len {MAX_SEQ_LEN} --partition_overrides {PARTITION_JSON}"
-job = submit_qai_hub_compile(ONNX_MODEL, compile_name, extra_options=extra)
+job = submit_qai_hub_compile(ONNX_MODEL, compile_name,
+    extra_options=f"--max_seq_len {MAX_SEQ_LEN}")
 
 
-# -- Step 7: download ----------------------------------------------------------
-print("[7/9] Downloading compiled artifact ...")
+# -- Step 6: download ----------------------------------------------------------
+print("[6/7] Downloading compiled artifact ...")
 download_target_model(job, OUT_BIN)
 verify_dsp_placement(job, "unified")
 
 
-# -- Step 8: publish -----------------------------------------------------------
+# -- Step 7: publish -----------------------------------------------------------
 if PUBLISH_HF:
-    print(f"[8/9] Publishing -> {HF_OUTPUT_REPO} ...")
+    print(f"[7/7] Publishing -> {HF_OUTPUT_REPO} ...")
     api = HfApi(token=HF_TOKEN)
     api.create_repo(HF_OUTPUT_REPO, repo_type="model", exist_ok=True, private=True)
     repo_filename = "qwen3_5_9b_unified.bin"
@@ -510,10 +453,10 @@ if PUBLISH_HF:
     )
     print(f"      -> https://huggingface.co/{HF_OUTPUT_REPO}/blob/main/{repo_filename}")
 else:
-    print("[8/9] PUBLISH_HF!=1 — skipping upload")
+    print("[7/7] PUBLISH_HF!=1 — skipping upload")
 
 
-# -- Step 9: summary -----------------------------------------------------------
+# -- summary -------------------------------------------------------------------
 print()
 print("=" * 64)
 print(f"Artifact ready: {OUT_BIN}")
