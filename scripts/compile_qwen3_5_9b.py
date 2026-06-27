@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 """
-compile_qwen3_5_9b.py — Qwen/Qwen3.5-9B (multimodal) → Hexagon HTP NPU binaries
+compile_qwen3_5_9b.py — Qwen3.5-9B (deepstack multimodal) → Hexagon HTP NPU binary
 
-PRIMARY TARGET. First-ever compile of the Qwen3.5-9B native-multimodal architecture
-to Snapdragon 8 Elite Hexagon HTP. Produces three paired NPU artifacts:
+PRIMARY TARGET. First-ever compile of the Qwen3.5-9B architecture to Snapdragon
+8 Elite Hexagon HTP. The model uses **deepstack vision injection** (image
+features injected at specific decoder layers per vision_config.deepstack_visual_indexes),
+NOT a traditional vision_encoder→projection→prepend pipeline. The language
+decoder IS the multimodal artifact; vision is a runtime adapter pathway handled
+by the genie_engine daemon (pre-computed image embeddings injected at decode time).
 
-    qwen3_5_9b_vision_encoder.bin    — vision tower (image patches → embeddings)
-    qwen3_5_9b_projection.bin        — vision→language adapter (embeddings → token space)
-    qwen3_5_9b_language_decoder.bin  — autoregressive text decoder + cross-attn
+Default produces:
+    qwen3_5_9b_language_decoder.bin   (the model, fully multimodal-capable)
 
-At runtime the genie_engine daemon orchestrates all three via QnnTensorCopy between
-NPU contexts, exactly as the qai_hub_models qwen3_vl partition pattern does.
+SKIP_VISION=0 path (experimental, deprecated for Qwen3.5):
+    qwen3_5_9b_vision_encoder.bin    — only useful if a separate vision encoder
+    qwen3_5_9b_projection.bin          export is wanted; for Qwen3.5 this is NOT
+                                       how the model runs at inference time.
 
 Sources of truth (do not paraphrase elsewhere):
   • wiki/GPT-OSS-Reference.md         — Hexagon failure modes + mitigations
-  • wiki/EDGE-MODEL-LISTS.md          — model identity (Qwen3.5-9B primary, NOT VL-8B)
+  • wiki/EDGE-MODEL-LISTS.md          — model identity (Qwen3.5-9B primary)
   • models/manifest.yaml              — build order, target devices, expected sizes
 
-Hexagon constraints applied (per GPT-OSS reference, §1-§3):
+Hexagon constraints applied (per GPT-OSS reference):
   • RoPE fold          precompute cos/sin to FP16 tables, replace rotary with Gather
                        (no FP16 Sin/Cos kernel on Hexagon → graph-build abort otherwise)
   • Pre-LN rewrite     post-LN with FP16 gamma/beta rejected by Hexagon LayerNorm kernel
@@ -28,34 +33,33 @@ Hexagon constraints applied (per GPT-OSS reference, §1-§3):
   • --bias-as-int32    INT8 bias overflow guard
   • partition override Softmax + TopK forced to CPU
   • Scratch 16 MiB / dynamic tensor 64 MiB / single NPU context
-  • W4A16              per-channel INT4 weights, FP16 activations (matches
-                       Qwen3.5-9B FP16 training distribution)
+  • W4A16              per-channel INT4 weights, FP16 activations
 
 Required env (HF Jobs injects via --secrets):
     HF_TOKEN              HuggingFace write token (Mer0vin8ian)
     QAI_HUB_API_TOKEN     Qualcomm AI Hub token
 
 Optional env:
-    MODEL_ID              default Qwen/Qwen3.5-9B
+    MODEL_ID              default Mer0vin8ian/Qwen3.5-9B (user's duplicate)
     MAX_SEQ_LEN           default 4096
     OUTPUT_DIR            default /tmp
     HF_OUTPUT_REPO        default Mer0vin8ian/qwen3-5-9b-npu-sm8750
     QAI_HUB_DEVICE        default "Snapdragon 8 Elite"
     CALIB_TOKENS          default 10000
     CALIB_DATASET         default wikitext-2-raw-v1
-    PUBLISH_HF            "1" to upload all three artifacts after compile
-    SKIP_VISION           "1" to compile language-decoder only (debug fallback)
+    PUBLISH_HF            "1" to upload artifact(s) after compile
+    SKIP_VISION           "1" (default for Qwen3.5 deepstack) — compile decoder only
     SKIP_EXPORT           "1" to re-download a previous job (requires JOB_ID*)
     JOB_ID_VISION         re-download id for vision encoder
     JOB_ID_PROJECTION     re-download id for projection
     JOB_ID_DECODER        re-download id for language decoder
 
-Run on HF Jobs (cpu-xl, ~$1/hr, 124GB RAM — no GPU needed, compile is server-side):
+Run on HF Jobs (cpu-xl, ~$1/hr, ~30-40 min):
     hf jobs uv run --flavor cpu-xl --timeout 2h \\
         --with torch --with transformers --with onnx --with onnxruntime --with onnxscript \\
         --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \\
         --secrets HF_TOKEN --secrets QAI_HUB_API_TOKEN \\
-        -e MODEL_ID=Qwen/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \\
+        -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp -e SKIP_VISION=1 \\
         https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
 """
 
@@ -68,7 +72,7 @@ import subprocess
 HF_TOKEN  = os.environ.get("HF_TOKEN")          or sys.exit("[qwen3_5] Set HF_TOKEN")
 QAI_TOKEN = os.environ.get("QAI_HUB_API_TOKEN") or sys.exit("[qwen3_5] Set QAI_HUB_API_TOKEN")
 
-MODEL_ID       = os.environ.get("MODEL_ID", "Qwen/Qwen3.5-9B")
+MODEL_ID       = os.environ.get("MODEL_ID", "Mer0vin8ian/Qwen3.5-9B")
 MAX_SEQ_LEN    = int(os.environ.get("MAX_SEQ_LEN", "4096"))
 OUTPUT_DIR     = os.environ.get("OUTPUT_DIR", "/tmp")
 HF_OUTPUT_REPO = os.environ.get("HF_OUTPUT_REPO", "Mer0vin8ian/qwen3-5-9b-npu-sm8750")
@@ -90,7 +94,7 @@ OUT_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.bin")
 OUT_DECODER    = os.path.join(OUTPUT_DIR, "qwen3_5_9b_language_decoder.bin")
 
 print(f"[qwen3_5] {MODEL_ID} -> {QAI_HUB_DEVICE} (Hexagon HTP), max_seq_len={MAX_SEQ_LEN}")
-print(f"[qwen3_5] outputs: vision_encoder | projection | language_decoder")
+print(f"[qwen3_5] deepstack vision mode: SKIP_VISION={SKIP_VISION} (1=recommended for Qwen3.5)")
 
 # deps
 print("[0/11] Installing dependencies ...")
@@ -352,7 +356,7 @@ print(f"      projection:       {projection_path or 'NOT FOUND'}")
 print(f"      language_decoder: {decoder_path or 'NOT FOUND'}")
 
 if SKIP_VISION:
-    print("      SKIP_VISION=1 -> compiling language decoder only (debug fallback)")
+    print("      SKIP_VISION=1 -> compiling language decoder only (correct path for Qwen3.5 deepstack)")
     if decoder_module is None:
         sys.exit("[qwen3_5] Could not locate language decoder")
 elif vision_module is None or projection_module is None or decoder_module is None:
@@ -456,6 +460,7 @@ if not SKIP_VISION:
             opset_version=17,
             do_constant_folding=True,
             export_params=True,
+            dynamo=False,
         )
     print(f"      vision encoder ONNX: {os.path.getsize(ONNX_VISION) // 1024 // 1024} MB")
 
@@ -475,6 +480,7 @@ if not SKIP_VISION:
             opset_version=17,
             do_constant_folding=True,
             export_params=True,
+            dynamo=False,
         )
     print(f"      projection ONNX: {os.path.getsize(ONNX_PROJECTION) // 1024 // 1024} MB")
 
@@ -517,6 +523,7 @@ with torch.no_grad():
         opset_version=17,
         do_constant_folding=True,
         export_params=True,
+        dynamo=False,
     )
 assert_no_trig(ONNX_DECODER, "decoder")
 
@@ -623,10 +630,11 @@ if PUBLISH_HF:
 else:
     print("  (artifacts kept locally - set PUBLISH_HF=1 next run to auto-upload)")
 print()
-print("On device - genie_engine daemon orchestrates all three contexts:")
+print("On device - genie_engine daemon orchestrates inference:")
 print(f"  DaemonLauncher.launch(genie_engine,")
-print(f"      --vision    qwen3_5_9b_vision_encoder.bin")
-print(f"      --proj      qwen3_5_9b_projection.bin")
+if not SKIP_VISION:
+    print(f"      --vision    qwen3_5_9b_vision_encoder.bin")
+    print(f"      --proj      qwen3_5_9b_projection.bin")
 print(f"      --decoder   qwen3_5_9b_language_decoder.bin")
 print(f"  ) -> 127.0.0.1:8080")
 print(f"  NpuClient -> POST /api/v1/generate -> SSE-JSON token stream")
