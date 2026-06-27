@@ -1,161 +1,303 @@
 # CLAUDE.md — Novus Agenti / Omni Claw
 
-> **SESSION KICKOFF RULE — NON-NEGOTIABLE:**
-> Read THIS FILE completely before any tool call, search, or edit.
-> Then read these in order, also completely:
->   1. `wiki/GPT-OSS-Reference.md` — Hexagon HTP constraints from the canonical Drive source. Every compile parameter is rooted here. Do NOT paraphrase this doc anywhere else.
->   2. `wiki/EDGE-MODEL-LISTS.md` — model identity (Qwen3.5-9B primary).
->   3. `models/manifest.yaml` — current build target + size envelope.
->   4. `wiki/SESSION{N}-HANDOFF.md` — latest handoff if present.
-> Slash command: type `/memory` in any Claude Code session to load full project context.
-> If a session-{N-1} handoff and this file disagree, this file wins; raise the conflict explicitly.
+> **RESUME PROMPT — COPY THIS BLOCK VERBATIM TO START ANY NEW SESSION**
+>
+> ```
+> Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
+> → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
+> Canonical repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+>
+> READ THESE IN ORDER BEFORE ANY ACTION:
+>   1. CLAUDE.md (full read, all sections)
+>   2. wiki/GPT-OSS-Reference.md (full read)
+>   3. wiki/EDGE-MODEL-LISTS.md
+>   4. models/manifest.yaml
+>   5. wiki/SESSION{N}-HANDOFF.md (latest N)
+>
+> Use /memory slash command to reload full project context.
+> After reading: state current SOTU, last job result, next action. Then wait.
+> Tokens: HF_TOKEN and QAI_HUB_API_TOKEN — ask user if not in env.
+> ```
 
 ---
 
-## What this is
+## /memory — Slash Command
 
-**Novus Agenti** — "the unprecedented driving force" — fully on-device agentic AI assistant for the Motorola Razr Ultra 2025 (Snapdragon 8 Elite SM8750, Adreno 830, Hexagon HTP v75). Inference runs on the NPU via a detached native daemon. No cloud LLM in the main app runtime. No CPU fallback. Cloud APIs (SambaNova, OpenRouter, etc.) ARE callable from the agent layer via `HttpFetch`; that's the neuromesh contract, not in-app inference.
+Type `/memory` in any Claude Code session to reload full project context.
 
-App package: `com.horizons` (pending rebrand). Codebase lives under the **Omni Claw** banner.
+**Sequence:**
+1. Read `CLAUDE.md` (this file, all sections)
+2. Read `wiki/GPT-OSS-Reference.md`
+3. Read `wiki/EDGE-MODEL-LISTS.md`
+4. Read `models/manifest.yaml`
+5. Read latest `wiki/SESSION{N}-HANDOFF.md`
+6. Produce a SOTU summary and confirm next action before touching any file
 
-**Project identity:** Novus Agenti · Omni Claw · Cl0vis × Mer0vin6ian production.
+**Use it whenever:** session is new, context is stale, or re-anchoring is needed.
+
+---
+
+## Order of Operations — Non-Negotiable
+
+Every session, every sub-agent, every new context:
+
+1. **Read** — the five files above, in order, completely
+2. **State** — current SOTU and next action
+3. **Act** — fan out parallel work only after confirming read is done
+4. **Document** — before ending: update SOTU in this file, write `wiki/SESSION{N+1}-HANDOFF.md`
+
+If this file and a handoff disagree, **this file wins**. Raise the conflict explicitly.
+
+---
+
+## Cache Prompting + Sub-Agent Rules
+
+### When to spawn
+- Open-ended exploration spanning more than 3 files → `Explore` agent
+- Independent background research that doesn't block current work → background agent
+- Any task finishable inline in under 3 tool calls → do NOT spawn
+
+### How to brief every sub-agent
+Every sub-agent prompt must include:
+- Repo: `c10vis-poem/Novus-Agenti`, branch `claude/project-scope-review-lf615p`
+- Instruction to read CLAUDE.md before acting
+- The exact task (not open-ended)
+- What NOT to do (no commits to main, no pushing other branches)
+- Where to put output
+
+**Template:**
+```
+Repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+Read CLAUDE.md fully before anything else.
+Task: [SPECIFIC TASK].
+Output: [LOCATION].
+Do NOT commit to main. Do NOT push to any branch other than claude/project-scope-review-lf615p.
+```
+
+### Context budget rules
+- Do NOT re-read files already read this session
+- Do NOT re-derive decisions already in CLAUDE.md
+- Do NOT spawn an agent to do work finishable in under 3 inline tool calls
+- If a prior session's sub-agent output is in `tasks/`, read it before re-researching the same topic
+- Parallel agents must operate on **different files** — same-file concurrent pushes cause conflicts
+
+### Deferred tools
+Tools requiring ToolSearch before use: `mcp__github__*`, `TaskCreate`, `TaskUpdate`, `WebFetch`, `WebSearch`. Fetch schema once per session, do not re-fetch.
+
+---
+
+## What This Is
+
+**Novus Agenti** — "the unprecedented driving force" — fully on-device agentic AI assistant for the Motorola Razr Ultra 2025 (Snapdragon 8 Elite SM8750, Adreno 830, Hexagon HTP v75). Inference runs on the NPU via a detached native daemon. No cloud LLM in the main app runtime. No CPU fallback. Cloud APIs (SambaNova, OpenRouter, etc.) are callable from the agent layer via `HttpFetch` — that is the neuromesh contract.
+
+App package: `com.horizons` (pending rebrand). Codebase: **Omni Claw** banner.
+
+**Identity:** Novus Agenti · Omni Claw · Cl0vis × Mer0vin6ian production.
 **HuggingFace:** `Mer0vin8ian` · **Personal GitHub:** `c10vis-poem` · **Org GitHub:** `M0DU14R-SYSx-inc`.
 
-## Repo policy — non-negotiable
+---
 
-- **`c10vis-poem/Novus-Agenti`** — THE canonical repo. All commits, all pushes, all CI, all artifacts go here. Repo name has a **hyphen** (`Novus-Agenti`), not a dot.
-- **`M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti`** — REFERENCE-ONLY. Never push, commit, or modify. Treat as archived.
+## Repo Policy — Non-Negotiable
+
+- **`c10vis-poem/Novus-Agenti`** — THE canonical repo. All commits, pushes, CI, artifacts go here. Hyphen in name (`Novus-Agenti`), not a dot.
+- **`M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti`** — REFERENCE-ONLY. Never push, commit, or modify.
 - Working branch: `claude/project-scope-review-lf615p`. PR #4 tracks it.
 
 ---
 
-## Single-path architecture
+## Single-Path Architecture
 
-There is **one model, one runtime, one pipeline.** No tracks, no placeholders, no fallbacks.
+One model, one runtime, one pipeline. No tracks, no placeholders, no fallbacks.
 
 | Layer | What | Status |
 |---|---|---|
-| **Model** | `Mer0vin8ian/Qwen3.5-9B` (user's duplicate of `Qwen/Qwen3.5-9B`) | 9.65B params. `qwen3_5` arch. Apache 2.0. Multimodal natively via **deepstack vision injection** — vision tokens injected at decoder layers specified by `vision_config.deepstack_visual_indexes`, NOT prepended through a separate encoder stage. |
-| **Compile output** | `Mer0vin8ian/qwen3-5-9b-npu-sm8750/qwen3_5_9b_language_decoder.bin` (QAI Hub `qnn_context_binary`) | **Job 8 pending** — M-RoPE shape fix applied (commit `2af893b`). Jobs 6+7 failed at ONNX export with `got 5 and 4` dim error. |
-| **Runtime** | **`ort_engine`** daemon — ONNX Runtime + QNN Execution Provider on aarch64-android | binary not yet built. ORT not Genie: the `.bin` is a `qnn_context_binary` which ORT+QNN-EP loads directly. |
-| **Daemon launch** | `DaemonLauncher.kt` → `sh -T-` detach + root `oom_score_adj=-1000` + `NpuManager.acquirePerformanceLock(PERF_MODE_HIGH)` (Android 13+, API 33) | partial — `DaemonLauncher` exists, `NpuManager` lock NOT yet wired. |
-| **Game SDK boost** | `<uses-feature android:name="android.hardware.game" android:required="true"/>` + `GameManager.setGameMode(GameMode.PERFORMANCE)` at `Application.onCreate` | partial — manifest has `appCategory` + `isGame` on PR #3, missing `uses-feature` and SDK call wiring. |
-| **Daemon guardian** | `CliffordService` FGS — CLIFFORD and Watchdog are THE SAME daemon. `:clifford` process, `START_STICKY`, `specialUse` FGS type, 15s CRS recovery loop on daemon PID. | committed on PR #3. Watchdog module should fold into Clifford or be deleted. |
-| **Bridge** | `NpuClient.kt` → `POST http://127.0.0.1:8080/api/v1/generate` → SSE-JSON token stream | committed on PR #3. |
-| **Agent layer** | `AgentLoop` + 22 tools (20 Android + `HttpFetch` for cloud APIs + `WebSearch`) | committed on PR #3. |
+| **Model** | `Mer0vin8ian/Qwen3.5-9B` — 9.65B params, `qwen3_5` arch, Apache 2.0. Multimodal via **deepstack vision injection** at decoder layers (`vision_config.deepstack_visual_indexes`). NOT a separate encoder pipeline. | Source on HF Hub |
+| **ONNX export** | `scripts/compile_qwen3_5_9b.py` on HF Jobs `cpu-xl` | M-RoPE fix committed (`2af893b`). Job 8 pending. |
+| **QAI Hub compile** | ONNX → `qnn_context_binary` (W4A16) server-side. QAI Hub owns quantization, partitioning, hardware optimization. We provide clean ONNX. | Job 8 pending |
+| **Compile output** | `Mer0vin8ian/qwen3-5-9b-npu-sm8750/*.bin` | Job 8 pending |
+| **Runtime: `ort_engine`** | ONNX Runtime + QNN Execution Provider on aarch64-android. Loads `qnn_context_binary`, manages QNN context, serves `POST http://127.0.0.1:8080/api/v1/generate` → SSE-JSON. | Not yet built |
+| **Daemon launch** | `DaemonLauncher.kt` → `sh -T-` detach + root `oom_score_adj=-1000` + `NpuManager.acquirePerformanceLock(PERF_MODE_HIGH)` | `NpuManager` lock not yet wired |
+| **Game SDK boost** | `GameManager.setGameMode(GameMode.PERFORMANCE)` at `Application.onCreate` + `<uses-feature android:name="android.hardware.game"/>` | Not yet wired |
+| **Daemon guardian** | `CliffordService` FGS — CLIFFORD == Watchdog. `START_STICKY`, `specialUse` FGS type, 15s CRS recovery loop on daemon PID. | Committed on PR #3 |
+| **Bridge** | `NpuClient.kt` → `POST http://127.0.0.1:8080/api/v1/generate` | Committed on PR #3 |
+| **Agent layer** | `AgentLoop` + 22 tools (20 Android + `HttpFetch` + `WebSearch`) | Committed on PR #3 |
 
-### Size envelope (hard caps)
+---
+
+## Size Envelope (Hard Caps)
 
 | | Size | Notes |
 |---|---|---|
-| Target | **5.5 GB** | what we shoot for |
-| Ideal ceiling | 6.0 GB | acceptable |
-| Redline | **7.0–7.2 GB** | non-negotiable; refuse anything over |
-| Achieved at W4A16 | ~5.0 GB weights + 300 MB metadata + ~512 MB KV cache (max_seq=4096) = **~5.7 GB** total | ✓ inside ideal |
-| At max_seq=2048 | ~5.4 GB | ✓ inside target |
+| Target | **5.5 GB** | Shoot for this |
+| Ideal ceiling | 6.0 GB | Acceptable |
+| Redline | **7.0–7.2 GB** | Non-negotiable; refuse anything over |
+| W4A16 at max_seq=4096 | ~5.7 GB total | ✓ inside ideal |
+| W4A16 at max_seq=2048 | ~5.4 GB total | ✓ inside target |
 
-### Quantization
+**Quantization:** W4A16 — INT4 per-channel weights, FP16 activations.
 
-**W4A16** — INT4 per-channel weights, FP16 activations. FP16 matches Hexagon HTP native datatype. INT4 weights fit inside the 7 GB redline.
+---
 
-### Hexagon HTP constraints (per `wiki/GPT-OSS-Reference.md`)
+## Hexagon HTP Constraints (per `wiki/GPT-OSS-Reference.md`)
 
-Applied at compile time in `scripts/compile_qwen3_5_9b.py`:
-- **RoPE fold** — precompute cos/sin to FP16 lookup tables, replace rotary with Gather (no FP16 `Sin`/`Cos` kernel on Hexagon → graph-build abort). Two-pronged: `patch_rope` replaces `rotary_emb.forward`; `_patched_apply_rotary_pos_emb` patched at module level to bypass M-RoPE 5D/4D shape issue.
-- **Pre-LN rewrite** — post-LN with FP16 γ/β rejected.
-- **GELU tanh approximation** — no FP16 `erf`.
-- **Static shapes** — batch=1, MAX_SEQ_LEN compile-time; runtime valid-length scalar.
-- **KV cache pre-allocated at MAX_SEQ_LEN** — `QnnTensorUpdate` is buggy >4 MiB.
-- **`--disable_fusion`** — MHA fusion only works for static seq + INT8 weights.
-- **`--bias-as-int32`** — INT8 bias overflow guard.
-- **`partition_override.json`** — Softmax + TopK forced to CPU.
-- **`--scratch_size_mib 16`** + **`--max_dynamic_tensor_size_mib 32`**.
-- **Single NPU context per daemon** — `QNN_GRAPH_CONFIG_MAX_CONTEXTS=1`.
-- **Stateless prefill** — `use_cache=False` in `HtpDecodeWrapper`. Qwen3.5 hybrid attention rejects `DynamicCache`.
+All applied at compile time in `scripts/compile_qwen3_5_9b.py`.
+
+| Constraint | Why | Applied as |
+|---|---|---|
+| **RoPE fold** | No FP16 Sin/Cos kernel on Hexagon → graph-build abort | Two-pronged: `make_folded_rope_forward` returns `[B,S,D]`; `_patched_apply_rotary_pos_emb` at module level bypasses M-RoPE 5D/4D shape issue |
+| **Static shapes** | Hexagon requires compile-time static dims | batch=1, MAX_SEQ_LEN fixed; valid-length scalar at runtime |
+| **KV cache pre-alloc** | `QnnTensorUpdate` buggy >4 MiB | Pre-allocated at MAX_SEQ_LEN |
+| **`--disable_fusion`** | MHA fusion only works static seq + INT8 weights | Flag in `COMPILE_OPTIONS_BASE` |
+| **`--bias_as_int32`** | INT8 bias overflow | Flag in `COMPILE_OPTIONS_BASE` |
+| **Softmax + TopK → CPU** | No FP16 NPU kernel | `partition_override.json` |
+| **Scratch: 16 MiB** | Attention score matrix budget | `--scratch_size_mib 16` |
+| **Dynamic tensor: 64 MiB** | Canonical GPT-OSS value. The dual-core soft-cap-at-32 hypothesis is **unverified** — needs empirical testing before reducing. | `--max_dynamic_tensor_size_mib 64` |
+| **Single NPU context** | Serialize inference, avoid public QNN 2-context cap | `QNN_GRAPH_CONFIG_MAX_CONTEXTS=1` |
+| **Stateless prefill** | Qwen3.5 hybrid attention rejects `DynamicCache` | `use_cache=False` in `HtpDecodeWrapper` |
+
+---
+
+## Android App Behavior / Battery Rules
+
+**Source:** `wiki/GPT-OSS-Reference.md` §6 — do not paraphrase elsewhere.
+
+### NpuManager Performance Lock (API 33+)
+
+```kotlin
+// CliffordService.kt — acquire before inference, release when done
+val npuManager = getSystemService(NpuManager::class.java)
+val lock = npuManager.acquirePerformanceLock(NpuManager.PERF_MODE_HIGH)
+// ... inference ...
+lock.release()
+```
+
+**Status: NOT wired into `CliffordService.kt`. PENDING.**
+
+### Game SDK Performance Mode
+
+```kotlin
+// HorizonsApplication.kt — call in Application.onCreate()
+val gameManager = GameManager.getInstance(this)
+gameManager.setGameMode(GameMode.PERFORMANCE)
+```
+
+**Status: NOT wired into `HorizonsApplication.kt`. PENDING.**
+
+### Manifest Entries (both required)
+
+```xml
+<uses-feature android:name="android.hardware.game" android:required="true" />
+<uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
+
+<service
+    android:name=".CliffordService"
+    android:exported="false"
+    android:foregroundServiceType="specialUse" />
+```
+
+**Status: `uses-feature` + `HIGH_PERFORMANCE` NOT in manifest. PENDING.**
+
+### Key Rule
+
+Game SDK gives scheduler boost for UI processes only. Android restricted mode disables the GPU-boost flag for non-UI daemons. The NPU still runs, but GPU sub-graphs throttle to background frequency. **Both** `NpuManager.acquirePerformanceLock` AND the Game SDK boost are required together.
+
+### FGS + Daemon Lifecycle
+
+```
+HorizonsApplication.onCreate()
+  → GameManager.setGameMode(PERFORMANCE)             [TODO]
+  → startForegroundService(CliffordService)
+
+CliffordService.onStartCommand()
+  → startForeground(NOTIFICATION_ID, ...)            [FGS sticky, specialUse]
+  → DaemonLauncher.launch(ort_engine)
+    → NpuManager.acquirePerformanceLock(HIGH)        [TODO]
+    → sh -T- detach + oom_score_adj=-1000
+  → 15s CRS recovery loop watching ort_engine PID
+
+ort_engine (aarch64-android)
+  → ONNX Runtime + QNN EP loads qnn_context_binary
+  → HTTP server at 127.0.0.1:8080
+
+NpuClient.kt → POST /api/v1/generate → SSE-JSON
+```
 
 ---
 
 ## State of the Union — 2026-06-27 (session 8)
 
-### Job history
+### Done
+- M-RoPE two-pronged shape fix committed (`2af893b`) — Jobs 6+7 root cause resolved
+- `wiki/GPT-OSS-Reference.md` committed and fully cross-referenced
+- `wiki/EDGE-MODEL-LISTS.md` committed
+- `models/manifest.yaml` committed
+- Full Android app in PR #3 (53 .kt files, CliffordService FGS, NpuClient, AgentLoop, 22 tools)
+- PR #4 open tracking this branch
+- `--max_dynamic_tensor_size_mib` restored to 64 MiB (canonical)
 
-| Job | Error | Fix applied |
-|---|---|---|
-| Jobs 1–4 | Various load/submodule errors | Resolved |
-| Job 5 | `ValueError: has_previous_state can only be called on LinearAttention` | Stateless prefill (`use_cache=False`) |
-| Jobs 6–7 | `RuntimeError: Tensors must have same number of dimensions: got 5 and 4` at `modeling_qwen3_5.py:603` | M-RoPE two-pronged shape fix (commit `2af893b`) |
-| **Job 8** | **pending** — trigger command below | — |
-
-### Root cause of Jobs 6+7 (documented for next session)
-
-`Qwen3_5TextRotaryEmbedding.forward` routes through `apply_interleaved_mrope`, returning `[3, B, S, D]` (4D). `apply_rotary_pos_emb` does `cos.unsqueeze(1)` → 5D. Multiply with 4D `q_rot` broadcasts to 5D `q_embed`. `cat([q_embed_5D, q_pass_4D])` → `got 5 and 4`.
-
-Fix: (1) `make_folded_rope_forward` returns `[B, S, D]` (3D) by indexing `cos_buf` with 2D `pos_2d`. (2) `apply_rotary_pos_emb` monkey-patched at module level — ignores cos/sin from `rotary_emb`, uses precomputed `[1,1,S,D]` tables broadcasting cleanly with `[B,H,S,D]` q/k.
-
-### Confirmed working
-- PR #4 open: https://github.com/c10vis-poem/Novus-Agenti/pull/4
-- `scripts/compile_qwen3_5_9b.py` — M-RoPE shape fix committed (`2af893b`).
-- `wiki/GPT-OSS-Reference.md` committed.
-- `wiki/EDGE-MODEL-LISTS.md` committed.
-- HF Hub source: `Mer0vin8ian/Qwen3.5-9B`.
-- Tokens: STATIC per user policy; user provides at session start; rotate after build ships.
-
-### Open work
-- `ort_engine` daemon binary — not yet built. Needs C++ aarch64-android (ONNX Runtime + QNN EP).
-- `NpuManager.acquirePerformanceLock(PERF_MODE_HIGH)` not wired into `CliffordService.kt`.
-- `GameManager.setGameMode(GameMode.PERFORMANCE)` not wired into `HorizonsApplication.kt`.
-- `<uses-feature android:name="android.hardware.game" android:required="true"/>` missing from `AndroidManifest.xml`.
-- `build-apk.yml` CI publish target — must repoint to `${{ github.repository }}`.
-- `Watchdog` module — fold into `CliffordService` or delete.
-- PRs #2 and #3 still need merging into `main`.
+### Pending — in order
+1. **Job 8** — trigger command below. Runs ~30–40 min on HF Jobs cpu-xl.
+2. **`ort_engine` C++ daemon** — build aarch64-android binary (ORT + QNN EP). Not yet scaffolded.
+3. **NpuManager lock** — wire into `CliffordService.kt`
+4. **GameManager.setGameMode** — wire into `HorizonsApplication.kt`
+5. **Manifest** — add `uses-feature` + `HIGH_PERFORMANCE` permission
+6. **`build-apk.yml`** — repoint release target to `${{ github.repository }}`
+7. **PRs #2 and #3** — merge into main
+8. **Watchdog module** — fold into CliffordService or delete
 
 ---
 
-## What was ripped out — do NOT reference these
+## Job Execution Log
 
-| Old | Replaced by | Notes |
-|---|---|---|
-| **Track 1 / Track 2 split** | single path | One model, one daemon, one path. |
-| **LiteRT / LiteRT-LM / `litertlm-android`** | ort_engine daemon | Removed. No in-process tensor runtime. |
-| **`Backend.GPU()` / `Backend.NPU()`** | NpuClient → ort_engine | Adreno 830 not used for inference; HTP only via daemon. |
-| **E2B / Gemma Nano placeholder** | nothing | Skipped. |
-| **Qwen3-VL-8B-Thinking as primary** | Qwen3.5-9B | User override 2026-06-27. VL-8B-Thinking is BACKUP only. |
-| **Qwen2.5-VL-7B as primary** | Qwen3.5-9B | Backup only. |
-| **3-artifact vision split** | single decoder `.bin` + deepstack runtime injection | Qwen3.5 deepstack: language decoder IS the multimodal artifact. Script still exports vision encoder + projection if multimodal submodules are found; SKIP_VISION=1 is documented but NOT set in the default trigger command. |
-| **`genie_engine` daemon** | `ort_engine` | ORT + QNN EP loads `qnn_context_binary` directly. No Genie SDK. |
-| **Separate `Watchdog` service** | folded into CliffordService | CLIFFORD === Watchdog. One daemon guardian. |
-| **Nexa SDK, OmniNeural, Moonshine, JitPack, SystemTtsClient** | dead | Pre-session-1 cleanup. |
-| **Cloud failover in app LLM** | HttpFetch agent tool | Cloud APIs via agent layer only. |
+| Session | Job | Error | Root Cause | Fix | Result |
+|---|---|---|---|---|---|
+| 1–4 | 1–4 | Various load/submodule errors | Iterative | Resolved | Done |
+| 5 | 5 | `ValueError: has_previous_state can only be called on LinearAttention` | Qwen3.5 hybrid attention rejects DynamicCache | `use_cache=False` in `HtpDecodeWrapper` | Done |
+| 6 | 6 | `RuntimeError: got 5 and 4` at `modeling_qwen3_5.py:603` | M-RoPE `apply_interleaved_mrope` returns `[3,B,S,D]`; `unsqueeze(1)` → 5D; cat with 4D q_pass fails | Two-pronged fix — commit `2af893b` | Done |
+| 7 | 7 | Same error | Prior fix returned 2D `[S,D]` → wrong unsqueeze result | Same commit covers it | Done |
+| **8** | **8** | **Pending** | — | — | **Ready** |
+
+### M-RoPE fix detail (for future sessions)
+
+**Prong 1:** `make_folded_rope_forward` returns `[B,S,D]` (3D) by indexing `cos_buf[pos_2d]` where `pos_2d` is `[B,S]`. After library's `unsqueeze(1)` → `[B,1,S,D]` which broadcasts cleanly with `[B,H,S,D]` q/k.
+
+**Prong 2:** `apply_rotary_pos_emb` patched at module level in `transformers.models.qwen3_5.modeling_qwen3_5` — ignores the `cos/sin` args entirely, uses precomputed `[1,1,S,D]` FP16 tables. No M-RoPE shape issues possible.
 
 ---
 
-## Compile pipeline (the mission)
-
-No Qwen3.5-9B NPU build targeting SM8750 HTP exists publicly. We are building it.
+## Compile Pipeline
 
 ```
-PyTorch (HF Jobs cpu-xl)  →  ONNX export (RoPE fold, stateless prefill, dynamo=False)
-                                                   │
-                                                   ▼
-                          QAI Hub upload  →  Compile (W4A16, --disable_fusion,
-                                              --bias_as_int32, 16/32 MiB caps)
-                                                   │
-                                                   ▼
-                          qnn_context_binary  →  Mer0vin8ian/qwen3-5-9b-npu-sm8750
-                                                   │
-                                                   ▼
-                          adb push  →  /storage/emulated/0/Download/
-                                                   │
-                                                   ▼
-                          ort_engine daemon (ONNX RT + QNN EP)  →  127.0.0.1:8080
-                                                   │
-                                                   ▼
-                          NpuClient (Kotlin)  →  agent layer + UI
+HF Jobs cpu-xl (~$1/hr, 124 GB RAM)
+  compile_qwen3_5_9b.py
+  → ONNX export (RoPE fold, stateless prefill, static shapes)
+                          │
+                          ▼
+          QAI Hub (server-side)
+          → ONNX → QNN convert
+          → W4A16 quantization
+          → Partition (matmuls→DSP, Softmax+TopK→CPU)
+          → qnn_context_binary
+                          │
+                          ▼
+          Mer0vin8ian/qwen3-5-9b-npu-sm8750  (HF Hub, private)
+          qwen3_5_9b_language_decoder.bin
+          qwen3_5_9b_vision_encoder.bin
+          qwen3_5_9b_projection.bin
+                          │
+                          ▼
+          adb push → /storage/emulated/0/Download/
+                          │
+                          ▼
+          ort_engine daemon (ORT + QNN EP, aarch64-android)
+          → loads qnn_context_binary
+          → http://127.0.0.1:8080/api/v1/generate
+                          │
+                          ▼
+          NpuClient.kt → AgentLoop + UI
 ```
 
-Primary host: HF Jobs `cpu-xl` (~$1/hr, 124 GB RAM, no GPU needed — compile is server-side at QAI Hub).
-
-### Trigger command (Job 8)
+### Job 8 Trigger Command
 
 ```
 hf jobs uv run --flavor cpu-xl --timeout 2h \
@@ -166,65 +308,74 @@ hf jobs uv run --flavor cpu-xl --timeout 2h \
   https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
 ```
 
-`SKIP_VISION` is NOT set — script attempts all three artifacts (vision encoder, projection, language decoder).
+`SKIP_VISION` is NOT set — all three artifacts attempted.
 
 ---
 
-## Key files
+## Complete File Listing
 
 ```
-horizons/src/main/java/com/horizons/
-  HorizonsApplication.kt                    app singleton
-  core/llm/LlmRuntime.kt                    interface
-  core/llm/NpuClient.kt                     LlmRuntime socket → ort_engine @ 127.0.0.1:8080
-  core/shell/DaemonLauncher.kt              sh -T- detach + root oom_score_adj -1000
-                                            TODO: NpuManager.acquirePerformanceLock(PERF_MODE_HIGH)
-  core/perf/GameModeBoost.kt                placeholder
-                                            TODO: GameManager.setGameMode(GameMode.PERFORMANCE)
-  core/agent/AgentLoop.kt                   22 tools; HttpFetch + WebSearch
-  core/agent/AgentNotificationListener.kt   notification shade read
-  core/state/AppStateStore.kt               encrypted KV (cloud tokens, model path, TTS)
-  fgs/CliffordService.kt                    daemon guardian + CRS 15s recovery (== Watchdog)
-  audio/ + accessibility/ + ui/             voice loop, dock, panes
+c10vis-poem/Novus-Agenti  (branch: claude/project-scope-review-lf615p)
 
-scripts/
-  compile_qwen3_5_9b.py                     PRIMARY compile pipeline — M-RoPE fix (commit 2af893b)
-
-wiki/
-  GPT-OSS-Reference.md                      Hexagon HTP failure modes — source of truth
-  EDGE-MODEL-LISTS.md                       model directory (Qwen3.5-9B primary)
-  SESSION{N}-HANDOFF.md                     per-session handoffs
+CLAUDE.md                                    ← THIS FILE
+README.md
 
 models/
-  manifest.yaml                             build order; Qwen3.5-9B primary, VL-8B + Gemma backups
+  manifest.yaml                              build order; Qwen3.5-9B primary
+
+scripts/
+  compile_qwen3_5_9b.py                      PRIMARY compile pipeline (commit 2af893b)
+  compile_qwen3_vl.py                        BACKUP (Qwen3-VL-8B)
+
+wiki/
+  GPT-OSS-Reference.md                       Hexagon HTP failure modes — source of truth
+  EDGE-MODEL-LISTS.md                        model directory
+  SESSION5-HANDOFF.md
+  SESSION6-HANDOFF.md
+
+horizons/src/main/java/com/horizons/
+  HorizonsApplication.kt                     app singleton
+  core/llm/LlmRuntime.kt                     interface
+  core/llm/NpuClient.kt                      socket → ort_engine @ 127.0.0.1:8080
+  core/shell/DaemonLauncher.kt               sh -T- detach + oom_score_adj=-1000
+                                             TODO: NpuManager.acquirePerformanceLock
+  core/perf/GameModeBoost.kt                 placeholder
+                                             TODO: GameManager.setGameMode(PERFORMANCE)
+  core/agent/AgentLoop.kt                    22 tools
+  core/agent/AgentNotificationListener.kt
+  core/state/AppStateStore.kt                encrypted KV
+  fgs/CliffordService.kt                     daemon guardian == Watchdog
+  audio/ + accessibility/ + ui/
 
 .github/workflows/
-  build-apk.yml                             TODO: repoint release target to ${{ github.repository }}
-  stage-colab.yml                           Colab one-click trigger
+  build-apk.yml                              TODO: repoint to ${{ github.repository }}
+  stage-colab.yml
 ```
 
 ---
 
-## Hard rules — non-negotiable
+## Hard Rules — Non-Negotiable
 
-- Never push `main` without explicit user permission. Working branch is the only commit target.
-- Never commit credentials. `release/debug.keystore` is the documented exception.
-- Never `--no-verify`, never `push --force`, never `reset --hard` without confirming.
-- No CPU fallback. No cloud inference in the main app LLM runtime. Cloud APIs via AgentTool.HttpFetch only.
-- No in-process tensor runtime — daemon path or nothing.
-- No new abstractions beyond what the task requires.
-- No comments unless the WHY is non-obvious.
-- No piecemealing — multi-part work fans out in parallel.
-- No re-litigating decisions captured in this file. Update the doc first, then act.
-- `M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti` is REFERENCE-ONLY. No commits, no pushes, ever.
+- Never push `main` without explicit user permission
+- Never commit credentials (`release/debug.keystore` is the documented exception)
+- Never `--no-verify`, never `push --force`, never `reset --hard` without confirming
+- No CPU fallback in app LLM. Cloud APIs via `AgentTool.HttpFetch` only
+- No in-process tensor runtime — daemon path or nothing
+- No new abstractions beyond what the task requires
+- No piecemealing — multi-part work fans out in parallel
+- No re-litigating decisions in this file. Update the doc, then act
+- `M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti` is REFERENCE-ONLY. No commits, no pushes, ever
+- Do NOT set `SKIP_VISION=1` in the default trigger command
+- `--max_dynamic_tensor_size_mib` stays at **64** until dual-core soft-cap is verified empirically
 
 ---
 
-## Tokens / secrets policy
+## Tokens / Secrets Policy
 
-- `HF_TOKEN` and `QAI_HUB_API_TOKEN` are STATIC across sessions per user policy. User provides them at session start if not already in env. Rotation happens AFTER the build ships, not between sessions.
-- No GitHub PAT required — GitHub MCP server handles auth.
-- Cloud API tokens (SambaNova, OpenRouter, etc.) live in `AppStateStore` encrypted slots.
+- `HF_TOKEN` and `QAI_HUB_API_TOKEN` are **STATIC across sessions** per user policy. Rotation happens AFTER the build ships.
+- Never commit token values. Never hardcode in any pushed file. GitHub secret scanning will block and expose. Use `--secrets HF_TOKEN` (no value) — reads from `hf auth login` config.
+- No GitHub PAT needed — GitHub MCP server handles auth.
+- Cloud API tokens live in `AppStateStore` encrypted slots.
 
 ---
 
@@ -232,8 +383,8 @@ models/
 
 - AGP 8.8.0 · Kotlin 2.1.0 · compileSdk 35 · minSdk 31 · JDK 17
 - ABI: arm64-v8a only
-- Signing: `release/debug.keystore` (committed by design — stable signature = APK installs as update)
-- CI: `.github/workflows/build-apk.yml` — needs `latest-debug` release target repointed from NeuroOmni to `${{ github.repository }}`
+- Signing: `release/debug.keystore` (committed by design — stable signature for APK updates)
+- CI: `build-apk.yml` needs `latest-debug` release target repointed to `${{ github.repository }}`
 
 ---
 
@@ -241,24 +392,41 @@ models/
 
 - Background `#222C34` · Surface `#35414A` · Primary teal `#2DD4D9`
 - Highlight teal `#4FE7EC` · Icon backplate `#050709` · Action yellow `#F5C518`
-- Backdrop: pure Compose `Brush.radialGradient` — NOT XML shape (painterResource on `<shape>` crashes)
+- Backdrop: pure Compose `Brush.radialGradient` — NOT XML shape (`painterResource` on `<shape>` crashes)
 
 ---
 
-## Termux environment (user's phone)
+## Termux Environment (User's Phone)
 
 **Device:** Motorola Razr Ultra 2025 · SM8750 · 16GB LPDDR5X · Adreno 830 · Hexagon HTP v75
 **User is on phone only.** No laptop. No root. No Shizuku.
 
-### Mobile paste rules — never violate
-- Never embed tokens or long URLs in commands the user has to paste.
-- Use shell variables: paste `T=TOKEN` as one line, then reference `$T`.
-- For git auth: interactive prompts — user pastes token at `Password:` only.
-- Long URLs in `.git/config`: edit via nano, not paste.
-- Keep every paste-able command under ~50 chars where possible.
+### Mobile Paste Rules — Never Violate
+- No tokens or long URLs in paste-able commands
+- Shell variables: `T=TOKEN` as one line, then `$T`
+- Git auth: user pastes at `Password:` prompt only
+- Long URLs: edit via nano, not paste
+- Every paste-able command under ~50 chars where possible
 
-### Future Termux setup (separate track)
+### Future Termux Setup (Separate Track)
 - VNC + XFCE via `sabamdarif/termux-desktop`
-- proot-distro Ubuntu for Claude Code Android (`ferrumclaudepilgrim/claude-code-android` fork at `c10vis-poem`)
+- proot-distro Ubuntu for Claude Code Android (`ferrumclaudepilgrim/claude-code-android` at `c10vis-poem`)
 - Matrix theme (green `#00FF41` on black), Termux:Float + Termux:Styling from F-Droid
 - HF CLI + qai-hub CLI for direct compile from phone
+
+---
+
+## What Was Ripped Out — Do NOT Reference
+
+| Old | Replaced by | Notes |
+|---|---|---|
+| Track 1 / Track 2 split | single path | One model, one daemon, one path |
+| LiteRT / LiteRT-LM | ort_engine daemon | No in-process tensor runtime |
+| `Backend.GPU()` / `Backend.NPU()` | NpuClient → ort_engine | Adreno 830 not used for inference |
+| E2B / Gemma Nano placeholder | nothing | Skipped |
+| Qwen3-VL-8B-Thinking as primary | Qwen3.5-9B | VL-8B-Thinking is BACKUP only |
+| Qwen2.5-VL-7B as primary | Qwen3.5-9B | Backup only |
+| `genie_engine` daemon | `ort_engine` | ORT + QNN EP loads `qnn_context_binary` directly |
+| Separate `Watchdog` service | folded into CliffordService | CLIFFORD == Watchdog |
+| Nexa SDK, OmniNeural, Moonshine, JitPack, SystemTtsClient | dead | Pre-session-1 cleanup |
+| Cloud failover in app LLM | HttpFetch agent tool | Cloud APIs via agent layer only |
