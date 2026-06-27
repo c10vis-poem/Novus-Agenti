@@ -28,7 +28,7 @@ Hexagon constraints applied (per GPT-OSS reference, §1-§3):
   • --disable_fusion   MHA fusion only works for static seq + INT8 weights
   • --bias-as-int32    INT8 bias overflow guard
   • partition override Softmax + TopK forced to CPU
-  • Scratch 16 MiB / dynamic tensor 32 MiB / single NPU context
+  • Scratch 16 MiB / dynamic tensor 64 MiB / single NPU context
   • W4A16              per-channel INT4 weights, FP16 activations (matches
                        Qwen3.5-9B FP16 training distribution)
 
@@ -37,7 +37,7 @@ Required env (HF Jobs injects via --secrets):
     QAI_HUB_API_TOKEN     Qualcomm AI Hub token
 
 Optional env:
-    MODEL_ID              default Mer0vin8ian/Qwen3.5-9B
+    MODEL_ID              default Qwen/Qwen3.5-9B
     MAX_SEQ_LEN           default 4096
     OUTPUT_DIR            default /tmp
     HF_OUTPUT_REPO        default Mer0vin8ian/qwen3-5-9b-npu-sm8750
@@ -45,7 +45,7 @@ Optional env:
     CALIB_TOKENS          default 10000
     CALIB_DATASET         default wikitext-2-raw-v1
     PUBLISH_HF            "1" to upload all three artifacts after compile
-    SKIP_VISION           "1" to compile language-decoder only (correct for Qwen3.5 deepstack)
+    SKIP_VISION           "1" to compile language-decoder only (debug fallback)
     SKIP_EXPORT           "1" to re-download a previous job (requires JOB_ID*)
     JOB_ID_VISION         re-download id for vision encoder
     JOB_ID_PROJECTION     re-download id for projection
@@ -53,10 +53,10 @@ Optional env:
 
 Run on HF Jobs (cpu-xl, ~$1/hr, 124GB RAM — no GPU needed, compile is server-side):
     hf jobs uv run --flavor cpu-xl --timeout 2h \\
-        --with torch --with transformers --with onnx --with onnxruntime --with onnxscript \\
-        --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \\
+        --with torch --with transformers --with onnx --with onnxruntime \\
+        --with qai-hub --with datasets --with numpy --with huggingface_hub \\
         --secrets HF_TOKEN --secrets QAI_HUB_API_TOKEN \\
-        -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp -e SKIP_VISION=1 \\
+        -e MODEL_ID=Qwen/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \\
         https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
 """
 
@@ -143,11 +143,20 @@ def build_rope_cache(head_dim, theta, max_seq_len, scaling, dtype=torch.float16)
 
 def make_folded_rope_forward(cos_buf, sin_buf):
     def fwd(x, position_ids=None, *args, **kwargs):
-        if position_ids is None:
-            seq = x.shape[-2]
-            position_ids = torch.arange(seq, device=cos_buf.device).unsqueeze(0)
-        pos = position_ids.to(torch.long)
-        return cos_buf[pos].to(x.dtype), sin_buf[pos].to(x.dtype)
+        # Must return [seq_len, head_dim] (2D), NOT [1, seq_len, head_dim] (3D).
+        # Qwen3.5 apply_rotary_pos_emb calls cos.unsqueeze(unsqueeze_dim) on our
+        # return value. If we return 3D, that unsqueeze produces 4D → 5D after the
+        # model's own broadcast, causing "Tensors must have same number of dimensions:
+        # got 5 and 4" at the torch.cat([q_embed, q_pass]) in partial rotation.
+        if position_ids is not None and position_ids.dim() == 2:
+            pos_1d = position_ids[0].to(torch.long)   # [seq_len]
+        elif position_ids is not None:
+            pos_1d = position_ids.to(torch.long)
+        else:
+            seq = x.shape[-2] if x.dim() >= 2 else cos_buf.shape[0]
+            pos_1d = torch.arange(seq, device=cos_buf.device)
+        # cos_buf[pos_1d]: [seq_len] → [seq_len, head_dim]  (2D)
+        return cos_buf[pos_1d].to(x.dtype), sin_buf[pos_1d].to(x.dtype)
     return fwd
 
 
@@ -262,7 +271,7 @@ def verify_dsp_placement(job, label):
         print(f"      [{label}] (manifest inspection unavailable — skipped DSP check)")
 
 
-# ── SKIP_EXPORT fast path ────────────────────────────────────────────────────────────────
+# ── SKIP_EXPORT fast path ───────────────────────────────────────────────────────────────────────
 if SKIP_EXPORT:
     if not (JOB_ID_VISION or JOB_ID_PROJECTION or JOB_ID_DECODER):
         sys.exit("[qwen3_5] SKIP_EXPORT=1 requires at least one of "
@@ -279,7 +288,7 @@ if SKIP_EXPORT:
     sys.exit(0)
 
 
-# ── Step 1: load model + identify submodules ──────────────────────────────────────────────────
+# ── Step 1: load model + identify submodules ─────────────────────────────────────────────
 print(f"[1/11] Loading {MODEL_ID} (FP16, CPU) ...")
 from transformers import AutoConfig, AutoTokenizer
 
@@ -369,7 +378,7 @@ print(f"      projection:      {projection_path or 'NOT FOUND'}")
 print(f"      language_decoder: {decoder_path or 'NOT FOUND'}")
 
 if SKIP_VISION:
-    print("      SKIP_VISION=1 → compiling language decoder only (correct for Qwen3.5 deepstack)")
+    print("      SKIP_VISION=1 → compiling language decoder only (debug fallback)")
     if decoder_module is None:
         sys.exit("[qwen3_5] Could not locate language decoder")
 elif vision_module is None or projection_module is None or decoder_module is None:
@@ -405,7 +414,7 @@ if patched == 0:
     sys.exit("[qwen3_5] RoPE fold patched 0 modules on language decoder — inspect rotary_emb location")
 
 
-# ── Step 3: Build static-shape wrappers for each component ───────────────────────
+# ── Step 3: Build static-shape wrappers for each component ───────────────────────────
 print("[3/11] Building static-shape wrappers ...")
 
 
@@ -465,7 +474,7 @@ class HtpDecodeWrapper(torch.nn.Module):
         return out.logits
 
 
-# ── Step 4: ONNX export — vision encoder ────────────────────────────────────────────
+# ── Step 4: ONNX export — vision encoder ────────────────────────────────────────────────
 ONNX_VISION     = os.path.join(OUTPUT_DIR, "qwen3_5_9b_vision_encoder.onnx")
 ONNX_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.onnx")
 ONNX_DECODER    = os.path.join(OUTPUT_DIR, "qwen3_5_9b_language_decoder.onnx")
@@ -488,7 +497,7 @@ if not SKIP_VISION:
     print(f"      vision encoder ONNX: {os.path.getsize(ONNX_VISION) // 1024 // 1024} MB")
 
 
-# ── Step 5: ONNX export — projection ───────────────────────────────────────────────────
+# ── Step 5: ONNX export — projection ─────────────────────────────────────────────────────
 if not SKIP_VISION:
     print(f"[5/11] Exporting projection → {ONNX_PROJECTION} ...")
     # Probe the vision encoder's actual output dim by running it once.
@@ -538,7 +547,7 @@ with torch.no_grad():
 assert_no_trig(ONNX_DECODER, "decoder")
 
 
-# ── Step 7: PTQ calibration data ──────────────────────────────────────────────────────────
+# ── Step 7: PTQ calibration data ────────────────────────────────────────────────────────────────
 # Calibration samples are at MAX_SEQ_LEN-padded length to match the static
 # graph input shape; QAI Hub uses these to observe activation distributions.
 print(f"[7/11] Building calibration set ({CALIB_TOKENS} tokens, {CALIB_DATASET}) ...")
@@ -575,7 +584,7 @@ np.savez(CALIB_NPZ, input_ids=np.array(calib_padded, dtype=np.int64))
 print(f"      {len(calib_padded)} calibration rows × {MAX_SEQ_LEN} tokens → {CALIB_NPZ}")
 
 
-# ── Step 8: QAI Hub compile — each artifact in sequence ──────────────────────────────
+# ── Step 8: QAI Hub compile — each artifact in sequence ────────────────────────────────
 print(f"[8/11] Submitting QAI Hub compile jobs ...")
 jobs = {}
 
@@ -598,7 +607,7 @@ jobs["decoder"] = submit_qai_hub_compile(
 )
 
 
-# ── Step 9: download all compiled artifacts ───────────────────────────────────────────
+# ── Step 9: download all compiled artifacts ────────────────────────────────────────────────
 print(f"[9/11] Downloading compiled artifacts ...")
 if not SKIP_VISION:
     download_target_model(jobs["vision"], OUT_VISION)
@@ -609,7 +618,7 @@ download_target_model(jobs["decoder"], OUT_DECODER)
 verify_dsp_placement(jobs["decoder"], "decoder")
 
 
-# ── Step 10: publish to HF ────────────────────────────────────────────────────────────────────────
+# ── Step 10: publish to HF ─────────────────────────────────────────────────────────────────────────
 if PUBLISH_HF:
     print(f"[10/11] Publishing → {HF_OUTPUT_REPO} ...")
     api = HfApi(token=HF_TOKEN)
@@ -633,7 +642,7 @@ else:
     print("[10/11] PUBLISH_HF!=1 — skipping HF upload")
 
 
-# ── Step 11: next steps ─────────────────────────────────────────────────────────────────────────────
+# ── Step 11: next steps ───────────────────────────────────────────────────────────────────────────
 print()
 print("=" * 64)
 print("Compiled NPU artifacts ready:")
