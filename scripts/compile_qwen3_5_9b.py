@@ -28,9 +28,9 @@ Hexagon constraints applied (per GPT-OSS reference, §1-§3):
   • --disable_fusion   MHA fusion only works for static seq + INT8 weights
   • --bias-as-int32    INT8 bias overflow guard
   • partition override Softmax + TopK forced to CPU
-  • Scratch 16 MiB / dynamic tensor 32 MiB / single NPU context (dual-core safe)
+  • Scratch 16 MiB / dynamic tensor 32 MiB / single NPU context
   • W4A16              per-channel INT4 weights, FP16 activations (matches
-                       Qwen3.5-9B FP16 training distribution; ~5GB total)
+                       Qwen3.5-9B FP16 training distribution)
 
 Required env (HF Jobs injects via --secrets):
     HF_TOKEN              HuggingFace write token (Mer0vin8ian)
@@ -65,7 +65,7 @@ import sys
 import json
 import subprocess
 
-# env
+# ── env ────────────────────────────────────────────────────────────────────────────
 HF_TOKEN  = os.environ.get("HF_TOKEN")          or sys.exit("[qwen3_5] Set HF_TOKEN")
 QAI_TOKEN = os.environ.get("QAI_HUB_API_TOKEN") or sys.exit("[qwen3_5] Set QAI_HUB_API_TOKEN")
 
@@ -90,10 +90,10 @@ OUT_VISION     = os.path.join(OUTPUT_DIR, "qwen3_5_9b_vision_encoder.bin")
 OUT_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.bin")
 OUT_DECODER    = os.path.join(OUTPUT_DIR, "qwen3_5_9b_language_decoder.bin")
 
-print(f"[qwen3_5] {MODEL_ID} -> {QAI_HUB_DEVICE} (Hexagon HTP), max_seq_len={MAX_SEQ_LEN}")
-print(f"[qwen3_5] deepstack vision mode: SKIP_VISION={SKIP_VISION} (1=recommended for Qwen3.5)")
+print(f"[qwen3_5] {MODEL_ID} → {QAI_HUB_DEVICE} (Hexagon HTP), max_seq_len={MAX_SEQ_LEN}")
+print(f"[qwen3_5] outputs: vision_encoder | projection | language_decoder")
 
-# deps
+# ── deps ───────────────────────────────────────────────────────────────────────────
 print("[0/11] Installing dependencies ...")
 subprocess.check_call([
     sys.executable, "-m", "pip", "install", "-q",
@@ -113,14 +113,17 @@ import qai_hub as hub
 from huggingface_hub import login, HfApi
 
 login(token=HF_TOKEN)
+# qai-hub reads QAI_HUB_API_TOKEN from env (HF Jobs --secrets sets it).
+# Older versions had hub.configure(); newer ones don't.
 if hasattr(hub, "configure"):
     hub.configure(api_token=QAI_TOKEN)
 else:
     os.environ.setdefault("QAI_HUB_API_TOKEN", QAI_TOKEN)
 
 
-# helpers
+# ── helpers ──────────────────────────────────────────────────────────────────────────
 def build_rope_cache(head_dim, theta, max_seq_len, scaling, dtype=torch.float16):
+    """Precompute cos/sin tables. Replaces runtime Sin/Cos (unsupported FP16 on Hexagon)."""
     inv_freq = 1.0 / (theta ** (torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
     if isinstance(scaling, dict):
         factor = scaling.get("factor", 1.0)
@@ -131,7 +134,7 @@ def build_rope_cache(head_dim, theta, max_seq_len, scaling, dtype=torch.float16)
             base = theta * (factor ** (head_dim / (head_dim - 2)))
             inv_freq = 1.0 / (base ** (torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
         elif stype:
-            print(f"      [warn] rope_type='{stype}' not specially handled - using base inv_freq")
+            print(f"      [warn] rope_type='{stype}' not specially handled — using base inv_freq")
     pos   = torch.arange(max_seq_len, dtype=torch.float32)
     freqs = torch.outer(pos, inv_freq)
     emb   = torch.cat([freqs, freqs], dim=-1)
@@ -149,6 +152,8 @@ def make_folded_rope_forward(cos_buf, sin_buf):
 
 
 def patch_rope(module, cos_table, sin_table, label):
+    """Walk a module tree and replace every rotary_emb.forward with a folded Gather.
+    Returns count of patches applied."""
     patched = 0
     seen = set()
     for sub in module.modules():
@@ -160,6 +165,7 @@ def patch_rope(module, cos_table, sin_table, label):
         rot.forward = make_folded_rope_forward(rot.cos_folded, rot.sin_folded)
         seen.add(type(rot).__name__)
         patched += 1
+    # Some HF impls put a single rotary_emb on the parent rather than per-layer:
     top_rot = getattr(module, "rotary_emb", None)
     if top_rot is not None and type(top_rot).__name__ not in seen:
         top_rot.register_buffer("cos_folded", cos_table.clone(), persistent=False)
@@ -172,6 +178,8 @@ def patch_rope(module, cos_table, sin_table, label):
 
 
 def assert_no_trig(onnx_path, stage_label):
+    """Hard assertion: zero Sin/Cos nodes survive. Per GPT-OSS doc, FP16 Sin/Cos
+    causes graph-build abort on Hexagon."""
     import onnx
     m = onnx.load(onnx_path, load_external_data=False)
     trig = [n.name for n in m.graph.node if n.op_type in ("Sin", "Cos")]
@@ -179,14 +187,14 @@ def assert_no_trig(onnx_path, stage_label):
         print(f"[FAIL/{stage_label}] {len(trig)} Sin/Cos node(s) survived RoPE fold: {trig[:5]}")
         print(f"       Inspect the rotary class and patch it directly.")
         sys.exit(1)
-    print(f"      [{stage_label}] ONNX OK - 0 Sin/Cos, {len(m.graph.node)} nodes total")
+    print(f"      [{stage_label}] ONNX OK — 0 Sin/Cos, {len(m.graph.node)} nodes total")
 
 
 def write_partition_override(path):
     partition = {
         "partition_overrides": [
             {"op_types": ["Softmax"], "target": "CPU",
-             "reason": "FP16 Softmax not supported on Hexagon HTP (per GPT-OSS section 3 #10)"},
+             "reason": "FP16 Softmax not supported on Hexagon HTP (per GPT-OSS §3 #10)"},
             {"op_types": ["TopK"], "target": "CPU",
              "reason": "TopK not natively supported on Hexagon HTP"},
         ]
@@ -207,6 +215,8 @@ COMPILE_OPTIONS_BASE = " ".join([
 
 
 def submit_qai_hub_compile(onnx_path, name, extra_options=""):
+    """Upload ONNX, submit compile job, block on completion, return downloaded .bin path
+    in the caller's expected location (caller provides via separate download step)."""
     raw_model = hub.upload_model(onnx_path)
     print(f"      qai_hub model_id={raw_model.model_id}")
     options = COMPILE_OPTIONS_BASE + (" " + extra_options if extra_options else "")
@@ -218,24 +228,24 @@ def submit_qai_hub_compile(onnx_path, name, extra_options=""):
     )
     print(f"      job_id={job.job_id}")
     print(f"      https://app.aihub.qualcomm.com/jobs/{job.job_id}/")
-    print(f"      Waiting for compile (typically 25-40 min per artifact) ...")
+    print(f"      Waiting for compile (typically 25–40 min per artifact) ...")
     job.wait()
     status = job.get_status()
     if not status.success:
         print(f"\n[FAILED/{name}] {status.message}")
-        print(f"  * Unsupported op    -> add to partition_override.json")
-        print(f"  * Sin/Cos in graph  -> RoPE fold missed a variant")
-        print(f"  * OOM               -> drop MAX_SEQ_LEN to 2048")
+        print(f"  • Unsupported op    → add to partition_override.json")
+        print(f"  • Sin/Cos in graph  → RoPE fold missed a variant")
+        print(f"  • OOM               → drop MAX_SEQ_LEN to 2048")
         print(f"  Re-download later:  SKIP_EXPORT=1 JOB_ID_*={job.job_id}")
         sys.exit(1)
-    print(f"      [{name}] compile SUCCESS - {status.message}")
+    print(f"      [{name}] compile SUCCESS — {status.message}")
     return job
 
 
 def download_target_model(job, out_path):
     job.get_target_model().download(out_path)
     sz_mb = os.path.getsize(out_path) / 1024 / 1024
-    print(f"      -> {out_path} ({sz_mb:.0f} MB)")
+    print(f"      → {out_path} ({sz_mb:.0f} MB)")
     return out_path
 
 
@@ -249,9 +259,10 @@ def verify_dsp_placement(job, label):
         else:
             print(f"      [{label}] all {len(matmuls)} MatMul nodes on DSP")
     except Exception:
-        print(f"      [{label}] (manifest inspection unavailable - skipped DSP check)")
+        print(f"      [{label}] (manifest inspection unavailable — skipped DSP check)")
 
 
+# ── SKIP_EXPORT fast path ────────────────────────────────────────────────────────────────
 if SKIP_EXPORT:
     if not (JOB_ID_VISION or JOB_ID_PROJECTION or JOB_ID_DECODER):
         sys.exit("[qwen3_5] SKIP_EXPORT=1 requires at least one of "
@@ -268,6 +279,7 @@ if SKIP_EXPORT:
     sys.exit(0)
 
 
+# ── Step 1: load model + identify submodules ──────────────────────────────────────────────────
 print(f"[1/11] Loading {MODEL_ID} (FP16, CPU) ...")
 from transformers import AutoConfig, AutoTokenizer
 
@@ -280,6 +292,8 @@ LOAD_KW = dict(
     token=HF_TOKEN, trust_remote_code=False,
 )
 
+# Qwen3.5-9B reports task=image-text-to-text. Try multimodal loaders first,
+# fall back to text-only loader only if SKIP_VISION=1.
 import transformers as _tf
 
 LOADER_PREFERENCE = ["AutoModelForMultimodalLM", "AutoModelForVision2Seq",
@@ -306,6 +320,7 @@ print(f"      Loaded via {loader_used}: {type(full).__name__}")
 
 
 def find_submodule(root, names):
+    """Walk attribute paths and return the first matching submodule, or None."""
     for path in names:
         obj = root
         ok = True
@@ -319,27 +334,42 @@ def find_submodule(root, names):
     return None, None
 
 
+# Vision encoder candidates (Qwen2-VL / Qwen2.5-VL / Qwen3-VL conventions)
 vision_module, vision_path = find_submodule(full, [
-    "visual", "model.visual", "vision_tower", "model.vision_tower",
-    "vision_model", "model.vision_model", "vision_encoder",
+    "visual",
+    "model.visual",
+    "vision_tower",
+    "model.vision_tower",
+    "vision_model",
+    "model.vision_model",
+    "vision_encoder",
 ])
 
+# Projection candidates (vision → language space)
 projection_module, projection_path = find_submodule(full, [
-    "visual.merger", "model.visual.merger", "multi_modal_projector",
-    "model.multi_modal_projector", "mm_projector", "model.mm_projector",
-    "vision_projector", "model.vision_projector",
+    "visual.merger",
+    "model.visual.merger",
+    "multi_modal_projector",
+    "model.multi_modal_projector",
+    "mm_projector",
+    "model.mm_projector",
+    "vision_projector",
+    "model.vision_projector",
 ])
 
+# Language decoder candidates
 decoder_module, decoder_path = find_submodule(full, [
-    "language_model", "model.language_model", "model",
+    "language_model",
+    "model.language_model",
+    "model",                # Qwen2/3 base — model.model.layers
 ])
 
-print(f"      vision_encoder:   {vision_path or 'NOT FOUND'}")
-print(f"      projection:       {projection_path or 'NOT FOUND'}")
+print(f"      vision_encoder:  {vision_path or 'NOT FOUND'}")
+print(f"      projection:      {projection_path or 'NOT FOUND'}")
 print(f"      language_decoder: {decoder_path or 'NOT FOUND'}")
 
 if SKIP_VISION:
-    print("      SKIP_VISION=1 -> compiling language decoder only (correct path for Qwen3.5 deepstack)")
+    print("      SKIP_VISION=1 → compiling language decoder only (correct for Qwen3.5 deepstack)")
     if decoder_module is None:
         sys.exit("[qwen3_5] Could not locate language decoder")
 elif vision_module is None or projection_module is None or decoder_module is None:
@@ -367,17 +397,21 @@ PARTITION_JSON = os.path.join(OUTPUT_DIR, "partition_override.json")
 write_partition_override(PARTITION_JSON)
 
 
+# ── Step 2: RoPE fold (decoder only — vision encoder typically has no RoPE) ──
 print("[2/11] Folding RoPE on language decoder ...")
 cos_table, sin_table = build_rope_cache(HEAD_DIM, ROPE_THETA, MAX_SEQ_LEN, ROPE_SCALING)
 patched = patch_rope(decoder_module, cos_table, sin_table, "decoder")
 if patched == 0:
-    sys.exit("[qwen3_5] RoPE fold patched 0 modules - inspect rotary_emb location")
+    sys.exit("[qwen3_5] RoPE fold patched 0 modules on language decoder — inspect rotary_emb location")
 
 
+# ── Step 3: Build static-shape wrappers for each component ───────────────────────
 print("[3/11] Building static-shape wrappers ...")
 
 
 class VisionEncoderWrapper(torch.nn.Module):
+    """Wraps the vision encoder to take a fixed-shape image tensor and emit
+    fixed-shape patch embeddings. Hexagon requires static shapes throughout."""
     def __init__(self, m):
         super().__init__()
         self.m = m
@@ -401,52 +435,44 @@ class ProjectionWrapper(torch.nn.Module):
 
 
 class HtpDecodeWrapper(torch.nn.Module):
-    """Static-shape autoregressive decode step. Past KV is flattened to positional
-    tensors because ONNX cannot take list inputs. Inside forward, the tensors are
-    reassembled into a DynamicCache (which newer transformers requires - the model
-    calls past_key_values.get_seq_length() and similar Cache methods)."""
-    def __init__(self, m, n_layers):
+    """Stateless full-sequence forward — no KV cache passed in/out of the graph.
+
+    Why: Qwen3.5-9B uses hybrid attention (standard MHA + LinearAttention layers
+    for deepstack injection). Standard DynamicCache fails (only contains
+    Attention layers, model calls `has_previous_state` on LinearAttention).
+    HybridCache requires model-specific construction we'd have to guess at.
+
+    Cost: each invocation runs full O(L^2) attention over input_ids — no
+    autoregressive speedup from cached KV. Daemon emits one token at a time
+    by extending input_ids and re-running. At 9B / max_seq=4096 this is slow
+    but produces a working artifact.
+
+    Follow-up: replace with HybridCache or model-specific cache wrap once we
+    have on-device timing data to decide whether the optimization is worth it.
+    """
+    def __init__(self, m):
         super().__init__()
         self.m = m
-        self.n_layers = n_layers
 
-    def forward(self, input_ids, attention_mask, position_ids, *past):
-        from transformers.cache_utils import DynamicCache
-        past_kv_tuples = tuple((past[2 * i], past[2 * i + 1]) for i in range(self.n_layers))
-        if hasattr(DynamicCache, "from_legacy_cache"):
-            cache = DynamicCache.from_legacy_cache(past_kv_tuples)
-        else:
-            cache = DynamicCache()
-            cache._key_cache = [past[2 * i] for i in range(self.n_layers)]
-            cache._value_cache = [past[2 * i + 1] for i in range(self.n_layers)]
-            cache._seen_tokens = past[0].shape[-2]
+    def forward(self, input_ids, attention_mask, position_ids):
         out = self.m(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
-            past_key_values=cache,
-            use_cache=True,
+            use_cache=False,
             return_dict=True,
         )
-        if hasattr(out.past_key_values, "to_legacy_cache"):
-            present_tuples = out.past_key_values.to_legacy_cache()
-            present = []
-            for k, v in present_tuples:
-                present.append(k); present.append(v)
-        else:
-            present = []
-            for i in range(self.n_layers):
-                present.append(out.past_key_values._key_cache[i])
-                present.append(out.past_key_values._value_cache[i])
-        return (out.logits, *present)
+        return out.logits
 
 
+# ── Step 4: ONNX export — vision encoder ────────────────────────────────────────────
 ONNX_VISION     = os.path.join(OUTPUT_DIR, "qwen3_5_9b_vision_encoder.onnx")
 ONNX_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.onnx")
 ONNX_DECODER    = os.path.join(OUTPUT_DIR, "qwen3_5_9b_language_decoder.onnx")
 
 if not SKIP_VISION:
-    print(f"[4/11] Exporting vision encoder -> {ONNX_VISION} ...")
+    print(f"[4/11] Exporting vision encoder → {ONNX_VISION} ...")
+    # Qwen-VL standard input: 448x448 image, 3 channels, FP16
     vision_input = torch.zeros((1, 3, 448, 448), dtype=torch.float16)
     vision_wrapped = VisionEncoderWrapper(vision_module).eval()
     with torch.no_grad():
@@ -462,8 +488,10 @@ if not SKIP_VISION:
     print(f"      vision encoder ONNX: {os.path.getsize(ONNX_VISION) // 1024 // 1024} MB")
 
 
+# ── Step 5: ONNX export — projection ───────────────────────────────────────────────────
 if not SKIP_VISION:
-    print(f"[5/11] Exporting projection -> {ONNX_PROJECTION} ...")
+    print(f"[5/11] Exporting projection → {ONNX_PROJECTION} ...")
+    # Probe the vision encoder's actual output dim by running it once.
     with torch.no_grad():
         sample_vis_out = vision_wrapped(torch.zeros((1, 3, 448, 448), dtype=torch.float16))
     proj_input = torch.zeros_like(sample_vis_out)
@@ -481,34 +509,21 @@ if not SKIP_VISION:
     print(f"      projection ONNX: {os.path.getsize(ONNX_PROJECTION) // 1024 // 1024} MB")
 
 
-print(f"[6/11] Exporting language decoder -> {ONNX_DECODER} ...")
-SEQ = 1
-PAST = MAX_SEQ_LEN - SEQ
-ids   = torch.zeros((1, SEQ), dtype=torch.int64)
+# ── Step 6: ONNX export — language decoder + Sin/Cos assertion ───────────────────────
+print(f"[6/11] Exporting language decoder (stateless prefill) → {ONNX_DECODER} ...")
+# Static-shape inputs at MAX_SEQ_LEN. Daemon passes padded input_ids per call;
+# attention_mask handles real-vs-padding. No past_kv inputs/outputs — model is
+# stateless because Qwen3.5 hybrid attention can't be wrapped with DynamicCache.
+ids   = torch.zeros((1, MAX_SEQ_LEN), dtype=torch.int64)
 amask = torch.ones((1, MAX_SEQ_LEN), dtype=torch.int64)
-pos   = torch.zeros((1, SEQ), dtype=torch.int64)
-past_inputs = []
-for _ in range(NUM_LAYERS):
-    past_inputs.append(torch.zeros((1, NUM_KV, PAST, HEAD_DIM), dtype=torch.float16))
-    past_inputs.append(torch.zeros((1, NUM_KV, PAST, HEAD_DIM), dtype=torch.float16))
-dummy = (ids, amask, pos, *past_inputs)
+pos   = torch.arange(MAX_SEQ_LEN, dtype=torch.int64).unsqueeze(0)
+dummy = (ids, amask, pos)
 
 input_names  = ["input_ids", "attention_mask", "position_ids"]
 output_names = ["logits"]
-dynamic_axes = {
-    "input_ids":      {1: "seq"},
-    "position_ids":   {1: "seq"},
-    "attention_mask": {1: "total"},
-}
-for i in range(NUM_LAYERS):
-    input_names  += [f"past_key_{i}", f"past_val_{i}"]
-    output_names += [f"present_key_{i}", f"present_val_{i}"]
-    dynamic_axes[f"past_key_{i}"]    = {2: "past"}
-    dynamic_axes[f"past_val_{i}"]    = {2: "past"}
-    dynamic_axes[f"present_key_{i}"] = {2: "total"}
-    dynamic_axes[f"present_val_{i}"] = {2: "total"}
+dynamic_axes = None  # Hexagon HTP requires static shapes anyway
 
-decode_wrapped = HtpDecodeWrapper(decoder_module, NUM_LAYERS).eval()
+decode_wrapped = HtpDecodeWrapper(decoder_module).eval()
 with torch.no_grad():
     torch.onnx.export(
         decode_wrapped, dummy, ONNX_DECODER,
@@ -523,8 +538,12 @@ with torch.no_grad():
 assert_no_trig(ONNX_DECODER, "decoder")
 
 
+# ── Step 7: PTQ calibration data ──────────────────────────────────────────────────────────
+# Calibration samples are at MAX_SEQ_LEN-padded length to match the static
+# graph input shape; QAI Hub uses these to observe activation distributions.
 print(f"[7/11] Building calibration set ({CALIB_TOKENS} tokens, {CALIB_DATASET}) ...")
 import numpy as np
+CALIB_CHUNK = min(MAX_SEQ_LEN, 1024)  # cap per-sample size to keep upload small
 calib_ids = []
 try:
     from datasets import load_dataset
@@ -537,41 +556,49 @@ try:
         buf.extend(tokenizer(t, add_special_tokens=False)["input_ids"])
         if len(buf) >= CALIB_TOKENS:
             break
-    for start in range(0, min(len(buf), CALIB_TOKENS) - SEQ, SEQ):
-        calib_ids.append(buf[start:start + SEQ])
+    for start in range(0, min(len(buf), CALIB_TOKENS) - CALIB_CHUNK, CALIB_CHUNK):
+        calib_ids.append(buf[start:start + CALIB_CHUNK])
 except Exception as e:
     print(f"      [warn] dataset load failed ({e}); using synthetic random tokens")
     rng = np.random.default_rng(0)
-    for _ in range(CALIB_TOKENS // SEQ):
-        calib_ids.append(rng.integers(0, VOCAB, size=SEQ).tolist())
+    for _ in range(max(1, CALIB_TOKENS // CALIB_CHUNK)):
+        calib_ids.append(rng.integers(0, VOCAB, size=CALIB_CHUNK).tolist())
+
+# Pad each sample to MAX_SEQ_LEN (graph input shape)
+calib_padded = []
+for ids in calib_ids[:32]:  # cap rows to keep upload small
+    padded = ids + [0] * (MAX_SEQ_LEN - len(ids))
+    calib_padded.append(padded[:MAX_SEQ_LEN])
 
 CALIB_NPZ = os.path.join(OUTPUT_DIR, "calib_qwen3_5_9b.npz")
-np.savez(CALIB_NPZ, input_ids=np.array(calib_ids[:512], dtype=np.int64))
-print(f"      {len(calib_ids[:512])} calibration rows -> {CALIB_NPZ}")
+np.savez(CALIB_NPZ, input_ids=np.array(calib_padded, dtype=np.int64))
+print(f"      {len(calib_padded)} calibration rows × {MAX_SEQ_LEN} tokens → {CALIB_NPZ}")
 
 
+# ── Step 8: QAI Hub compile — each artifact in sequence ──────────────────────────────
 print(f"[8/11] Submitting QAI Hub compile jobs ...")
 jobs = {}
 
 if not SKIP_VISION:
-    print(f"      -> vision encoder ...")
+    print(f"      → vision encoder ...")
     jobs["vision"] = submit_qai_hub_compile(
         ONNX_VISION, "qwen3_5_9b_vision_compile",
         extra_options=f"--partition_overrides {PARTITION_JSON}",
     )
-    print(f"      -> projection ...")
+    print(f"      → projection ...")
     jobs["projection"] = submit_qai_hub_compile(
         ONNX_PROJECTION, "qwen3_5_9b_projection_compile",
         extra_options=f"--partition_overrides {PARTITION_JSON}",
     )
 
-print(f"      -> language decoder ...")
+print(f"      → language decoder ...")
 jobs["decoder"] = submit_qai_hub_compile(
     ONNX_DECODER, "qwen3_5_9b_decoder_compile",
     extra_options=f"--max_seq_len {MAX_SEQ_LEN} --partition_overrides {PARTITION_JSON}",
 )
 
 
+# ── Step 9: download all compiled artifacts ───────────────────────────────────────────
 print(f"[9/11] Downloading compiled artifacts ...")
 if not SKIP_VISION:
     download_target_model(jobs["vision"], OUT_VISION)
@@ -582,8 +609,9 @@ download_target_model(jobs["decoder"], OUT_DECODER)
 verify_dsp_placement(jobs["decoder"], "decoder")
 
 
+# ── Step 10: publish to HF ────────────────────────────────────────────────────────────────────────
 if PUBLISH_HF:
-    print(f"[10/11] Publishing -> {HF_OUTPUT_REPO} ...")
+    print(f"[10/11] Publishing → {HF_OUTPUT_REPO} ...")
     api = HfApi(token=HF_TOKEN)
     api.create_repo(HF_OUTPUT_REPO, repo_type="model", exist_ok=True, private=True)
 
@@ -600,11 +628,12 @@ if PUBLISH_HF:
             repo_id=HF_OUTPUT_REPO,
             commit_message=f"Add {repo_path} compiled from {MODEL_ID} (jobs: {job_ids_str})",
         )
-        print(f"      uploaded {repo_path} -> https://huggingface.co/{HF_OUTPUT_REPO}/blob/main/{repo_path}")
+        print(f"      uploaded {repo_path} → https://huggingface.co/{HF_OUTPUT_REPO}/blob/main/{repo_path}")
 else:
-    print("[10/11] PUBLISH_HF!=1 - skipping HF upload")
+    print("[10/11] PUBLISH_HF!=1 — skipping HF upload")
 
 
+# ── Step 11: next steps ─────────────────────────────────────────────────────────────────────────────
 print()
 print("=" * 64)
 print("Compiled NPU artifacts ready:")
@@ -618,16 +647,15 @@ if PUBLISH_HF:
     print(f"  hf download {HF_OUTPUT_REPO} --local-dir ~/Downloads")
     print(f"  adb push ~/Downloads/*.bin /storage/emulated/0/Download/")
 else:
-    print("  (artifacts kept locally - set PUBLISH_HF=1 next run to auto-upload)")
+    print("  (artifacts kept locally — set PUBLISH_HF=1 next run to auto-upload)")
 print()
-print("On device - ort_engine daemon (ONNX Runtime + QNN EP) loads the .bin:")
+print("On device — ort_engine daemon (ONNX Runtime + QNN EP) loads the .bin:")
 print(f"  DaemonLauncher.launch(ort_engine,")
-if not SKIP_VISION:
-    print(f"      --vision    qwen3_5_9b_vision_encoder.bin")
-    print(f"      --proj      qwen3_5_9b_projection.bin")
+print(f"      --vision    qwen3_5_9b_vision_encoder.bin")
+print(f"      --proj      qwen3_5_9b_projection.bin")
 print(f"      --decoder   qwen3_5_9b_language_decoder.bin")
-print(f"  ) -> 127.0.0.1:8080")
-print(f"  NpuClient -> POST /api/v1/generate -> SSE-JSON token stream")
+print(f"  ) → 127.0.0.1:8080")
+print(f"  NpuClient → POST /api/v1/generate → SSE-JSON token stream")
 print()
 print("Re-download this exact build:")
 print(f"  SKIP_EXPORT=1 \\")
