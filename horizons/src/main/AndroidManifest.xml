@@ -46,6 +46,11 @@
     <!-- Agent: Do Not Disturb policy -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
+    <!-- NPU performance: Game SDK scheduler boost -->
+    <uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
+
+    <uses-feature android:name="android.hardware.game" android:required="true" />
+
     <queries>
         <package android:name="com.termux" />
     </queries>
@@ -69,21 +74,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- Open .litertlm model files from file managers (file:// path) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file"
-                      android:host="*"
-                      android:pathPattern=".*\\.litertlm" />
-            </intent-filter>
-            <!-- Open .litertlm model files from Downloads / modern file managers (content://) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="content"
-                      android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
 
@@ -169,13 +159,13 @@
                 android:value="NPU daemon guardian" />
         </service>
 
-        <!-- G14: Mode B — Live Chat FGS (audio loop + Gemma stream, no screen) -->
+        <!-- G14: Mode B — Live Chat FGS (audio loop + LLM stream, no screen) -->
         <service
             android:name=".fgs.LiveChatService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
 
-        <!-- G14: Mode A — Live Screen Share FGS (MediaProjection + audio loop + Gemma stream) -->
+        <!-- G14: Mode A — Live Screen Share FGS (MediaProjection + audio loop + LLM stream) -->
         <service
             android:name=".fgs.ScreenShareService"
             android:foregroundServiceType="mediaProjection|microphone"

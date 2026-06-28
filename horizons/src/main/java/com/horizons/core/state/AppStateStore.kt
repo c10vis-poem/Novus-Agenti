@@ -51,9 +51,6 @@ class AppStateStore(context: Context) {
         const val KEY_GITHUB_TOKEN      = "github.token"
         const val KEY_LAST_SCREENSHOT   = "screen.last_path"
 
-        // LiteRT model path (overrides auto-detect)
-        const val KEY_LITERT_MODEL_PATH = "litert.model_path"
-
         // Router mode — "on-device" | "cloud" | "custom"
         const val KEY_ROUTER_MODE       = "router.mode"
 

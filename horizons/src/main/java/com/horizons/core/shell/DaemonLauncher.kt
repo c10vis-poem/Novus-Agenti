@@ -100,7 +100,6 @@ class DaemonLauncher(
 
     companion object {
         private const val TAG    = "DaemonLauncher"
-        const val GENIE_BINARY   = "genie_engine"
         const val ENGINE_BINARY  = "ort_engine"
         const val ENGINE_PORT    = 8080
     }

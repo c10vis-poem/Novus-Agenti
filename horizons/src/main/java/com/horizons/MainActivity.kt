@@ -28,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
-import com.horizons.core.state.AppStateStore
 import com.horizons.ui.panels.ChatPane
 import com.horizons.ui.panels.LibraryPane
 import com.horizons.ui.panels.ModelsPane
@@ -63,29 +62,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleModelFileIntent(intent: Intent?) {
-        if (intent?.action != Intent.ACTION_VIEW) return
-        val uri = intent.data ?: return
-        val path: String? = when (uri.scheme) {
-            "file" -> uri.path
-            "content" -> {
-                val fromQuery = contentResolver.query(
-                    uri, arrayOf("_data"), null, null, null,
-                )?.use { cursor ->
-                    if (cursor.moveToFirst()) cursor.getString(0)?.takeIf { it.isNotBlank() }
-                    else null
-                }
-                fromQuery ?: contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-                    try { android.system.Os.readlink("/proc/self/fd/${pfd.fd}") }
-                    catch (_: Exception) { null }
-                }
-            }
-            else -> null
-        }
-        if (!path.isNullOrBlank() && path.contains(".litertlm")) {
-            val fixed = path.replace("/mnt/user/0/emulated/", "/storage/emulated/")
-            (applicationContext as HorizonsApplication)
-                .appState.put(AppStateStore.KEY_LITERT_MODEL_PATH, fixed)
-        }
+        // Model file intent handling removed -- ort_engine daemon loads
+        // qnn_context_binary from a known path, no user file-picking needed.
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
