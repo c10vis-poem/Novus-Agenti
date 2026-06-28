@@ -418,7 +418,10 @@ ONNX_MODEL = os.path.join(OUTPUT_DIR, "qwen3_5_9b_unified.onnx")
 
 ids   = torch.zeros((1, MAX_SEQ_LEN), dtype=torch.int64)
 amask = torch.ones((1, MAX_SEQ_LEN),  dtype=torch.int64)
-pos   = torch.arange(MAX_SEQ_LEN, dtype=torch.int64).unsqueeze(0)
+# Pre-expand to 4D [4, B, S] to avoid tracer branches on ndim in Qwen3_5TextModel.
+# Channels: [text, temporal, height, width] — all identical for text-only input.
+pos_1d = torch.arange(MAX_SEQ_LEN, dtype=torch.int64)
+pos   = pos_1d.view(1, 1, -1).expand(4, 1, -1).contiguous()
 
 if SKIP_VISION:
     print(f"[4/7] Exporting text-only decoder -> {ONNX_MODEL} ...")
