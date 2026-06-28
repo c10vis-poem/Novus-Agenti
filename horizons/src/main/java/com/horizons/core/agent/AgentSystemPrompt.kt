@@ -3,7 +3,7 @@ package com.horizons.core.agent
 /**
  * System prompt injected before every agentic inference turn.
  * Lists every tool the LLM can emit. Format is deliberately terse —
- * Gemma 4 E2B context window is limited; every token here costs decode budget.
+ * Qwen3.5-9B context window is limited; every token here costs decode budget.
  *
  * Tool call format:  <tool>{"name":"tool_name","args":{...}}</tool>
  * The agent MUST wait for the <result>…</result> before emitting the next tool call.

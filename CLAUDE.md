@@ -224,7 +224,7 @@ NpuClient.kt → POST /api/v1/generate → SSE-JSON
 
 ---
 
-## State of the Union — 2026-06-27 (session 8)
+## State of the Union — 2026-06-28 (session 8+)
 
 ### Done
 - PR #3 merged → main: full Android app framework in codebase (`horizons/`, `agents/`, `rules/`, `skills/`, `watchdog/`, `.github/`, gradle, `release/`)
@@ -234,17 +234,20 @@ NpuClient.kt → POST /api/v1/generate → SSE-JSON
 - `models/manifest.yaml` committed
 - `--max_dynamic_tensor_size_mib` restored to 64 MiB (canonical; 32 was unverified assumption)
 - CLAUDE.md comprehensive rewrite — resume prompt, /memory, sub-agent rules, Android battery rules, execution log, full SOTU
+- **UnifiedWrapper rewrite** (`f2fc4dc`) — bypasses untraceable `Qwen3_5Model.forward()` by composing sub-modules directly (visual → embed_tokens → masked_scatter → language_model → lm_head). TracerWarnings from vision encoder confirmed non-fatal.
+- **`ort_engine` C++ daemon scaffolded** (`c55dcf7`) — full `daemon/` directory: `main.cpp`, `engine.cpp/h`, `http_server.cpp/h`, `tokenizer.cpp/h`, `sampler.cpp/h`, `CMakeLists.txt`, `build.sh`. ORT + QNN EP, SSE-JSON streaming, matches NpuClient.kt wire protocol.
+- **Content remodel** — removed all LiteRT/Gemma/genie_engine references from horizons/ Kotlin, manifest, build.gradle. `LiteRtRuntime.kt` deleted. `uses-feature game` + `HIGH_PERFORMANCE` permission added to manifest.
+- **GPT-DAEMON-REFERENCE.md** committed — distilled Qualcomm ecosystem reference
+- **GenieX/nexa-sdk reverse engineered** — confirmed wrapper-only (Go/Kotlin/Python), no extractable native engine code. Dead upstream.
+- **Qualcomm ecosystem surveyed** — ai-hub-models, ai-hub-apps, efficient-transformers, FastRPC, meta-ai identified. User forked 4 repos from qualcomm-linux org.
 
 ### Pending — in order
-1. **Job 8** — trigger command below. Runs ~30–40 min on HF Jobs cpu-xl.
-2. **Content remodel** — `agents/`, `rules/`, `skills/`, `watchdog/` carry old architecture references (LiteRT, genie_engine, Track 1/2). Need rewrite to match single-path spec.
-3. **`ort_engine` C++ daemon** — aarch64-android binary (ORT + QNN EP). Not yet scaffolded.
-4. **NpuManager lock** — wire into `CliffordService.kt`
-5. **GameManager.setGameMode** — wire into `HorizonsApplication.kt`
-6. **Manifest** — add `uses-feature` + `HIGH_PERFORMANCE` permission
-7. **`build-apk.yml`** — repoint release target to `${{ github.repository }}`
-8. **`watchdog/`** — fold into CliffordService or delete
-9. **Dead weight** — remove `scripts/compile_qwen3_vl.py`, `wiki/EDGE-MODEL-LISTS.md`
+1. **Job 8** — trigger command below with `-e MAX_SEQ_LEN=2048` to reduce memory/cost. HF auto-pay now enabled. Runs ~30–40 min on HF Jobs cpu-xl.
+2. **NpuManager lock** — wire `acquirePerformanceLock(PERF_MODE_HIGH)` into `CliffordService.kt`
+3. **GameManager.setGameMode(PERFORMANCE)** — wire into `HorizonsApplication.onCreate()`
+4. **`build-apk.yml`** — repoint release target to `${{ github.repository }}`
+5. **`watchdog/`** — fold into CliffordService or delete
+6. **Daemon cross-compile** — needs Android NDK + ORT Android AAR to actually build `ort_engine`
 
 ---
 
@@ -282,9 +285,7 @@ HF Jobs cpu-xl (~$1/hr, 124 GB RAM)
                           │
                           ▼
           Mer0vin8ian/qwen3-5-9b-npu-sm8750  (HF Hub, private)
-          qwen3_5_9b_language_decoder.bin
-          qwen3_5_9b_vision_encoder.bin
-          qwen3_5_9b_projection.bin
+          qwen3_5_9b_unified.bin  (single graph: vision + language)
                           │
                           ▼
           adb push → /storage/emulated/0/Download/
@@ -328,38 +329,47 @@ build.gradle.kts
 gradle.properties
 settings.gradle.kts
 
-agents/                            needs content remodel (old arch refs)
-rules/                             needs content remodel
-skills/                            needs content remodel
+agents/                            clean (no old arch refs)
+rules/                             clean
+skills/                            clean
 shared/
 watchdog/                          fold into CliffordService or delete
 release/debug.keystore             committed by design — stable signature
+
+daemon/                            ort_engine C++ daemon (ORT + QNN EP)
+  CMakeLists.txt                   NDK cross-compile, arm64-v8a
+  build.sh                         one-shot build script
+  src/main.cpp                     CLI entry, arg parsing, signal handling
+  src/engine.cpp/h                 ORT session, QNN EP, inference loop
+  src/http_server.cpp/h            SSE streaming HTTP, localhost-only
+  src/tokenizer.cpp/h              HF tokenizer.json loader
+  src/sampler.cpp/h                temperature, top-k, top-p sampling
 
 models/
   manifest.yaml
 
 scripts/
-  compile_qwen3_5_9b.py            PRIMARY — M-RoPE fix, 64 MiB, ort_engine
-  compile_qwen3_vl.py              DEAD WEIGHT — delete
+  compile_qwen3_5_9b.py            PRIMARY — UnifiedWrapper, M-RoPE fix, 64 MiB
 
 wiki/
   GPT-OSS-Reference.md             source of truth — Hexagon HTP constraints
-  EDGE-MODEL-LISTS.md              DEAD WEIGHT — delete
+  GPT-DAEMON-REFERENCE.md          distilled daemon/architecture reference
   SESSION5-HANDOFF.md
   SESSION6-HANDOFF.md
+  SESSION8-HANDOFF.md
 
 horizons/                          Android app (53 .kt files)
   src/main/java/com/horizons/
-    HorizonsApplication.kt
+    HorizonsApplication.kt         remodeled — NpuClient only, no LiteRT
     core/llm/NpuClient.kt          → ort_engine @ 127.0.0.1:8080
     core/shell/DaemonLauncher.kt   TODO: NpuManager.acquirePerformanceLock
-    core/perf/GameModeBoost.kt     TODO: GameManager.setGameMode(PERFORMANCE)
+    core/perf/GameModeBoost.kt     ADPF + GameState boost (already wired)
     core/agent/AgentLoop.kt        22 tools
     fgs/CliffordService.kt         daemon guardian == Watchdog
     audio/ accessibility/ ui/
 
 .github/workflows/
-  build-apk.yml                    TODO: repoint to ${{ github.repository }}
+  build-apk.yml                    already uses ${{ github.repository }}
   stage-colab.yml
 
 gradle/
