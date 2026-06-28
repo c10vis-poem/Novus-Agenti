@@ -27,8 +27,11 @@ What WE handle (clean ONNX for QAI Hub):
   - Static shapes      batch=1, MAX_SEQ_LEN compile-time (Hexagon requires static dims)
   - Stateless prefill  use_cache=False (Qwen3.5 hybrid attention rejects DynamicCache)
 
-What QAI Hub handles (we just specify device + quantization):
-  - Quantization (W4A16), fusion, bias scaling, partitioning, scratch/tensor sizing
+What QAI Hub handles (we specify device + quantization, server does the rest):
+  - W4A16 quantization (INT4 per-channel weights, FP16 activations)
+  - Op fusion control, bias scaling, scratch/tensor sizing
+  - Automatic partitioning (Softmax/TopK → CPU, matmuls → HTP/DSP)
+  - QNN context binary generation for target device
 
 Required env (HF Jobs injects via --secrets or -e):
     HF_TOKEN              HuggingFace write token (Mer0vin8ian)
@@ -172,38 +175,14 @@ def assert_no_trig(onnx_path, stage_label):
 COMPILE_OPTIONS_BASE = " ".join([
     "--target_runtime qnn_context_binary",
     "--quantize_full_type w4a16",
-    "--quantize_weight_bits 4",
-    "--disable_fusion",
-    "--bias_as_int32",
-    "--scratch_size_mib 16",
-    "--max_dynamic_tensor_size_mib 64",
 ])
 
 
-def write_partition_overrides():
-    """Softmax + TopK have no FP16 kernel on Hexagon HTP — force them to CPU.
-    QAI Hub reads this JSON to override the automatic partitioner."""
-    import json
-    overrides = {
-        "op_type_overrides": {
-            "Softmax": {"target": "cpu"},
-            "TopK": {"target": "cpu"},
-        }
-    }
-    path = os.path.join(OUTPUT_DIR, "partition_override.json")
-    with open(path, "w") as f:
-        json.dump(overrides, f, indent=2)
-    print(f"      partition overrides -> {path}")
-    return path
-
-
 def submit_qai_hub_compile(onnx_path, name, extra_options=""):
-    partition_json = write_partition_overrides()
     raw_model = hub.upload_model(onnx_path)
     print(f"      qai_hub model_id={raw_model.model_id}")
-    options = (COMPILE_OPTIONS_BASE +
-               f" --partition_overrides {partition_json}" +
-               (" " + extra_options if extra_options else ""))
+    options = COMPILE_OPTIONS_BASE + (" " + extra_options if extra_options else "")
+    print(f"      options: {options}")
     job = hub.submit_compile_job(
         model=raw_model,
         device=hub.Device(QAI_HUB_DEVICE),
@@ -505,8 +484,7 @@ print(f"      ONNX size: {onnx_size_mb} MB")
 print("[5/7] Submitting QAI Hub compile job ...")
 
 compile_name = "qwen3_5_9b_unified_compile"
-job = submit_qai_hub_compile(ONNX_MODEL, compile_name,
-    extra_options=f"--max_seq_len {MAX_SEQ_LEN}")
+job = submit_qai_hub_compile(ONNX_MODEL, compile_name)
 
 
 # -- Step 6: download ----------------------------------------------------------

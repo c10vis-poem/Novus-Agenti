@@ -140,20 +140,18 @@ One model, one runtime, one pipeline. No tracks, no placeholders, no fallbacks.
 
 ## Hexagon HTP Constraints (per `wiki/GPT-OSS-Reference.md`)
 
-All applied at compile time in `scripts/compile_qwen3_5_9b.py`.
+Applied in `scripts/compile_qwen3_5_9b.py` (our ONNX export) and QAI Hub (server-side compile).
 
-| Constraint | Why | Applied as |
+| Constraint | Why | Applied by |
 |---|---|---|
-| **RoPE fold** | No FP16 Sin/Cos kernel on Hexagon → graph-build abort | Two-pronged: `make_folded_rope_forward` returns `[B,S,D]`; `_patched_apply_rotary_pos_emb` at module level bypasses M-RoPE 5D/4D shape issue |
-| **Static shapes** | Hexagon requires compile-time static dims | batch=1, MAX_SEQ_LEN fixed; valid-length scalar at runtime |
-| **KV cache pre-alloc** | `QnnTensorUpdate` buggy >4 MiB | Pre-allocated at MAX_SEQ_LEN |
-| **`--disable_fusion`** | MHA fusion only works static seq + INT8 weights | Flag in `COMPILE_OPTIONS_BASE` |
-| **`--bias_as_int32`** | INT8 bias overflow | Flag in `COMPILE_OPTIONS_BASE` |
-| **Softmax + TopK → CPU** | No FP16 NPU kernel | `partition_override.json` |
-| **Scratch: 16 MiB** | Attention score matrix budget | `--scratch_size_mib 16` |
-| **Dynamic tensor: 64 MiB** | Canonical GPT-OSS value. The dual-core soft-cap-at-32 hypothesis is **unverified** — needs empirical testing before reducing. | `--max_dynamic_tensor_size_mib 64` |
-| **Single NPU context** | Serialize inference, avoid public QNN 2-context cap | `QNN_GRAPH_CONFIG_MAX_CONTEXTS=1` |
-| **Stateless prefill** | Qwen3.5 hybrid attention rejects `DynamicCache` | `use_cache=False` in `HtpDecodeWrapper` |
+| **RoPE fold** | No FP16 Sin/Cos kernel on Hexagon → graph-build abort | Script: `make_folded_rope_forward` returns `[B,S,D]`; `_patched_apply_rotary_pos_emb` bypasses M-RoPE 5D/4D |
+| **Static shapes** | Hexagon requires compile-time static dims | Script: batch=1, MAX_SEQ_LEN fixed in ONNX export |
+| **KV cache pre-alloc** | `QnnTensorUpdate` buggy >4 MiB | Script: pre-allocated at MAX_SEQ_LEN |
+| **Stateless prefill** | Qwen3.5 hybrid attention rejects `DynamicCache` | Script: `use_cache=False` in wrapper |
+| **Softmax + TopK → CPU** | No FP16 NPU kernel | QAI Hub: auto-partitioned by server (HTP compiler knows supported ops) |
+| **Fusion, bias, scratch, tensor sizing** | HTP-specific tuning | QAI Hub: server manages via QNN compiler internals |
+| **W4A16 quantization** | Size envelope target | QAI Hub: `--quantize_full_type w4a16` |
+| **Single NPU context** | Serialize inference, avoid QNN 2-context cap | Runtime: `QNN_GRAPH_CONFIG_MAX_CONTEXTS=1` in ort_engine |
 
 ---
 
