@@ -173,13 +173,37 @@ COMPILE_OPTIONS_BASE = " ".join([
     "--target_runtime qnn_context_binary",
     "--quantize_full_type w4a16",
     "--quantize_weight_bits 4",
+    "--disable_fusion",
+    "--bias_as_int32",
+    "--scratch_size_mib 16",
+    "--max_dynamic_tensor_size_mib 64",
 ])
 
 
+def write_partition_overrides():
+    """Softmax + TopK have no FP16 kernel on Hexagon HTP — force them to CPU.
+    QAI Hub reads this JSON to override the automatic partitioner."""
+    import json
+    overrides = {
+        "op_type_overrides": {
+            "Softmax": {"target": "cpu"},
+            "TopK": {"target": "cpu"},
+        }
+    }
+    path = os.path.join(OUTPUT_DIR, "partition_override.json")
+    with open(path, "w") as f:
+        json.dump(overrides, f, indent=2)
+    print(f"      partition overrides -> {path}")
+    return path
+
+
 def submit_qai_hub_compile(onnx_path, name, extra_options=""):
+    partition_json = write_partition_overrides()
     raw_model = hub.upload_model(onnx_path)
     print(f"      qai_hub model_id={raw_model.model_id}")
-    options = COMPILE_OPTIONS_BASE + (" " + extra_options if extra_options else "")
+    options = (COMPILE_OPTIONS_BASE +
+               f" --partition_overrides {partition_json}" +
+               (" " + extra_options if extra_options else ""))
     job = hub.submit_compile_job(
         model=raw_model,
         device=hub.Device(QAI_HUB_DEVICE),
