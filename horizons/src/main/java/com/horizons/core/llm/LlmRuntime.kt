@@ -20,7 +20,7 @@ interface LlmRuntime {
     val backendStatus: StateFlow<String>
         get() = idleStatus
 
-    /** No-op default — runtimes that need warm-up (LiteRT shader cache, engine build) override. */
+    /** No-op default — runtimes that need warm-up (daemon startup) override. */
     fun preWarm() {}
 
     companion object {

@@ -1,12 +1,9 @@
 package com.horizons.ui.panels
 
+import android.os.Environment
 import android.content.Intent
 import android.net.Uri
-import android.os.Environment
-import android.provider.DocumentsContract
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +24,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import com.horizons.core.state.AppStateStore
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -39,47 +34,12 @@ fun ModelsPane(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as HorizonsApplication
 
-    val appSnapshot by app.appState.snapshot.collectAsState()
     val hasStoragePermission = Environment.isExternalStorageManager()
-    // Use stored override path if set, otherwise default expected location
-    val modelPath = appSnapshot[AppStateStore.KEY_LITERT_MODEL_PATH]?.takeIf { it.isNotBlank() }
-        ?: "/storage/emulated/0/Download/gemma-4-E2B-it.litertlm"
+    val modelPath = app.resolveNpuModelPath()
+        ?: "/storage/emulated/0/Download/qwen3_5_9b_unified.bin"
     val modelExists = remember(modelPath) { java.io.File(modelPath).exists() }
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
     val testResult by app.modelTestResult.collectAsState()
-
-    val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val path: String? = runCatching {
-            val docId = DocumentsContract.getDocumentId(uri)
-            when {
-                docId.startsWith("primary:") ->
-                    "/storage/emulated/0/${docId.removePrefix("primary:")}"
-                docId.startsWith("raw:") ->
-                    docId.removePrefix("raw:")
-                else -> {
-                    // msf: IDs from the Downloads provider on Android 10+ — query _data column
-                    val fromQuery = ctx.contentResolver.query(
-                        uri, arrayOf("_data"), null, null, null,
-                    )?.use { cursor ->
-                        if (cursor.moveToFirst()) cursor.getString(0)?.takeIf { it.isNotBlank() }
-                        else null
-                    }
-                    // Fallback: resolve via /proc/self/fd symlink (works with MANAGE_EXTERNAL_STORAGE)
-                    fromQuery ?: ctx.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-                        try { android.system.Os.readlink("/proc/self/fd/${pfd.fd}") }
-                        catch (_: Exception) { null }
-                    }
-                }
-            }
-        }.getOrNull()
-        if (!path.isNullOrBlank()) {
-            val fixed = path.replace("/mnt/user/0/emulated/", "/storage/emulated/")
-            app.appState.put(AppStateStore.KEY_LITERT_MODEL_PATH, fixed)
-        }
-    }
 
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -94,7 +54,7 @@ fun ModelsPane(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.primary,
         )
 
-        // ── Permission check ──────────────────────────────────────────────────
+        // -- Permission check --
         if (!hasStoragePermission) {
             Surface(
                 color = MaterialTheme.colorScheme.errorContainer,
@@ -130,13 +90,13 @@ fun ModelsPane(modifier: Modifier = Modifier) {
             !hasStoragePermission -> "permission needed"
             !modelExists -> "file missing"
             backendStatus == "idle" -> "not loaded"
-            backendStatus == "loading…" -> "loading…"
-            backendStatus.startsWith("GPU FAILED") || backendStatus.startsWith("NPU FAILED") -> "failed"
+            backendStatus == "loading..." -> "loading..."
+            backendStatus.startsWith("NPU FAILED") -> "failed"
             else -> "ready"
         }
         ServerRow(
-            label = "Gemma 4 E2B  (LiteRT-LM · Adreno 830 GPU)",
-            role = "Chat + Vision + STT — on-device, Backend.GPU → Adreno 830",
+            label = "Qwen3.5-9B  (ort_engine · Hexagon HTP)",
+            role = "Chat + Vision + STT — on-device, QNN EP -> Hexagon HTP v75",
             status = engineStatusLabel,
         )
 
@@ -158,9 +118,9 @@ fun ModelsPane(modifier: Modifier = Modifier) {
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
                     Text(
-                        "Download gemma-4-E2B-it.litertlm (~1.5 GB) from:\n" +
-                        "huggingface.co/litert-community/gemma-4-E2B-it-litert-lm\n\n" +
-                        "Place in Downloads, or use Browse to locate any *.litertlm file.",
+                        "Place the compiled qnn_context_binary (.bin) in Downloads.\n" +
+                        "Expected: qwen3_5_9b_unified.bin or qwen3_5_9b_language_decoder.bin\n\n" +
+                        "Build via QAI Hub compile pipeline (see CLAUDE.md).",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -174,9 +134,9 @@ fun ModelsPane(modifier: Modifier = Modifier) {
             )
         }
 
-        // Backend status card — shows live loading progress / errors
+        // Backend status card -- shows live loading progress / errors
         if (modelExists && backendStatus != "idle") {
-            val isError = backendStatus.startsWith("GPU FAILED") || backendStatus.startsWith("NPU FAILED")
+            val isError = backendStatus.startsWith("NPU FAILED")
             Surface(
                 color = if (isError) MaterialTheme.colorScheme.errorContainer
                         else MaterialTheme.colorScheme.surfaceVariant,
@@ -195,17 +155,9 @@ fun ModelsPane(modifier: Modifier = Modifier) {
             }
         }
 
-        // Browse button — always visible so user can pick the file directly
-        OutlinedButton(
-            onClick = { filePicker.launch(arrayOf("*/*")) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Browse for model file…")
-        }
-
         if (modelExists) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (backendStatus == "idle" || backendStatus.startsWith("GPU FAILED") || backendStatus.startsWith("NPU FAILED") || backendStatus.startsWith("NO MODEL")) {
+                if (backendStatus == "idle" || backendStatus.startsWith("NPU FAILED") || backendStatus.startsWith("NO MODEL")) {
                     Button(
                         onClick = { app.llmRuntime.preWarm() },
                         modifier = Modifier.weight(1f),
@@ -213,17 +165,17 @@ fun ModelsPane(modifier: Modifier = Modifier) {
                         Text("Load Model")
                     }
                 }
-                if (backendStatus.startsWith("Adreno 830 · GPU") || backendStatus.startsWith("Hexagon HTP")) {
+                if (backendStatus.startsWith("Hexagon HTP")) {
                     Button(
                         onClick = { app.testModel() },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(if (testResult == "testing…") "Testing…" else "Test inference")
+                        Text(if (testResult == "testing...") "Testing..." else "Test inference")
                     }
                 }
             }
-            if (testResult != null && testResult != "testing…") {
-                val isError = testResult!!.startsWith("[LiteRtRuntime")
+            if (testResult != null && testResult != "testing...") {
+                val isError = testResult!!.startsWith("[NpuClient")
                 Surface(
                     color = if (isError) MaterialTheme.colorScheme.errorContainer
                             else MaterialTheme.colorScheme.surfaceVariant,
@@ -246,11 +198,11 @@ fun ModelsPane(modifier: Modifier = Modifier) {
         HorizontalDivider()
 
         Text("STT  (voice transcription)", style = MaterialTheme.typography.titleMedium)
-        StatusChip(if (modelExists) "on-device via Gemma audio-direct" else "waiting for model")
+        StatusChip(if (modelExists) "on-device via Qwen3.5-9B audio-direct" else "waiting for model")
         Text(
-            "Current: PCM audio → WAV → Gemma 4 E2B audio-direct via LiteRT-LM. No network needed.\n\n" +
+            "Current: PCM audio -> WAV -> Qwen3.5-9B audio-direct via ort_engine daemon. No network needed.\n\n" +
             "Roadmap: Silero VAD (voice activity detection, already on-device) + Whisper Base ONNX " +
-            "(~74 MB, runs via onnxruntime-android). VAD triggers Whisper only when speech detected — " +
+            "(~74 MB, runs via onnxruntime-android). VAD triggers Whisper only when speech detected -- " +
             "faster, lower power, works independently of the main LLM backend.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -261,7 +213,7 @@ fun ModelsPane(modifier: Modifier = Modifier) {
         Text("Kokoro TTS  (Sherpa-ONNX, on-device)", style = MaterialTheme.typography.titleMedium)
         StatusChip("on-device · no Android TTS broker")
         Text(
-            "Horizons speaks via Sherpa-ONNX → Kokoro multi-lang v1.0. " +
+            "Horizons speaks via Sherpa-ONNX -> Kokoro multi-lang v1.0. " +
             "28 English voices. Model downloads automatically on first launch (~300 MB). " +
             "No VoxSherpa or Android TextToSpeech dependency.",
             style = MaterialTheme.typography.bodySmall,
@@ -273,8 +225,8 @@ fun ModelsPane(modifier: Modifier = Modifier) {
         Text("Floating Dock", style = MaterialTheme.typography.titleMedium)
         StatusChip("accessibility service")
         Text(
-            "Enable Horizons in Android Settings → Accessibility → Installed services. " +
-            "A 🎙 / 👁 / ⏹ dock appears on the left edge of every screen.",
+            "Enable Horizons in Android Settings -> Accessibility -> Installed services. " +
+            "A dock appears on the left edge of every screen.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -94,7 +94,7 @@ class CliffordService : Service() {
             return
         }
         val modelPath = app.resolveNpuModelPath() ?: run {
-            Log.w(TAG, "CRS: no .bin/.dlc model found — waiting for model")
+            Log.w(TAG, "CRS: no .bin model found — waiting for model")
             return
         }
         val binaryName = NativeBinaryInstaller.installedBinaryName(this)

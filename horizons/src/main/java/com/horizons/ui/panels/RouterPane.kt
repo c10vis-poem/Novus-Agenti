@@ -51,7 +51,7 @@ fun RouterPane(modifier: Modifier = Modifier) {
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
                 Text(
-                    "All inference runs on-device via LiteRT-LM → Adreno 830 (Backend.GPU → OpenCL). " +
+                    "All inference runs on-device via ort_engine -> Hexagon HTP v75 (QNN Execution Provider). " +
                     "No network requests or API keys required for core chat, vision, or STT.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,

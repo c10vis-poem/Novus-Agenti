@@ -96,21 +96,14 @@ fun SettingsPane(modifier: Modifier = Modifier) {
             maxLines = 10,
         )
         Text(
-            "System prompt override (not currently applied by the on-device LiteRT runtime).",
+            "System prompt override (not currently applied by the ort_engine daemon).",
             style = MaterialTheme.typography.bodySmall
         )
 
-        Text("LiteRT model path", style = MaterialTheme.typography.titleSmall)
-        PathField(
-            label = "Full path to .litertlm file (blank = auto-detect)",
-            value = creds[AppStateStore.KEY_LITERT_MODEL_PATH] ?: "",
-            onSave = { raw ->
-                val fixed = raw.replace("/mnt/user/0/emulated/", "/storage/emulated/")
-                app.appState.put(AppStateStore.KEY_LITERT_MODEL_PATH, fixed)
-            },
-        )
+        Text("NPU model path", style = MaterialTheme.typography.titleSmall)
         Text(
-            "Restart app after changing. Auto-detect scans common Download locations.",
+            "Model .bin file is auto-detected from Downloads. " +
+            "Restart app after placing a new model.",
             style = MaterialTheme.typography.bodySmall
         )
 
