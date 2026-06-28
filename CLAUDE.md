@@ -193,7 +193,7 @@ gameManager.setGameMode(GameMode.PERFORMANCE)
     android:foregroundServiceType="specialUse" />
 ```
 
-**Status: `uses-feature` + `HIGH_PERFORMANCE` NOT in manifest. PENDING.**
+**Status: `uses-feature` + `HIGH_PERFORMANCE` added to manifest (session 8 content remodel).**
 
 ### Key Rule
 
@@ -203,7 +203,7 @@ Game SDK gives scheduler boost for UI processes only. Android restricted mode di
 
 ```
 HorizonsApplication.onCreate()
-  → GameManager.setGameMode(PERFORMANCE)             [TODO]
+  → GameModeBoost via ADPF GameState (already wired) [DONE]
   → startForegroundService(CliffordService)
 
 CliffordService.onStartCommand()
@@ -238,14 +238,15 @@ NpuClient.kt → POST /api/v1/generate → SSE-JSON
 - **GPT-DAEMON-REFERENCE.md** committed — distilled Qualcomm ecosystem reference
 - **GenieX/nexa-sdk reverse engineered** — confirmed wrapper-only (Go/Kotlin/Python), no extractable native engine code. Dead upstream.
 - **Qualcomm ecosystem surveyed** — ai-hub-models, ai-hub-apps, efficient-transformers, FastRPC, meta-ai identified. User forked 4 repos from qualcomm-linux org.
+- **Daemon build fixes** (`e29dd73`) — engine.cpp switched to C++ `AppendExecutionProvider("QNN", {map})`; tokenizer.cpp fixed regex raw string delimiter `R"RE(...)RE"` and variable shadowing.
+- **CI daemon cross-compile** (`336ed90`) — `build-apk.yml` now downloads NDK r27c + ORT 1.22.0 AAR, builds arm64-v8a `ort_engine` binary, includes `ort_engine` + `libonnxruntime.so` in release artifacts.
+- **Compile script audit** (`54f99b4`) — removed invalid QAI Hub options (`--partition_overrides` local file, `--disable_fusion`, `--bias_as_int32`, `--scratch_size_mib`, `--max_dynamic_tensor_size_mib`, `--max_seq_len`). These are QNN SDK internals managed by QAI Hub server automatically. Kept `--target_runtime qnn_context_binary` + `--quantize_full_type w4a16`.
+- **GameModeBoost confirmed wired** — uses ADPF `GameState.MODE_GAMEPLAY_UNINTERRUPTIBLE` per inference burst. `appCategory="game"` + `isGame="true"` in manifest.
 
 ### Pending — in order
 1. **Job 8** — trigger command below with `-e MAX_SEQ_LEN=2048` to reduce memory/cost. HF auto-pay now enabled. Runs ~30–40 min on HF Jobs cpu-xl.
-2. **NpuManager lock** — wire `acquirePerformanceLock(PERF_MODE_HIGH)` into `CliffordService.kt`
-3. **GameManager.setGameMode(PERFORMANCE)** — wire into `HorizonsApplication.onCreate()`
-4. **`build-apk.yml`** — repoint release target to `${{ github.repository }}`
-5. **`watchdog/`** — fold into CliffordService or delete
-6. **Daemon cross-compile** — needs Android NDK + ORT Android AAR to actually build `ort_engine`
+2. **NpuManager lock** — wire `acquirePerformanceLock(PERF_MODE_HIGH)` into `CliffordService.kt`. Requires vendor SDK stub — NpuManager is Motorola/Qualcomm-specific, not in AOSP. Use reflection or extract stub from device.
+3. **`watchdog/`** — fold into CliffordService or delete
 
 ---
 
