@@ -373,25 +373,40 @@ print("[3/7] Building static-shape wrapper ...")
 
 
 class UnifiedWrapper(torch.nn.Module):
-    """Full model — text + vision inputs at fixed static shapes.
-    QAI Hub partitions the graph (matmuls->DSP, Softmax/TopK->CPU, conv->GPU/CPU).
-    Stateless prefill: use_cache=False (Qwen3.5 hybrid attention rejects DynamicCache)."""
-    def __init__(self, model):
+    """Full model — vision + decoder composed via direct sub-module calls.
+    Bypasses Qwen3_5Model.forward() which contains untraceable dynamic ops
+    (.tolist(), torch._check, itertools.groupby in get_rope_index).
+    Instead: visual → embed → masked_scatter → language_model → lm_head."""
+    def __init__(self, full_model, image_token_id):
         super().__init__()
-        self.model = model
+        self.visual = full_model.model.visual
+        self.embed_tokens = full_model.model.language_model.embed_tokens
+        self.language_model = full_model.model.language_model
+        self.lm_head = full_model.lm_head
+        self.register_buffer("_image_token_id",
+                             torch.tensor(image_token_id, dtype=torch.int64))
 
     def forward(self, input_ids, attention_mask, position_ids,
-                pixel_values, image_grid_thw, mm_token_type_ids):
-        return self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
+                pixel_values, image_grid_thw):
+        pixel_values = pixel_values.to(self.visual.dtype)
+        vis_out = self.visual(pixel_values, grid_thw=image_grid_thw)
+        image_embeds = vis_out.pooler_output
+
+        inputs_embeds = self.embed_tokens(input_ids)
+        image_embeds = image_embeds.to(inputs_embeds.dtype)
+
+        image_mask = (input_ids == self._image_token_id).unsqueeze(-1)
+        inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
+
+        out = self.language_model(
+            input_ids=None,
+            inputs_embeds=inputs_embeds,
             position_ids=position_ids,
-            pixel_values=pixel_values,
-            image_grid_thw=image_grid_thw,
-            mm_token_type_ids=mm_token_type_ids,
+            attention_mask=attention_mask,
             use_cache=False,
-            return_dict=True,
-        ).logits
+        )
+        hidden = out[0]
+        return self.lm_head(hidden)
 
 
 class TextOnlyWrapper(torch.nn.Module):
@@ -435,25 +450,27 @@ else:
     image_token_id = getattr(config, "image_token_id", 248056)
     pixel_values   = torch.zeros((NUM_PATCHES, PATCH_DIM), dtype=torch.float16)
     image_grid_thw = torch.tensor([[GRID_T, GRID_H, GRID_W]], dtype=torch.int64)
-    # Place image tokens in input_ids so get_placeholder_mask count matches features
     ids[:, :n_vis_tokens] = image_token_id
-    # mm_token_type_ids: 0=text, 1=image — required for M-RoPE position computation
-    mm_token_type_ids = torch.zeros((1, MAX_SEQ_LEN), dtype=torch.int32)
-    mm_token_type_ids[:, :n_vis_tokens] = 1
     print(f"      pixel_values: {list(pixel_values.shape)}, "
           f"image_grid_thw: {list(image_grid_thw.shape)} = [{GRID_T},{GRID_H},{GRID_W}]")
     print(f"      n_vis_tokens={n_vis_tokens} (spatial_merge={spatial_merge}), "
           f"image_token_id={image_token_id}")
-    wrapped = UnifiedWrapper(full).eval()
-    dummy_inputs = (ids, amask, pos, pixel_values, image_grid_thw, mm_token_type_ids)
+    wrapped = UnifiedWrapper(full, image_token_id).eval()
+    dummy_inputs = (ids, amask, pos, pixel_values, image_grid_thw)
     input_names  = ["input_ids", "attention_mask", "position_ids",
-                    "pixel_values", "image_grid_thw", "mm_token_type_ids"]
+                    "pixel_values", "image_grid_thw"]
 
+import traceback
 with torch.no_grad():
-    torch.onnx.export(wrapped, dummy_inputs, ONNX_MODEL,
-        input_names=input_names, output_names=["logits"],
-        opset_version=17, do_constant_folding=True,
-        dynamic_axes=None, dynamo=False)
+    try:
+        torch.onnx.export(wrapped, dummy_inputs, ONNX_MODEL,
+            input_names=input_names, output_names=["logits"],
+            opset_version=17, do_constant_folding=True,
+            dynamic_axes=None, dynamo=False)
+    except Exception as e:
+        print(f"\n[FAIL] ONNX export failed: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        sys.exit(1)
 
 assert_no_trig(ONNX_MODEL, "unified")
 onnx_size_mb = os.path.getsize(ONNX_MODEL) // 1024 // 1024
