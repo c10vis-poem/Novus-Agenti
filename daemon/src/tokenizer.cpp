@@ -62,10 +62,10 @@ struct Tokenizer::Impl {
 
             std::string vocab_block = json.substr(brace, i - brace);
             // Parse "token": id pairs with regex
-            std::regex re(R"("((?:[^"\\]|\\.)*)"\s*:\s*(\d+))");
-            auto begin = std::sregex_iterator(vocab_block.begin(), vocab_block.end(), re);
-            auto end = std::sregex_iterator();
-            for (auto it = begin; it != end; ++it) {
+            std::regex re(R"RE("((?:[^"\\]|\\.)*)"\s*:\s*(\d+))RE");
+            auto rbegin = std::sregex_iterator(vocab_block.begin(), vocab_block.end(), re);
+            auto rend = std::sregex_iterator();
+            for (auto it = rbegin; it != rend; ++it) {
                 std::string tok = (*it)[1].str();
                 int64_t id = std::stoll((*it)[2].str());
                 token_to_id[tok] = id;

@@ -37,21 +37,14 @@ bool Engine::load() {
 
         // QNN EP: register QNN execution provider for Hexagon HTP
         // ORT loads the qnn_context_binary directly — no ONNX needed at runtime
-        std::vector<const char*> qnn_keys = {
-            "backend_path",
-            "qnn_context_cache_enable",
-            "qnn_context_cache_path",
-        };
-        std::vector<const char*> qnn_vals = {
-            "libQnnHtp.so",
-            "1",
-            d.config.model_path.c_str(),
-        };
-        auto status = OrtSessionOptionsAppendExecutionProvider(
-            d.session_opts, "QNN",
-            qnn_keys.data(), qnn_vals.data(), qnn_keys.size());
-        if (status) {
-            std::cerr << "[engine] QNN EP registration failed\n";
+        try {
+            d.session_opts.AppendExecutionProvider("QNN", {
+                {"backend_path", "libQnnHtp.so"},
+                {"qnn_context_cache_enable", "1"},
+                {"qnn_context_cache_path", d.config.model_path},
+            });
+        } catch (const Ort::Exception& e) {
+            std::cerr << "[engine] QNN EP registration failed: " << e.what() << "\n";
             return false;
         }
 
