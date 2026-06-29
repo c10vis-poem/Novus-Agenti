@@ -239,49 +239,116 @@ The status bar doubles as a **highlights tab** — tapping an indicator shows a 
 
 ## Current Code ↔ Spec Mapping
 
-| Spec Tile | Current Panel Enum | Current Pane Class | Status |
-|---|---|---|---|
-| HORIZONS | `Panel.Diagnostics` | `RouterPane.kt` | Name mismatch — needs rename |
-| MONITOR | `Panel.Library` | `LibraryPane.kt` | Name mismatch — needs rename + major expansion |
-| CHAT | `Panel.Chat` | `ChatPane.kt` | Closest match — needs live mode, history side panel |
-| ROUTER | (no dedicated panel) | — | Currently mapped to `Panel.Router` → `ModelsPane.kt` — needs rewrite |
-| ARTIFACTS | (no dedicated panel) | — | Not yet built |
-| TERMINAL | `Panel.Terminal` | `TerminalPanel.kt` | Exists — needs Matrix theme, prompt tiles |
-| SETTINGS | `Panel.Settings` | `SettingsPane.kt` | Exists — needs voice options, themes, registrations |
-
-### Panel Enum Remap Needed
+Panel enum remapped (commit `36f5d54`):
 ```kotlin
-// Current:
-enum class Panel { Chat, Router, Library, Diagnostics, Settings, Terminal }
-
-// Target:
 enum class Panel { Horizons, Monitor, Chat, Router, Artifacts, Terminal, Settings }
 ```
 
+| Spec Tile | Pane Class | Status |
+|---|---|---|
+| HORIZONS | `HorizonsPane.kt` | Built — system info, credits, condition |
+| MONITOR | `MonitorPane.kt` | Built — model library, key vault, console |
+| CHAT | `ChatPane.kt` | Built — modes, voice, vision, history TBD |
+| ROUTER | `RouterPane.kt` | Built — NPU/TTS/STT status, cloud APIs |
+| ARTIFACTS | `ArtifactsPane.kt` | Built — placeholder sections |
+| TERMINAL | `TerminalPanel.kt` | Built — needs Matrix waterfall theme |
+| SETTINGS | `SettingsPane.kt` | Built — needs voice picker, themes |
+
 ---
 
-## Design Direction Notes
+## Visual Design Spec (from user reference screenshots)
 
-**Closest reference:** Screenshot 5 (final mockup with rectangular tile cards, `MO)u14R_11(` banner, status bar at bottom, input bar below). This is the target layout geometry.
+### Header
 
-**What changes from screenshot 5:**
-- CORE_HUB crystal graphic needs redesign — the tilted wizard-hat shape is not final. Target is a clean hexagonal crystal with glow, not tilted/pointed.
-- Tile graphics throughout need rework — icons, line colors, glow effects are placeholder. Final art direction TBD.
-- Overall graphics polish pass needed across all tiles.
+- Line 1: `MO)u14R_11(` — large, centered, blocky angular stencil-style monospace font (thick strokes, glitch/fragmented aesthetic — NOT standard monospace)
+- Line 2: `*Pioneer_Tech, (Next-Gen Certified)` — ALL on one unbroken line, smaller
+- Line 3: `HORIZONS // v4` — bottom line
+- Thin divider line underneath
+- All text in primary teal (`#2DD4D9`)
 
-**What carries forward from all mockups:**
-- Tile card layout (not circles) with icon breaking the top border
-- Energy/connection lines from tiles to center hub
-- Dark background (`#222C34`) with colored accents per tile
-- Monospace subtitle typography
-- Bottom status indicator dots with labels
-- Persistent input bar at very bottom
+### CORE_HUB Crystal
 
-**Color assignments per tile (from mockups):**
-- HORIZONS: teal/cyan/ice-blue
-- MONITOR: teal/green
-- CHAT: teal/green
-- ROUTER: purple
-- ARTIFACTS: orange/amber
-- TERMINAL: green (Matrix green `#00FF41`)
-- SETTINGS: pink/red
+- **Shape:** hexagonal (6-sided) crystal, viewed from ~45° angle looking down at it
+- **Top facets:** ~30° pitch, NOT sharp wizard-hat point. Broad face on top faces outward, peak/ridge offset toward back
+- **Base:** concentric elliptical rings (circles viewed at angle = ellipses) creating a 3D platform — like an orbital ring base
+- **Glow:** intense radial purple glow emanating from center, multiple layers
+- **Border:** faint circular border around the crystal area
+- **Labels:** `// CORE_HUB` above, `ROUTER / route` below
+
+### Conduits (connection lines from tiles to hub)
+
+- NOT solid colored cords/lines
+- **Hollow plasma tubes** with radiant glow — translucent tube shape with bright core
+- Each conduit in its tile's accent color
+- Can incorporate particle/photon effects (small dots traveling along the tubes)
+
+### Tile Cards
+
+- Rectangular cards with rounded corners
+- **Icons break out of the top border** — graphic protrudes above the tile edge
+- Pronounced glow around edges in tile's accent color
+- Inside: icon, tile NAME (bold monospace), subtitle description, divider, `$ command` hint + gear icon
+- Background: mostly transparent with radiant glow around edges
+
+### Tile Icons (Canvas-drawn)
+
+| Tile | Icon Description | Color |
+|---|---|---|
+| HORIZONS | Horizon line (horizontal blue line) + green arc above (sunrise curve) + amber dot (sun). Arc is green, sun dot is amber/gold, line is blue. | teal frame |
+| MONITOR | Chat-bubble style icon (from landscape mockup — the one labeled CHAT there) | teal |
+| CHAT | Speech bubble with tail (from spacing reference screenshot) | highlight teal |
+| ROUTER | Hexagonal crystal / cube (purple, part of the center hub) | purple |
+| ARTIFACTS | Stacked documents / clipboard pages (from landscape mockup) | orange/amber |
+| TERMINAL | Terminal prompt `>_` with window dots (from landscape mockup) | matrix green |
+| SETTINGS | Gear/sun with lightning bolt (from landscape mockup) | pink/red |
+
+### Backgrounds
+
+**Home grid background:**
+- Dark base (`#222C34`)
+- Stars scattered throughout (small white/teal dots, varying brightness)
+- Faint orbital rings/circles around center hub (translucent, glowing)
+- Telemetry lines and chart circles — like an astral/star chart map
+- The whole UI overlay sits on top of this astral chart
+
+**Tile pane backgrounds (Monitor, Router, Artifacts, Settings):**
+- Dark slate/stone texture with rain droplets
+- Deep blue-gray stone surface, water beading on surface
+- Cracks/veins in the stone visible
+
+**Terminal pane background:**
+- Matrix green `^` character waterfall rain on solid black
+- Characters fall at varying speeds, varying brightness
+- Top 40% is the terminal display, bottom is keyboard
+
+**Chat pane background:**
+- Dark teal water-droplet texture (from phone home screen wallpaper)
+
+**Horizons pane background:**
+- Astral/space feel carries through from home grid
+
+### Easter Eggs
+
+- **Goat popup:** appears as 404/error state message. Photo of a goat making a face. Random chance popup or triggered by specific error conditions.
+
+### Status Bar Indicators
+
+Updated labels from mockup reference:
+- **NPU** (green) — `ready` / `idle` / `offline`
+- **STT** (blue) — `loaded` / `idle`
+- **TTS** (orange) — `warming` / `ready`
+- **CLD** (purple) — `linked` / `offline` (cloud connection)
+
+Note: some mockups show ASR/LLM/TTS/MLLM/VAG, others show NPU/STT/TTS/CLD. Final set TBD — user prefers the 5-indicator version (ASR/LLM/TTS/MLLM/VAG).
+
+### Color Assignments
+
+| Tile | Color | Hex |
+|---|---|---|
+| HORIZONS | teal/cyan | `#2DD4D9` |
+| MONITOR | teal/green | `#2DD4D9` |
+| CHAT | highlight teal | `#4FE7EC` |
+| ROUTER | purple | `#AA77FF` |
+| ARTIFACTS | orange/amber | `#E8A838` |
+| TERMINAL | matrix green | `#00FF41` |
+| SETTINGS | pink/red | `#FF5577` |
