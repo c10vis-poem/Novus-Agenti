@@ -132,9 +132,11 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxSize(),
                             )
                             Panel.Terminal  -> TerminalPanel(
+                                onBack = { activePanel = null },
                                 modifier = Modifier.fillMaxSize(),
                             )
                             Panel.Settings  -> SettingsPane(
+                                onBack = { activePanel = null },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }

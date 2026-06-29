@@ -31,7 +31,10 @@ import com.horizons.HorizonsApplication
 import com.horizons.core.state.AppStateStore
 
 @Composable
-fun SettingsPane(modifier: Modifier = Modifier) {
+fun SettingsPane(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as HorizonsApplication
     val settings by app.settingsStore.snapshot.collectAsState()
