@@ -10,7 +10,7 @@
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
 >   2. wiki/GPT-OSS-Reference.md (full read)
->   3. wiki/EDGE-MODEL-LISTS.md
+>   3. wiki/FEATURE-SPEC.md (UI tile spec)
 >   4. models/manifest.yaml
 >   5. wiki/SESSION{N}-HANDOFF.md (latest N)
 >
@@ -28,7 +28,7 @@ Type `/memory` in any Claude Code session to reload full project context.
 **Sequence:**
 1. Read `CLAUDE.md` (this file, all sections)
 2. Read `wiki/GPT-OSS-Reference.md`
-3. Read `wiki/EDGE-MODEL-LISTS.md`
+3. Read `wiki/FEATURE-SPEC.md` (UI tile spec)
 4. Read `models/manifest.yaml`
 5. Read latest `wiki/SESSION{N}-HANDOFF.md`
 6. Produce a SOTU summary and confirm next action before touching any file
