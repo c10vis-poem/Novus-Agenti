@@ -373,6 +373,52 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
             )
         }
     }
+
+    // ── Plasma tube conduits ────────────────────────────────────────────
+    // Approximate tile center positions relative to screen
+    val topRowY = size.height * 0.2f
+    val botRowY = size.height * 0.62f
+    val leftX = size.width * 0.17f
+    val midX = cx
+    val rightX = size.width * 0.83f
+
+    data class Conduit(val from: Offset, val color: Color)
+    val conduits = listOf(
+        Conduit(Offset(leftX, topRowY), Color(0xFF2DD4D9)),     // Horizons
+        Conduit(Offset(midX, topRowY), Color(0xFF2DD4D9)),      // Monitor
+        Conduit(Offset(rightX, topRowY), Color(0xFF4FE7EC)),    // Chat
+        Conduit(Offset(leftX, botRowY), Color(0xFFE8A838)),     // Artifacts
+        Conduit(Offset(midX, botRowY), Color(0xFF00FF41)),      // Terminal
+        Conduit(Offset(rightX, botRowY), Color(0xFFFF5577)),    // Settings
+    )
+
+    conduits.forEach { conduit ->
+        val hub = Offset(cx, cy)
+        // Outer glow (wide, faint)
+        drawLine(
+            color = conduit.color.copy(alpha = 0.06f),
+            start = conduit.from,
+            end = hub,
+            strokeWidth = 12f,
+            cap = StrokeCap.Round,
+        )
+        // Mid glow
+        drawLine(
+            color = conduit.color.copy(alpha = 0.10f),
+            start = conduit.from,
+            end = hub,
+            strokeWidth = 6f,
+            cap = StrokeCap.Round,
+        )
+        // Core bright line
+        drawLine(
+            color = conduit.color.copy(alpha = 0.25f),
+            start = conduit.from,
+            end = hub,
+            strokeWidth = 1.5f,
+            cap = StrokeCap.Round,
+        )
+    }
 }
 
 // ── 3D Hexagonal crystal ────────────────────────────────────────────────────

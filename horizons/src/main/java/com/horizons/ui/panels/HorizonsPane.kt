@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.ui.theme.HorizonsColors
+import androidx.compose.foundation.background
 
 @Composable
 fun HorizonsPane(
@@ -40,6 +41,7 @@ fun HorizonsPane(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(HorizonsColors.Background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),

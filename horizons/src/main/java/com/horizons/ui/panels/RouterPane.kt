@@ -33,6 +33,7 @@ import com.horizons.HorizonsApplication
 import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
 import com.horizons.ui.theme.HorizonsColors
+import androidx.compose.foundation.background
 
 @Composable
 fun RouterPane(
@@ -52,6 +53,7 @@ fun RouterPane(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(HorizonsColors.Background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
