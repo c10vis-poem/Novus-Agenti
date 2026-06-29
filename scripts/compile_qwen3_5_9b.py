@@ -463,13 +463,25 @@ class DecoderChunkWrapper(torch.nn.Module):
                 self.final_norm = final_norm
             if lm_head is not None:
                 self.lm_head = lm_head
+        self._rotary_emb = None
+        for lay in layer_list:
+            rot = getattr(getattr(lay, "self_attn", None), "rotary_emb", None)
+            if rot is not None:
+                self._rotary_emb = rot
+                break
 
     def forward(self, x, attention_mask, position_ids):
         if self.is_first:
             x = self.embed_tokens(x)
+        pos_emb = None
+        if self._rotary_emb is not None:
+            pos_emb = self._rotary_emb(x, position_ids)
         for layer in self.layers:
-            out = layer(x, attention_mask=attention_mask,
-                        position_ids=position_ids, use_cache=False)
+            kwargs = dict(attention_mask=attention_mask,
+                          position_ids=position_ids, use_cache=False)
+            if pos_emb is not None:
+                kwargs["position_embeddings"] = pos_emb
+            out = layer(x, **kwargs)
             x = out[0] if isinstance(out, tuple) else out
         if self.is_last:
             if hasattr(self, "final_norm"):
