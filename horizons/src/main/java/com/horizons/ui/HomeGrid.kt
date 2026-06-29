@@ -24,7 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +65,8 @@ fun HomeGrid(
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
 
     val stars = remember { generateStars(120) }
+    var goatTaps by remember { mutableIntStateOf(0) }
+    var showGoat by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
         // ── Astral chart background ─────────────────────────────────────────
@@ -83,7 +88,15 @@ fun HomeGrid(
                 fontSize = 32.sp,
                 color = HorizonsColors.PrimaryTeal,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        goatTaps++
+                        if (goatTaps >= 7) {
+                            showGoat = true
+                            goatTaps = 0
+                        }
+                    },
             )
             Spacer(Modifier.height(2.dp))
             Text(
