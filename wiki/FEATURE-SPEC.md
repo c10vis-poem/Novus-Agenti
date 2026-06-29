@@ -35,6 +35,22 @@ Six tiles arranged around a central CORE_HUB crystal/hexagon, connected by color
 
 ---
 
+## Tile Labels
+
+Each tile has a two-line label: **NAME** on top, **/ slug** below. These are canonical:
+
+| Tile | Label | Slug |
+|---|---|---|
+| HORIZONS | `HORIZONS` | `/ home` |
+| MONITOR | `MONITOR` | `/ cognito` |
+| CHAT | `CHAT` | `/ interface` |
+| ROUTER | `ROUTER` | `/ route` |
+| ARTIFACTS | `ARTIFACTS` | `/ logs_skills` |
+| TERMINAL | `TERMINAL` | `/ shell` |
+| SETTINGS | `SETTINGS` | `/ config` |
+
+---
+
 ## Tile 1: HORIZONS — `/home` (top-left)
 
 **Color:** Teal/cyan, ice-blue sphere icon (antenna/horizon symbol)
