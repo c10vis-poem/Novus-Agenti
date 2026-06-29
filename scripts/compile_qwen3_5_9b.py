@@ -289,6 +289,7 @@ text_cfg = getattr(config, "text_config", config)
 LOAD_KW = dict(
     torch_dtype=torch.float16, device_map="cpu", low_cpu_mem_usage=True,
     token=HF_TOKEN, trust_remote_code=False,
+    attn_implementation="eager",
 )
 
 LOADER_PREFERENCE = ["AutoModelForMultimodalLM", "AutoModelForVision2Seq",
