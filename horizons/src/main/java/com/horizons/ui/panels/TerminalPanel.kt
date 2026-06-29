@@ -1,6 +1,24 @@
 package com.horizons.ui.panels
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -9,44 +27,189 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
+import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+private val MatrixGreen = Color(0xFF00FF41)
+private val MatrixDimGreen = Color(0xFF003B0F)
+
+private data class RainColumn(
+    val col: Int,
+    val speed: Float,
+    val chars: List<Char>,
+    val startOffset: Float,
+)
 
 private data class ShellEntry(val cmd: String, val stdout: String, val stderr: String, val exitCode: Int)
 private data class TermEntry(val input: String, val result: String, val ok: Boolean)
 
 @Composable
-fun TerminalPanel(modifier: Modifier = Modifier) {
+fun TerminalPanel(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as HorizonsApplication
     val scope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    Column(modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Shell") },
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Tasker") },
-            )
+    val rainColumns = remember { generateRainColumns(40) }
+    val transition = rememberInfiniteTransition(label = "matrix")
+    val animProgress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "rain",
+    )
+
+    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+        // Matrix waterfall background
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawMatrixRain(rainColumns, animProgress)
         }
 
-        when (selectedTab) {
-            0 -> ShellTab(app = app, scope = scope)
-            1 -> TaskerTab(app = app, scope = scope)
+        Column(Modifier.fillMaxSize()) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Text("←", fontSize = 20.sp, color = MatrixGreen)
+                }
+                Text(
+                    "TERMINAL",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = MatrixGreen,
+                )
+                Text(
+                    "  / shell",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MatrixGreen.copy(alpha = 0.5f),
+                )
+            }
+
+            // Tab row
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Black.copy(alpha = 0.7f),
+                contentColor = MatrixGreen,
+                indicator = {},
+                divider = { HorizontalDivider(color = MatrixGreen.copy(alpha = 0.2f)) },
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = {
+                        Text(
+                            "Shell",
+                            fontFamily = FontFamily.Monospace,
+                            color = if (selectedTab == 0) MatrixGreen else MatrixGreen.copy(alpha = 0.4f),
+                        )
+                    },
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = {
+                        Text(
+                            "Tasker",
+                            fontFamily = FontFamily.Monospace,
+                            color = if (selectedTab == 1) MatrixGreen else MatrixGreen.copy(alpha = 0.4f),
+                        )
+                    },
+                )
+            }
+
+            when (selectedTab) {
+                0 -> ShellTab(app = app, scope = scope)
+                1 -> TaskerTab(app = app, scope = scope)
+            }
+        }
+    }
+}
+
+private fun generateRainColumns(count: Int): List<RainColumn> {
+    val rng = java.util.Random(7)
+    val caretChar = '^'
+    return List(count) { i ->
+        RainColumn(
+            col = i,
+            speed = 0.3f + rng.nextFloat() * 0.7f,
+            chars = List(8 + rng.nextInt(12)) { caretChar },
+            startOffset = rng.nextFloat(),
+        )
+    }
+}
+
+private fun DrawScope.drawMatrixRain(columns: List<RainColumn>, progress: Float) {
+    val colWidth = size.width / columns.size
+    val charHeight = 18f
+
+    columns.forEach { col ->
+        val x = col.col * colWidth + colWidth / 2f
+        val totalHeight = col.chars.size * charHeight
+        val cyclePos = ((progress * col.speed + col.startOffset) % 1f) * (size.height + totalHeight)
+
+        col.chars.forEachIndexed { i, _ ->
+            val y = cyclePos - i * charHeight
+            if (y in -charHeight..size.height + charHeight) {
+                val fade = when {
+                    i == 0 -> 0.9f
+                    i < 3 -> 0.5f - i * 0.1f
+                    else -> 0.15f - (i - 3) * 0.015f
+                }.coerceIn(0.02f, 0.9f)
+
+                drawCircle(
+                    color = Color(0xFF00FF41).copy(alpha = fade * 0.3f),
+                    radius = 4f,
+                    center = Offset(x, y),
+                )
+            }
         }
     }
 }
@@ -78,20 +241,20 @@ private fun ShellTab(
     ) {
         if (!app.tasker.isTermuxInstalled()) {
             Surface(
-                color = MaterialTheme.colorScheme.errorContainer,
+                color = Color(0xFF1A0000),
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
                     "Termux not installed — install from F-Droid and grant RUN_COMMAND permission.",
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFFF6666),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
                     modifier = Modifier.padding(8.dp),
                 )
             }
         }
 
-        // History — newest at bottom, oldest scrolled off top (real terminal behaviour)
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -100,8 +263,7 @@ private fun ShellTab(
         ) {
             items(history.asReversed()) { entry ->
                 val isError = entry.exitCode != 0
-                val color = if (isError) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurface
+                val color = if (isError) Color(0xFFFF4444) else MatrixGreen
                 val output = when {
                     entry.stdout.isNotEmpty() && entry.stderr.isNotEmpty() ->
                         "${entry.stdout}\n[stderr] ${entry.stderr}"
@@ -111,22 +273,28 @@ private fun ShellTab(
                 }
                 Text(
                     "$ ${entry.cmd}\n$output",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
                     color = color,
                 )
             }
         }
 
-        HorizontalDivider()
+        HorizontalDivider(color = MatrixGreen.copy(alpha = 0.2f))
 
         OutlinedTextField(
             value = cmd,
             onValueChange = { cmd = it },
-            label = { Text("Shell command") },
+            label = { Text("Shell command", color = MatrixGreen.copy(alpha = 0.4f)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             enabled = !running,
-            textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                cursorColor = MatrixGreen,
+            ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { runCmd() }),
         )
@@ -136,22 +304,29 @@ private fun ShellTab(
                 onClick = ::runCmd,
                 enabled = !running && cmd.isNotBlank(),
                 modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MatrixGreen.copy(alpha = 0.15f),
+                    contentColor = MatrixGreen,
+                ),
             ) {
                 if (running) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = MatrixGreen,
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Running…")
+                    Text("Running…", fontFamily = FontFamily.Monospace)
                 } else {
                     Icon(Icons.Filled.Send, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Run")
+                    Text("Run", fontFamily = FontFamily.Monospace)
                 }
             }
-            OutlinedButton(onClick = { history.clear() }) {
+            OutlinedButton(
+                onClick = { history.clear() },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MatrixGreen),
+            ) {
                 Icon(Icons.Filled.Clear, contentDescription = "Clear")
             }
         }
@@ -186,71 +361,100 @@ private fun TaskerTab(
         Modifier.fillMaxSize().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Tasker Terminal", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Tasker Terminal",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            color = MatrixGreen,
+        )
 
-        // Quick smoke-test buttons
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                val res = app.tasker.runTask("HorizonsTest")
-                val ok = res.isSuccess
-                history.add(TermEntry("HorizonsTest", if (ok) "fired: HorizonsTest" else "error: ${res.exceptionOrNull()?.message}", ok))
-                scope.launch { if (history.isNotEmpty()) listState.animateScrollToItem(history.size - 1) }
-            }) { Text("Fire Test Task") }
-            OutlinedButton(onClick = { history.clear() }) {
-                Icon(Icons.Filled.Clear, contentDescription = "Clear")
+            OutlinedButton(
+                onClick = {
+                    val res = app.tasker.runTask("HorizonsTest")
+                    val ok = res.isSuccess
+                    history.add(TermEntry("HorizonsTest", if (ok) "fired: HorizonsTest" else "error: ${res.exceptionOrNull()?.message}", ok))
+                    scope.launch { if (history.isNotEmpty()) listState.animateScrollToItem(history.size - 1) }
+                },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MatrixGreen),
+            ) { Text("Fire Test Task", fontFamily = FontFamily.Monospace) }
+            OutlinedButton(
+                onClick = { history.clear() },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MatrixGreen),
+            ) {
+                Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = MatrixGreen)
             }
         }
 
         if (!app.tasker.isTaskerInstalled()) {
             Text(
-                "Tasker not installed — install from Play Store and enable External Access (Tasker → Preferences → Misc).",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
+                "Tasker not installed — install from Play Store and enable External Access.",
+                color = Color(0xFFFF6666),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
             )
         }
 
-        // History
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             items(history) { entry ->
-                val color = if (entry.ok) MaterialTheme.colorScheme.onSurface
-                            else MaterialTheme.colorScheme.error
+                val color = if (entry.ok) MatrixGreen else Color(0xFFFF4444)
                 Text(
                     "> ${entry.input}\n  ${entry.result}",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
                     color = color,
                 )
             }
         }
 
-        HorizontalDivider()
+        HorizontalDivider(color = MatrixGreen.copy(alpha = 0.2f))
 
-        // Input
         OutlinedTextField(
             value = taskName,
             onValueChange = { taskName = it },
-            label = { Text("Tasker task name") },
+            label = { Text("Tasker task name", color = MatrixGreen.copy(alpha = 0.4f)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                cursorColor = MatrixGreen,
+            ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { dispatch() }),
         )
         OutlinedTextField(
             value = param1,
             onValueChange = { param1 = it },
-            label = { Text("param1 (optional)") },
+            label = { Text("param1 (optional)", color = MatrixGreen.copy(alpha = 0.4f)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                cursorColor = MatrixGreen,
+            ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { dispatch() }),
         )
-        Button(onClick = ::dispatch, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = ::dispatch,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MatrixGreen.copy(alpha = 0.15f),
+                contentColor = MatrixGreen,
+            ),
+        ) {
             Icon(Icons.Filled.Send, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Dispatch task")
+            Text("Dispatch task", fontFamily = FontFamily.Monospace)
         }
     }
 }
