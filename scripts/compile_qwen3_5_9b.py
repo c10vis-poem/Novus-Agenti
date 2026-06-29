@@ -406,8 +406,8 @@ print("[3/11] Building static-shape wrappers ...")
 
 class VisionEncoderWrapper(torch.nn.Module):
     def __init__(self, m): super().__init__(); self.m = m
-    def forward(self, pixel_values):
-        out = self.m(pixel_values)
+    def forward(self, pixel_values, grid_thw):
+        out = self.m(pixel_values, grid_thw=grid_thw)
         if hasattr(out, "last_hidden_state"): return out.last_hidden_state
         return out[0] if isinstance(out, (tuple, list)) else out
 
@@ -484,17 +484,27 @@ ONNX_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.onnx")
 
 if not SKIP_VISION:
     print(f"[4/11] Exporting vision encoder → {ONNX_VISION} ...")
-    vision_input   = torch.zeros((1, 3, 448, 448), dtype=torch.float16)
+    vis_cfg = getattr(config, "vision_config", None)
+    patch_size = getattr(vis_cfg, "patch_size", 14) if vis_cfg else 14
+    temporal_patch = getattr(vis_cfg, "temporal_patch_size", 2) if vis_cfg else 2
+    spatial_merge = getattr(vis_cfg, "spatial_merge_size", 2) if vis_cfg else 2
+    in_channels = getattr(vis_cfg, "in_channels", 3) if vis_cfg else 3
+    num_t, num_h, num_w = 1, 16, 16
+    num_patches = num_t * num_h * num_w
+    channel_dim = in_channels * temporal_patch * patch_size * patch_size
+    vision_input = torch.zeros((num_patches, channel_dim), dtype=torch.float16)
+    grid_thw = torch.tensor([[num_t, num_h, num_w]], dtype=torch.int64)
+    print(f"      vision input: patches={num_patches}, channel_dim={channel_dim}, grid_thw={grid_thw.tolist()}")
     vision_wrapped = VisionEncoderWrapper(vision_module).eval()
     with torch.no_grad():
-        torch.onnx.export(vision_wrapped, (vision_input,), ONNX_VISION,
-            input_names=["pixel_values"], output_names=["vision_embeds"],
+        torch.onnx.export(vision_wrapped, (vision_input, grid_thw), ONNX_VISION,
+            input_names=["pixel_values", "grid_thw"], output_names=["vision_embeds"],
             opset_version=17, do_constant_folding=True, dynamo=False)
     print(f"      {os.path.getsize(ONNX_VISION)//1024//1024} MB")
 
     print(f"[5/11] Exporting projection → {ONNX_PROJECTION} ...")
     with torch.no_grad():
-        sample = vision_wrapped(torch.zeros((1,3,448,448), dtype=torch.float16))
+        sample = vision_wrapped(vision_input, grid_thw)
     proj_wrapped = ProjectionWrapper(projection_module).eval()
     with torch.no_grad():
         torch.onnx.export(proj_wrapped, (torch.zeros_like(sample),), ONNX_PROJECTION,
