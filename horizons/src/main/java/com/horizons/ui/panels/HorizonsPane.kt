@@ -1,6 +1,7 @@
 package com.horizons.ui.panels
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,8 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
+import com.horizons.ui.AstralSpaceBackground
 import com.horizons.ui.theme.HorizonsColors
-import androidx.compose.foundation.background
 
 @Composable
 fun HorizonsPane(
@@ -38,10 +39,11 @@ fun HorizonsPane(
     val app = ctx.applicationContext as HorizonsApplication
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
 
+    Box(modifier = modifier.fillMaxSize()) {
+    AstralSpaceBackground()
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(HorizonsColors.Background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -133,6 +135,7 @@ fun HorizonsPane(
         }
 
         Spacer(Modifier.height(24.dp))
+    }
     }
 }
 

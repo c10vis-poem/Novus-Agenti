@@ -125,6 +125,138 @@ private fun DrawScope.drawSlateTexture(drops: List<RainDrop>, cracks: List<Crack
     }
 }
 
+// ── Water droplet background (Chat pane) ───────────────────────────────────
+
+private data class WaterDrop(val x: Float, val y: Float, val radius: Float, val alpha: Float)
+
+private fun generateWaterDrops(count: Int): List<WaterDrop> {
+    val rng = java.util.Random(47)
+    return List(count) {
+        WaterDrop(
+            x = rng.nextFloat(),
+            y = rng.nextFloat(),
+            radius = 2f + rng.nextFloat() * 5f,
+            alpha = 0.05f + rng.nextFloat() * 0.12f,
+        )
+    }
+}
+
+@Composable
+fun WaterDropletBackground(modifier: Modifier = Modifier) {
+    val drops = remember { generateWaterDrops(100) }
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF122428),
+                    Color(0xFF183034),
+                    Color(0xFF0F1E22),
+                ),
+            ),
+        )
+
+        val rng = java.util.Random(61)
+        for (i in 0..30) {
+            val y = rng.nextFloat() * size.height
+            drawLine(
+                color = Color(0xFF2DD4D9).copy(alpha = 0.03f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y + (rng.nextFloat() - 0.5f) * 6f),
+                strokeWidth = 0.8f + rng.nextFloat() * 2f,
+            )
+        }
+
+        drops.forEach { drop ->
+            val cx = drop.x * size.width
+            val cy = drop.y * size.height
+            drawCircle(
+                color = Color(0xFF2DD4D9).copy(alpha = drop.alpha),
+                radius = drop.radius,
+                center = Offset(cx, cy),
+            )
+            drawCircle(
+                color = Color(0xFF4FE7EC).copy(alpha = drop.alpha * 0.5f),
+                radius = drop.radius * 0.35f,
+                center = Offset(cx - drop.radius * 0.25f, cy - drop.radius * 0.25f),
+            )
+            drawCircle(
+                color = Color(0xFF2DD4D9).copy(alpha = drop.alpha * 0.3f),
+                radius = drop.radius,
+                center = Offset(cx, cy),
+                style = Stroke(width = 0.5f),
+            )
+        }
+    }
+}
+
+// ── Astral space background (Horizons pane) ────────────────────────────────
+
+private data class DeepStar(val x: Float, val y: Float, val size: Float, val alpha: Float, val isTeal: Boolean)
+
+private fun generateDeepStars(count: Int): List<DeepStar> {
+    val rng = java.util.Random(73)
+    return List(count) {
+        DeepStar(
+            x = rng.nextFloat(),
+            y = rng.nextFloat(),
+            size = 0.5f + rng.nextFloat() * 2f,
+            alpha = 0.1f + rng.nextFloat() * 0.6f,
+            isTeal = rng.nextFloat() < 0.3f,
+        )
+    }
+}
+
+@Composable
+fun AstralSpaceBackground(modifier: Modifier = Modifier) {
+    val stars = remember { generateDeepStars(150) }
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFF1A2830),
+                    Color(0xFF111C22),
+                    Color(0xFF0A1218),
+                ),
+                center = Offset(size.width * 0.5f, size.height * 0.3f),
+                radius = size.maxDimension * 0.8f,
+            ),
+        )
+
+        stars.forEach { star ->
+            val color = if (star.isTeal) Color(0xFF2DD4D9) else Color.White
+            drawCircle(
+                color = color.copy(alpha = star.alpha),
+                radius = star.size,
+                center = Offset(star.x * size.width, star.y * size.height),
+            )
+        }
+
+        val nebulaColor = Color(0xFF2DD4D9).copy(alpha = 0.02f)
+        drawCircle(
+            color = nebulaColor,
+            radius = size.minDimension * 0.4f,
+            center = Offset(size.width * 0.3f, size.height * 0.2f),
+        )
+        drawCircle(
+            color = nebulaColor,
+            radius = size.minDimension * 0.3f,
+            center = Offset(size.width * 0.7f, size.height * 0.6f),
+        )
+
+        val ringColor = Color(0xFF2DD4D9).copy(alpha = 0.04f)
+        for (i in 1..3) {
+            drawCircle(
+                color = ringColor,
+                radius = size.minDimension * 0.15f * i,
+                center = Offset(size.width * 0.5f, size.height * 0.4f),
+                style = Stroke(width = 0.5f),
+            )
+        }
+    }
+}
+
 // ── Goat Easter egg popup ───────────────────────────────────────────────────
 
 @Composable

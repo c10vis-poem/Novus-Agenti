@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -53,6 +55,8 @@ import androidx.core.content.ContextCompat
 import com.horizons.ChatMessage
 import com.horizons.ChatMode
 import com.horizons.HorizonsApplication
+import com.horizons.ui.WaterDropletBackground
+import com.horizons.ui.theme.HorizonsColors
 import com.horizons.audio.AudioRecorder
 import com.horizons.fgs.LiveChatService
 import com.horizons.fgs.ScreenShareService
@@ -198,7 +202,9 @@ fun ChatPane(modifier: Modifier = Modifier) {
         }
     }
 
-    Column(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()) {
+    WaterDropletBackground()
+    Column(Modifier.fillMaxSize()) {
 
         // ── Mode toggle row ───────────────────────────────────────────────────
         Row(
@@ -341,6 +347,7 @@ fun ChatPane(modifier: Modifier = Modifier) {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -352,8 +359,8 @@ private fun ChatBubble(msg: ChatMessage) {
     ) {
         Surface(
             shape = MaterialTheme.shapes.medium,
-            color = if (isUser) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant,
+            color = if (isUser) HorizonsColors.TileChat.copy(alpha = 0.15f)
+                    else HorizonsColors.Surface,
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             SelectionContainer {
@@ -361,6 +368,8 @@ private fun ChatBubble(msg: ChatMessage) {
                     text = msg.text,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = if (isUser) HorizonsColors.TileChat
+                            else Color.White.copy(alpha = 0.9f),
                 )
             }
         }
