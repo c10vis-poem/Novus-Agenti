@@ -205,11 +205,7 @@ write_partition_override(PARTITION_JSON)
 
 NUM_CHUNKS = int(os.environ.get("NUM_CHUNKS", "4"))
 
-COMPILE_OPTIONS_BASE = " ".join([
-    "--target_runtime qnn_context_binary",
-    "--quantize_full_type w4a16",
-    "--qnn_options context_max_spill_fill_buffers=16",
-])
+COMPILE_OPTIONS_BASE = "--target_runtime qnn_context_binary --quantize_full_type w4a16"
 
 
 def submit_qai_hub_compile(onnx_path, name, extra_options="", calibration_data=None):
