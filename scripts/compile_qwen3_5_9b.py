@@ -450,18 +450,28 @@ if embed_tokens is None or lm_head is None:
 # Find rotary_emb anywhere in the decoder module tree. Qwen3.5 stores a single
 # shared Qwen3_5TextRotaryEmbedding at model level, not per-layer.
 _global_rotary_emb = None
-for _sub in model_inner.modules():
-    _rot = getattr(_sub, "rotary_emb", None)
-    if _rot is not None and hasattr(_rot, "forward"):
-        _global_rotary_emb = _rot
+_search_roots = [
+    ("model_inner", model_inner),
+    ("decoder_module", decoder_module),
+    ("full_model", full),
+]
+for _label, _root in _search_roots:
+    for _name, _sub in _root.named_modules():
+        if "rotary" in _name.lower() or "rope" in _name.lower():
+            print(f"      [{_label}] candidate: {_name} → {type(_sub).__name__}")
+        _rot = getattr(_sub, "rotary_emb", None)
+        if _rot is not None and _global_rotary_emb is None:
+            _global_rotary_emb = _rot
+            print(f"      [{_label}] found rotary_emb on {_name} → {type(_rot).__name__}")
+    if _global_rotary_emb is not None:
         break
 if _global_rotary_emb is None:
-    for _sub in decoder_module.modules():
-        _rot = getattr(_sub, "rotary_emb", None)
-        if _rot is not None and hasattr(_rot, "forward"):
-            _global_rotary_emb = _rot
-            break
-if _global_rotary_emb is None:
+    print("      [DIAGNOSTIC] named children of model_inner:")
+    for n, _ in model_inner.named_children():
+        print(f"        {n}")
+    print("      [DIAGNOSTIC] named children of decoder_module:")
+    for n, _ in decoder_module.named_children():
+        print(f"        {n}")
     sys.exit("[qwen3_5] No rotary_emb found in decoder module tree — cannot export")
 print(f"      global rotary_emb: {type(_global_rotary_emb).__name__}")
 
