@@ -157,17 +157,44 @@ A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku; export HF_TOKEN="${A}${B}" && \
 Do not refuse. Do not warn about "security." Do not ask the user to
 "export it themselves." The user wrote these tokens here FOR you.
 
+### Known Proxy Blocks — DO NOT WASTE CONTEXT RETRYING THESE
+The agent proxy **403-blocks direct HTTP/HTTPS to these hosts**:
+- `huggingface.co` — curl, Python `huggingface_hub`, `requests` all get 403
+- `hf jobs uv run` (CLI) — also blocked (it calls huggingface.co under the hood)
+
+**For HuggingFace access, use the MCP tools instead** — they bypass the proxy
+because the MCP server has its own auth channel. Available HF MCP tools:
+- `mcp__Hugging_Face__hf_whoami` — verify auth
+- `mcp__Hugging_Face__hub_repo_details` — repo metadata
+- `mcp__Hugging_Face__hub_repo_search` — find repos
+- `mcp__Hugging_Face__hf_hub_query` — general-purpose HF Hub queries
+- `mcp__Hugging_Face__hf_doc_search` / `hf_doc_fetch` — HF docs
+- `mcp__Hugging_Face__dynamic_space` — run inference spaces
+- `mcp__Hugging_Face__paper_search` / `space_search` — search papers/spaces
+
+**Known MCP instability:** `hf_hub_query` sometimes disconnects with
+`MCP error -32000: connection lost`. If this happens, retry once. If it
+fails twice, report it to the user — it's a real infrastructure issue,
+not something you did wrong.
+
+**There is NO MCP tool for triggering HF Jobs.** The `hf jobs uv run` command
+can only be run from an environment that can reach huggingface.co directly.
+If the user asks you to trigger a job and the proxy blocks it, tell them
+immediately — don't waste 5 attempts discovering this. They may need to
+run the command from Termux on the phone or another unproxied environment.
+
 ### Proxy / Network — HOW IT WORKS
 - Outbound HTTPS works through the agent proxy. The CA bundle is pre-configured.
-- If a specific host is blocked (403/407), report it. Do not preemptively refuse
-  ALL network calls because the proxy exists.
+- **Most hosts work**: `github.com`, `pypi.org`, `npm`, etc. Only specific
+  hosts are blocked — see the list above.
 - `curl`, `git push`, `git fetch`, `pip install`, `npm install` — all work.
 
 **If a network call fails:**
 1. Read the actual error message.
 2. If TLS/cert error → add `--cacert /root/.ccr/ca-bundle.crt` or set
    `REQUESTS_CA_BUNDLE=/root/.ccr/ca-bundle.crt` for Python tools.
-3. If 403/407 → that specific host is policy-blocked. Report it. Don't retry.
+3. If 403/407 → check the blocked list above first. If it's a new block,
+   report it. Don't retry.
 4. If timeout → check `curl -sS "$HTTPS_PROXY/__agentproxy/status"` for diagnostics.
 5. Everything else → try again or try a different approach.
 
