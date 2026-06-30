@@ -1,0 +1,91 @@
+name: build-llama-server
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - '.github/workflows/build-llama-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/snapdragon-toolchain/arm64-android:v0.7
+
+    steps:
+      - name: Clone llama.cpp
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /workspace/llama.cpp
+
+      - name: Build llama-server (arm64-v8a, Hexagon NPU + OpenCL)
+        working-directory: /workspace/llama.cpp
+        run: |
+          cp docs/backend/snapdragon/CMakeUserPresets.json .
+          cmake --preset arm64-android-snapdragon-release -B build-snapdragon
+          cmake --build build-snapdragon -j$(nproc) --target llama-server llama-quantize llama-cli
+
+      - name: Verify binaries
+        run: |
+          file /workspace/llama.cpp/build-snapdragon/bin/llama-server
+          file /workspace/llama.cpp/build-snapdragon/bin/llama-quantize
+          file /workspace/llama.cpp/build-snapdragon/bin/llama-cli
+          ls -la /workspace/llama.cpp/build-snapdragon/bin/
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p /workspace/out
+          cp /workspace/llama.cpp/build-snapdragon/bin/llama-server /workspace/out/
+          cp /workspace/llama.cpp/build-snapdragon/bin/llama-quantize /workspace/out/
+          cp /workspace/llama.cpp/build-snapdragon/bin/llama-cli /workspace/out/
+          # Copy HTP operator libraries needed on-device
+          find /workspace/llama.cpp/build-snapdragon -name "*.so" | head -20
+          cp /workspace/llama.cpp/build-snapdragon/lib/*.so /workspace/out/ 2>/dev/null || true
+          ls -la /workspace/out/
+
+      - uses: actions/checkout@v4
+        with:
+          path: /workspace/repo
+
+      - name: Upload artifacts (Actions tab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-server-arm64
+          path: /workspace/out/*
+          if-no-files-found: error
+
+      - name: Publish to latest-debug release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-debug
+          name: latest-debug (auto)
+          body: |
+            Auto-built from ${{ github.sha }} on ${{ github.ref_name }}.
+
+            ## Install on device
+            ```
+            adb push llama-server /data/local/tmp/
+            adb shell chmod +x /data/local/tmp/llama-server
+            adb push your-model.gguf /storage/emulated/0/Download/
+            ```
+
+            ## Run manually (Termux or adb shell)
+            ```
+            cd /data/local/tmp
+            GGML_HEXAGON_NDEV=2 ./llama-server \
+              -m /storage/emulated/0/Download/model.gguf \
+              --host 127.0.0.1 --port 8080 -c 2048
+            ```
+
+            Or install the Horizons APK — CliffordService launches it automatically.
+          files: |
+            /workspace/out/llama-server
+            /workspace/out/llama-quantize
+            /workspace/out/llama-cli
+          prerelease: true
+          make_latest: false
