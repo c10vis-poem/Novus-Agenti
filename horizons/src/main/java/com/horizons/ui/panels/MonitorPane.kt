@@ -1,6 +1,9 @@
 package com.horizons.ui.panels
 
+import android.net.Uri
 import android.os.Environment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +47,9 @@ import com.horizons.HorizonsApplication
 import com.horizons.core.state.AppStateStore
 import com.horizons.ui.SlateStoneBackground
 import com.horizons.ui.theme.HorizonsColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
@@ -54,6 +61,7 @@ fun MonitorPane(
     val app = ctx.applicationContext as HorizonsApplication
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
     val vault by app.appState.snapshot.collectAsState()
+    val scope = rememberCoroutineScope()
 
     Box(modifier = modifier.fillMaxSize()) {
     SlateStoneBackground()
@@ -99,17 +107,65 @@ fun MonitorPane(
 
         val modelsDir = File(app.filesDir, "models")
         val downloadDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).path)
-        val modelFiles = remember {
-            val extensions = setOf("bin", "onnx", "gguf")
+        var importTick by remember { mutableStateOf(0) }
+        var importStatus by remember { mutableStateOf<String?>(null) }
+        val modelFiles = remember(importTick) {
             val files = mutableListOf<File>()
             listOf(modelsDir, downloadDir).forEach { dir ->
                 if (dir.isDirectory) {
                     dir.listFiles()?.filter { f ->
-                        f.isFile && f.extension.lowercase() in extensions
+                        f.isFile && com.horizons.ModelImportActivity.MODEL_EXTENSIONS.any {
+                            f.name.lowercase().endsWith(it)
+                        }
                     }?.let { files.addAll(it) }
                 }
             }
             files.sortedByDescending { it.lastModified() }
+        }
+
+        val filePickerLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument()
+        ) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            val name = queryDisplayName(ctx, uri) ?: uri.lastPathSegment ?: "imported_model"
+            val lower = name.lowercase()
+            val isModel = com.horizons.ModelImportActivity.MODEL_EXTENSIONS.any { lower.endsWith(it) }
+            val isRuntime = name in com.horizons.ModelImportActivity.RUNTIME_FILES
+            if (!isModel && !isRuntime) {
+                importStatus = "Unsupported file type: $name"
+                return@rememberLauncherForActivityResult
+            }
+            val destDir = if (isModel) modelsDir else app.filesDir
+            val executable = isRuntime && name == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
+            importStatus = "Importing $name…"
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        destDir.mkdirs()
+                        val dest = File(destDir, name)
+                        ctx.contentResolver.openInputStream(uri)?.use { input ->
+                            dest.outputStream().use { out -> input.copyTo(out) }
+                        } ?: throw IllegalStateException("Cannot open input stream")
+                        if (executable) dest.setExecutable(true, true)
+                    }
+                    importStatus = "Imported $name"
+                    importTick++
+                } catch (e: Exception) {
+                    importStatus = "Import failed: ${e.message}"
+                }
+            }
+        }
+
+        Button(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+            Text("Browse for model or runtime file…")
+        }
+        importStatus?.let { msg ->
+            Text(
+                msg,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            )
         }
 
         if (modelFiles.isEmpty()) {
@@ -119,7 +175,8 @@ fun MonitorPane(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    "No model files found.\nPlace .bin, .onnx, or .gguf files in Downloads or import via browser.",
+                    "No model files found.\nPlace a .bin/.onnx/.gguf/.tflite/.dlc/.pte/.qnn file in Downloads, " +
+                    "import via browser, or use Browse above.",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
@@ -338,4 +395,12 @@ private fun VaultRow(
             }
         }
     }
+}
+
+private fun queryDisplayName(ctx: android.content.Context, uri: Uri): String? {
+    ctx.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+        if (idx >= 0 && cursor.moveToFirst()) return cursor.getString(idx)
+    }
+    return null
 }

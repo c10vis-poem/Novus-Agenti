@@ -43,10 +43,14 @@ class DaemonLauncher(
 
             val logFile = File(context.getExternalFilesDir(null), "$binaryName.log")
 
+            // libonnxruntime.so is installed alongside the engine binary in filesDir
+            // (via ModelImportActivity's runtime-file import), not under a system lib path.
+            val libDir = context.filesDir.absolutePath
+
             // mksh -T- detaches the child from the controlling tty, reparenting it
             // to init so it survives shell exit. Equivalent to nohup + setsid.
             val args = engineArgs.joinToString(" ")
-            val shellCmd = "${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
+            val shellCmd = "LD_LIBRARY_PATH=$libDir ${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
 
             return@withContext try {
                 val proc = ProcessBuilder("/system/bin/sh", "-T-", "-c", shellCmd)

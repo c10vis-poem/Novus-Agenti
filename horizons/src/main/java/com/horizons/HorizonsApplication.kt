@@ -286,11 +286,17 @@ class HorizonsApplication : Application() {
             "qwen3_5_9b_unified.bin",
             "qwen3_5_9b_language_decoder.bin",
         )
-        val roots = listOf(filesDir, java.io.File("/storage/emulated/0/Download"))
+        val modelsDir = java.io.File(filesDir, "models")
+        val roots = listOf(modelsDir, filesDir, java.io.File("/storage/emulated/0/Download"))
         for (root in roots) for (name in variants) {
             val f = java.io.File(root, name)
             if (f.canRead()) return f.absolutePath
         }
+        // Any model file imported into the app-private models dir (newest first)
+        modelsDir.listFiles()
+            ?.filter { f -> f.isFile && ModelImportActivity.MODEL_EXTENSIONS.any { f.name.lowercase().endsWith(it) } }
+            ?.maxByOrNull { it.lastModified() }
+            ?.let { return it.absolutePath }
         // Shell find -- any .bin dropped into Downloads
         for (findBin in listOf("/system/bin/find", "/system/xbin/find")) {
             if (!java.io.File(findBin).exists()) continue

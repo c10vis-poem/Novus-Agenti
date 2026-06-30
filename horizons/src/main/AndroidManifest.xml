@@ -197,7 +197,8 @@
         </service>
 
         <!-- Model file handler — "Open with Horizons" from browser/file manager.
-             Covers .bin (QNN context binary), .onnx, .gguf (llama.cpp) downloads. -->
+             Covers .bin/.serialized.bin (QNN context binary), .onnx, .gguf (llama.cpp),
+             .tflite, .dlc (SNPE), .pte (ExecuTorch), .qnn downloads. -->
         <activity
             android:name=".ModelImportActivity"
             android:exported="true"
@@ -223,6 +224,10 @@
                 <data android:pathPattern=".*\\.bin" />
                 <data android:pathPattern=".*\\.onnx" />
                 <data android:pathPattern=".*\\.gguf" />
+                <data android:pathPattern=".*\\.tflite" />
+                <data android:pathPattern=".*\\.dlc" />
+                <data android:pathPattern=".*\\.pte" />
+                <data android:pathPattern=".*\\.qnn" />
                 <data android:mimeType="*/*" />
             </intent-filter>
 

@@ -90,18 +90,37 @@ class ModelImportActivity : ComponentActivity() {
         if (uri == null) return finishWithError("No file URI in intent")
 
         val fileName = resolveFileName(uri)
-        if (!isModelFile(fileName)) {
-            return finishWithError("Unsupported file type: $fileName")
+        when {
+            isModelFile(fileName) -> {
+                statusText.value = "Importing $fileName…"
+                scope.launch {
+                    importFile(
+                        uri, fileName,
+                        destDir = File(filesDir, "models"),
+                        executable = false,
+                        label = "Model",
+                    )
+                }
+            }
+            isRuntimeFile(fileName) -> {
+                statusText.value = "Installing $fileName…"
+                scope.launch {
+                    importFile(
+                        uri, fileName,
+                        destDir = filesDir,
+                        executable = fileName == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY,
+                        label = "Runtime component",
+                    )
+                }
+            }
+            else -> finishWithError("Unsupported file type: $fileName")
         }
-
-        statusText.value = "Importing $fileName…"
-        scope.launch { importModel(uri, fileName) }
     }
 
-    private suspend fun importModel(uri: Uri, fileName: String) {
+    private suspend fun importFile(uri: Uri, fileName: String, destDir: File, executable: Boolean, label: String) {
         try {
-            val modelsDir = File(filesDir, "models").also { it.mkdirs() }
-            val dest = File(modelsDir, fileName)
+            destDir.mkdirs()
+            val dest = File(destDir, fileName)
 
             withContext(Dispatchers.IO) {
                 val input: InputStream = contentResolver.openInputStream(uri)
@@ -121,12 +140,13 @@ class ModelImportActivity : ComponentActivity() {
                         }
                     }
                 }
+                if (executable) dest.setExecutable(true, true)
             }
 
             Log.i(TAG, "Imported $fileName → ${dest.absolutePath} (${dest.length()} bytes)")
             importing.value = false
             statusText.value = "Imported $fileName (${dest.length() / (1024 * 1024)} MB)"
-            Toast.makeText(this, "Model imported: $fileName", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "$label imported: $fileName", Toast.LENGTH_LONG).show()
 
             startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -150,8 +170,10 @@ class ModelImportActivity : ComponentActivity() {
 
     private fun isModelFile(name: String): Boolean {
         val lower = name.lowercase()
-        return lower.endsWith(".bin") || lower.endsWith(".onnx") || lower.endsWith(".gguf")
+        return MODEL_EXTENSIONS.any { lower.endsWith(it) }
     }
+
+    private fun isRuntimeFile(name: String): Boolean = name in RUNTIME_FILES
 
     private fun finishWithError(msg: String) {
         Log.w(TAG, msg)
@@ -162,5 +184,25 @@ class ModelImportActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "ModelImport"
+
+        val MODEL_EXTENSIONS = listOf(
+            ".serialized.bin",
+            ".bin",
+            ".onnx",
+            ".gguf",
+            ".tflite",
+            ".dlc",
+            ".pte",
+            ".qnn",
+        )
+
+        // Native daemon runtime components — CI build outputs from build-apk.yml.
+        val RUNTIME_FILES = setOf(
+            com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY, // "ort_engine"
+            "libonnxruntime.so",
+            "libQnnHtp.so",
+            "libQnnSystem.so",
+            "libQnnHtpV75Skel.so",
+        )
     }
 }
