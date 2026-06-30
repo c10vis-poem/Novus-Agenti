@@ -477,11 +477,15 @@ class DecoderChunkWrapper(torch.nn.Module):
         if self._rotary_emb is not None:
             pos_emb = self._rotary_emb(x, position_ids)
         for layer in self.layers:
-            kwargs = dict(attention_mask=attention_mask,
-                          position_ids=position_ids, use_cache=False)
             if pos_emb is not None:
-                kwargs["position_embeddings"] = pos_emb
-            out = layer(x, **kwargs)
+                out = layer(x, attention_mask=attention_mask,
+                            position_ids=position_ids,
+                            position_embeddings=pos_emb,
+                            use_cache=False)
+            else:
+                out = layer(x, attention_mask=attention_mask,
+                            position_ids=position_ids,
+                            use_cache=False)
             x = out[0] if isinstance(out, tuple) else out
         if self.is_last:
             if hasattr(self, "final_norm"):
