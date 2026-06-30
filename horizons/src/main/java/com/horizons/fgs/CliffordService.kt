@@ -60,6 +60,9 @@ class CliffordService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Init Breadcrumb in this process too so last() can read boot.log.
+        com.horizons.core.diag.Breadcrumb.install(this)
+        com.horizons.core.diag.Breadcrumb.drop("CliffordService_started")
         startForeground(NOTIF_ID, buildNotification())
         startCrs()
         return START_STICKY
@@ -94,6 +97,12 @@ class CliffordService : Service() {
             // Phase 2: CRS heartbeat — re-launch if daemon dies, swap runtime when healthy.
             while (isActive) {
                 delay(CRS_INTERVAL_MS)
+                // Refresh notification so the breadcrumb text stays current
+                // even when state didn't change.
+                runCatching {
+                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    nm.notify(NOTIF_ID, buildNotification())
+                }
                 val alive = pingDaemon()
                 if (!alive) {
                     // Don't downgrade to Unhealthy when we're waiting on a missing
@@ -192,10 +201,16 @@ class CliffordService : Service() {
                     .also { it.description = "NPU daemon process guardian" }
             )
         }
+        // Surface the most recent app-lifecycle breadcrumb in the notification
+        // body so the user can see WHERE the main process died without opening
+        // the app or pulling logs.
+        val crumb = com.horizons.core.diag.Breadcrumb.last()
+        val expanded = "${state.label}\nlast: $crumb"
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("Novus Agenti")
             .setContentText(state.label)
+            .setStyle(Notification.BigTextStyle().bigText(expanded))
             .setOngoing(true)
             .build()
     }

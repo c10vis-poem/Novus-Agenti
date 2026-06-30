@@ -130,6 +130,48 @@ fun ArtifactsPane(
 
         HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.2f))
 
+        // ── Boot diagnostics ─────────────────────────────────────────────
+        SectionHeader("Boot Diagnostics", HorizonsColors.TileArtifacts)
+
+        var diagText by remember { mutableStateOf(com.horizons.core.diag.Breadcrumb.readAll()) }
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text(
+                    diagText.takeLast(4000), // last 4 KB so we see most recent
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Refresh",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = HorizonsColors.TileArtifacts,
+                        modifier = Modifier.clickable {
+                            diagText = com.horizons.core.diag.Breadcrumb.readAll()
+                        },
+                    )
+                    Text(
+                        "Clear",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = HorizonsColors.TileSettings,
+                        modifier = Modifier.clickable {
+                            com.horizons.core.diag.Breadcrumb.clear()
+                            diagText = com.horizons.core.diag.Breadcrumb.readAll()
+                        },
+                    )
+                }
+            }
+        }
+
         // ── Logs ─────────────────────────────────────────────────────────
         SectionHeader("Logs", HorizonsColors.TileArtifacts)
 

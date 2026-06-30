@@ -66,18 +66,21 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        com.horizons.core.diag.Breadcrumb.drop("MainActivity_onCreate_enter")
         super.onCreate(savedInstanceState)
+        com.horizons.core.diag.Breadcrumb.drop("MainActivity_after_super")
         WindowCompat.setDecorFitsSystemWindows(window, false)
         requestRuntimePermissions()
-        if (!Environment.isExternalStorageManager()) {
-            startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                Uri.parse("package:$packageName")))
-        }
+        com.horizons.core.diag.Breadcrumb.drop("MainActivity_runtime_perms_requested")
+        // NOTE: previously auto-launched ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+        // on every cold start, which kicked the user out to Settings before the UI
+        // composed. SettingsPane now exposes that grant on demand instead.
         val launchDirectTo = when (intent?.getStringExtra(EXTRA_LAUNCH_TAB)) {
             TAB_TERMINAL -> Panel.Terminal
             TAB_CHAT -> Panel.Chat
             else -> null
         }
+        com.horizons.core.diag.Breadcrumb.drop("MainActivity_before_setContent")
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
                 background = HorizonsColors.Background,

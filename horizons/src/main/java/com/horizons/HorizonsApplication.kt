@@ -249,31 +249,64 @@ class HorizonsApplication : Application() {
     }
 
     override fun onCreate() {
+        com.horizons.core.diag.Breadcrumb.install(this)
+        com.horizons.core.diag.Breadcrumb.drop("onCreate_enter")
         super.onCreate()
-        CrashRecorder(this).install()
-        appState = AppStateStore(this)
+        com.horizons.core.diag.Breadcrumb.drop("onCreate_after_super")
 
-        // CLIFFORD (BRD) -- launches daemon from FGS context so it inherits
-        // oom_score_adj ~-200 to -400. CRS loop monitors + rehydrates. No root, no Shizuku.
-        com.horizons.fgs.CliffordService.start(this)
+        try {
+            CrashRecorder(this).install()
+            com.horizons.core.diag.Breadcrumb.drop("crashrecorder_installed")
 
-        cloudRuntime.refreshStatus()
+            appState = AppStateStore(this)
+            com.horizons.core.diag.Breadcrumb.drop("appstate_loaded")
 
-        // Start Kokoro model check/download; init TTS engine once the model is ready.
-        kokoroManager.ensureReady()
-        scope.launch {
-            kokoroManager.state.collect { state ->
-                if (state is KokoroSetupState.Ready) {
-                    tts.voiceId = ttsVoiceId.value
-                    tts.speed   = ttsSpeed.value
-                    withContext(Dispatchers.IO) { tts.init() }
+            // CLIFFORD FGS -- separate process. Failure here shouldn't kill main.
+            try {
+                com.horizons.fgs.CliffordService.start(this)
+                com.horizons.core.diag.Breadcrumb.drop("clifford_started")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("clifford_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
+
+            try {
+                cloudRuntime.refreshStatus()
+                com.horizons.core.diag.Breadcrumb.drop("cloud_refreshed")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("cloud_refresh_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
+
+            try {
+                kokoroManager.ensureReady()
+                com.horizons.core.diag.Breadcrumb.drop("kokoro_ensure_ready_called")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("kokoro_ensure_ready_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
+
+            scope.launch {
+                kokoroManager.state.collect { state ->
+                    if (state is KokoroSetupState.Ready) {
+                        com.horizons.core.diag.Breadcrumb.drop("kokoro_state_ready")
+                        try {
+                            tts.voiceId = ttsVoiceId.value
+                            tts.speed   = ttsSpeed.value
+                            withContext(Dispatchers.IO) { tts.init() }
+                            com.horizons.core.diag.Breadcrumb.drop("tts_inited")
+                        } catch (e: Throwable) {
+                            com.horizons.core.diag.Breadcrumb.drop("tts_init_failed: ${e.javaClass.simpleName}: ${e.message}")
+                        }
+                    }
                 }
             }
-        }
 
-        // Keep live voice settings synced to the store.
-        scope.launch { ttsVoiceId.collect { id -> tts.voiceId = id; appState.put(AppStateStore.KEY_TTS_VOICE, id) } }
-        scope.launch { ttsSpeed.collect  { sp -> tts.speed   = sp; appState.put(AppStateStore.KEY_TTS_SPEED, sp.toString()) } }
+            scope.launch { ttsVoiceId.collect { id -> tts.voiceId = id; appState.put(AppStateStore.KEY_TTS_VOICE, id) } }
+            scope.launch { ttsSpeed.collect  { sp -> tts.speed   = sp; appState.put(AppStateStore.KEY_TTS_SPEED, sp.toString()) } }
+
+            com.horizons.core.diag.Breadcrumb.drop("onCreate_exit_ok")
+        } catch (e: Throwable) {
+            com.horizons.core.diag.Breadcrumb.drop("onCreate_threw: ${e.javaClass.simpleName}: ${e.message}")
+            throw e
+        }
     }
 
     fun activateNpuRuntime() {
