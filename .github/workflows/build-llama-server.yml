@@ -38,24 +38,22 @@ jobs:
 
       - name: Stage artifacts
         run: |
-          mkdir -p /workspace/out
-          cp /workspace/llama.cpp/build-snapdragon/bin/llama-server /workspace/out/
-          cp /workspace/llama.cpp/build-snapdragon/bin/llama-quantize /workspace/out/
-          cp /workspace/llama.cpp/build-snapdragon/bin/llama-cli /workspace/out/
+          mkdir -p $GITHUB_WORKSPACE/out
+          cp /workspace/llama.cpp/build-snapdragon/bin/llama-server $GITHUB_WORKSPACE/out/
+          cp /workspace/llama.cpp/build-snapdragon/bin/llama-quantize $GITHUB_WORKSPACE/out/
+          cp /workspace/llama.cpp/build-snapdragon/bin/llama-cli $GITHUB_WORKSPACE/out/
           # Copy shared libraries needed on-device
-          cp /workspace/llama.cpp/build-snapdragon/bin/*.so /workspace/out/ 2>/dev/null || true
-          cp /workspace/llama.cpp/build-snapdragon/lib/*.so /workspace/out/ 2>/dev/null || true
-          ls -la /workspace/out/
+          cp /workspace/llama.cpp/build-snapdragon/bin/*.so $GITHUB_WORKSPACE/out/ 2>/dev/null || true
+          cp /workspace/llama.cpp/build-snapdragon/lib/*.so $GITHUB_WORKSPACE/out/ 2>/dev/null || true
+          ls -la $GITHUB_WORKSPACE/out/
 
       - uses: actions/checkout@v4
-        with:
-          path: /workspace/repo
 
       - name: Upload artifacts (Actions tab)
         uses: actions/upload-artifact@v4
         with:
           name: llama-server-arm64
-          path: /workspace/out/*
+          path: ${{ github.workspace }}/out/*
           if-no-files-found: error
 
       - name: Publish to latest-debug release
@@ -82,6 +80,6 @@ jobs:
             ```
 
             Or install the Horizons APK — CliffordService launches it automatically.
-          files: /workspace/out/*
+          files: ${{ github.workspace }}/out/*
           prerelease: true
           make_latest: false
