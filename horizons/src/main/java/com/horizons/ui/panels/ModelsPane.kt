@@ -126,7 +126,10 @@ fun ModelsPane(modifier: Modifier = Modifier) {
 
         Text("On-device LLM", style = MaterialTheme.typography.titleMedium)
 
+        val npuActive = app.isNpuActive
         val engineStatusLabel = when {
+            npuActive && backendStatus.startsWith("Hexagon HTP") -> "ready"
+            npuActive -> "daemon starting…"
             !hasStoragePermission -> "permission needed"
             !modelExists -> "file missing"
             backendStatus == "idle" -> "not loaded"
@@ -134,9 +137,13 @@ fun ModelsPane(modifier: Modifier = Modifier) {
             backendStatus.startsWith("GPU FAILED") || backendStatus.startsWith("NPU FAILED") -> "failed"
             else -> "ready"
         }
+        val engineLabel = if (npuActive) "Qwen3.5-9B  (ort_engine · Hexagon HTP NPU)"
+                          else "Gemma 4 E2B  (LiteRT-LM · Adreno 830 GPU)"
+        val engineRole = if (npuActive) "Chat + Vision — on-device, Hexagon HTP v75 NPU via ort_engine daemon"
+                         else "Chat + Vision + STT — on-device, Backend.GPU → Adreno 830"
         ServerRow(
-            label = "Gemma 4 E2B  (LiteRT-LM · Adreno 830 GPU)",
-            role = "Chat + Vision + STT — on-device, Backend.GPU → Adreno 830",
+            label = engineLabel,
+            role = engineRole,
             status = engineStatusLabel,
         )
 

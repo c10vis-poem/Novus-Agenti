@@ -288,6 +288,8 @@ class HorizonsApplication : Application() {
     fun resolveNpuModelPath(): String? {
         // Genie .bin (Qwen3-VL-8B, Qwen2.5-VL-7B) checked before legacy .dlc
         val variants = listOf(
+            "qwen3_5_9b_language_decoder.bin",
+            "qwen3_5_9b_vision_encoder.bin",
             "qwen3_vl_8b_instruct_htp.bin",
             "qwen2_5_vl_7b_instruct_htp.bin",
             "gemma4_12b_qat_htp.dlc",
