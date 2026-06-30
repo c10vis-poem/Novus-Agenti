@@ -254,11 +254,18 @@ class HorizonsApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val proc = getProcessName()
+        if (proc != null && proc != packageName) return
+
         CrashRecorder(this).install()
         appState = AppStateStore(this)
 
-        // CLIFFORD (BRD) -- launches daemon from FGS context so it inherits
-        // oom_score_adj ~-200 to -400. CRS loop monitors + rehydrates. No root, no Shizuku.
+        registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                activateNpuRuntime()
+            }
+        }, IntentFilter("com.horizons.NPU_READY"), RECEIVER_NOT_EXPORTED)
+
         com.horizons.fgs.CliffordService.start(this)
 
         cloudRuntime.refreshStatus()
