@@ -85,14 +85,10 @@ jobs:
       - name: Build Horizons debug APK
         run: ./gradlew :horizons:assembleDebug -PnexaEnabled=false --no-daemon --stacktrace
 
-      - name: Build Watchdog debug APK
-        run: ./gradlew :watchdog:assembleDebug --no-daemon --stacktrace
-
       - name: Stage artifacts
         run: |
           mkdir -p out
           cp horizons/build/outputs/apk/debug/horizons-debug.apk out/horizons.apk
-          cp watchdog/build/outputs/apk/debug/watchdog-debug.apk out/watchdog.apk
           cp daemon/build/ort_engine out/ort_engine
           cp /opt/ort-android/jni/arm64-v8a/libonnxruntime.so out/libonnxruntime.so
           ls -la out
@@ -111,11 +107,9 @@ jobs:
           name: latest-debug (auto)
           body: |
             Auto-built from ${{ github.sha }} on ${{ github.ref_name }}.
-            Install Watchdog first, then Horizons.
             ort_engine + libonnxruntime.so go to /data/local/tmp/ on device.
           files: |
             out/horizons.apk
-            out/watchdog.apk
             out/ort_engine
             out/libonnxruntime.so
           prerelease: true

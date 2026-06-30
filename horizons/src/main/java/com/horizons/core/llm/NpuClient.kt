@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -16,31 +17,39 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * LlmRuntime backed by the local ONNX-RT/QNN native engine daemon.
+ * LlmRuntime backed by the local llama-server daemon (llama.cpp + QNN backend).
  *
- * The daemon (ort_engine) must be running on 127.0.0.1:DaemonLauncher.ENGINE_PORT.
+ * The daemon (llama-server) must be running on 127.0.0.1:DaemonLauncher.ENGINE_PORT.
  * Launch via DaemonLauncher. Install binary via NativeBinaryInstaller.
  *
- * Wire protocol:
- *   POST /api/v1/generate   {"prompt":"…","temperature":0.7,"max_tokens":2048,"stream":true}
- *   → chunked SSE:          data: {"token":"…","index":N}
- *   GET  /health            → 200 when ready
+ * Wire protocol (OpenAI-compatible):
+ *   POST /v1/chat/completions
+ *   {"model":"local","messages":[{"role":"user","content":"..."}],"temperature":0.7,"max_tokens":2048,"stream":true}
+ *   → chunked SSE: data: {"choices":[{"delta":{"content":"token"},"index":0}]}
+ *   GET  /health → 200 when ready
  *
  * Think-token shim: <think>…</think> blocks are collapsed to a single "[Thinking…]" emit.
  * The daemon may suppress them natively in future; this shim is a Kotlin-side safety net.
  */
 class NpuClient : LlmRuntime {
 
-    private val _backendStatus = MutableStateFlow("Hexagon HTP · NPU (ort_engine daemon)")
+    private val _backendStatus = MutableStateFlow("Hexagon HTP · NPU (llama-server daemon)")
     override val backendStatus: StateFlow<String> = _backendStatus.asStateFlow()
 
-    override fun stream(prompt: String): Flow<String> = flow {
+    override fun stream(prompt: String): Flow<String> = streamChat(
+        listOf(mapOf("role" to "user", "content" to prompt))
+    )
+
+    /**
+     * Stream a chat completion from a list of messages (each with "role" and "content").
+     */
+    fun streamChat(messages: List<Map<String, String>>): Flow<String> = flow {
         if (!isDaemonReachable()) {
             emit("[NPU daemon not reachable at 127.0.0.1:${DaemonLauncher.ENGINE_PORT}]")
             return@flow
         }
 
-        val conn = URL("http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}/api/v1/generate")
+        val conn = URL("http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}/v1/chat/completions")
             .openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
@@ -50,8 +59,17 @@ class NpuClient : LlmRuntime {
             conn.connectTimeout = 5_000
             conn.readTimeout    = 120_000
 
+            val messagesArray = JSONArray().apply {
+                messages.forEach { msg ->
+                    put(JSONObject().apply {
+                        put("role", msg["role"] ?: "user")
+                        put("content", msg["content"] ?: "")
+                    })
+                }
+            }
             val body = JSONObject().apply {
-                put("prompt",      prompt)
+                put("model",       "local")
+                put("messages",    messagesArray)
                 put("temperature", 0.7)
                 put("max_tokens",  2048)
                 put("stream",      true)
@@ -64,9 +82,15 @@ class NpuClient : LlmRuntime {
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
                 var line = reader.readLine()
                 while (line != null) {
+                    if (line == "data: [DONE]") break
+
                     val token = if (line.startsWith("data: ") && line.length > 6) {
-                        try { JSONObject(line.substring(6)).optString("token", "") }
-                        catch (_: Exception) { line.substring(6) }
+                        try {
+                            val json = JSONObject(line.substring(6))
+                            val choices = json.optJSONArray("choices")
+                            val delta = choices?.optJSONObject(0)?.optJSONObject("delta")
+                            delta?.optString("content", "") ?: ""
+                        } catch (_: Exception) { "" }
                     } else {
                         line = reader.readLine(); continue
                     }

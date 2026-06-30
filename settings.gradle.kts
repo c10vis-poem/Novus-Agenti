@@ -21,6 +21,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Horizons"
-include(":shared")
 include(":horizons")
-include(":watchdog")

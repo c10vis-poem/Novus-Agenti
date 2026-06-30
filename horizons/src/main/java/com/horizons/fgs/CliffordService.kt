@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import com.horizons.HorizonsApplication
-import com.horizons.core.llm.NpuClient
 import com.horizons.core.shell.DaemonLauncher
 import com.horizons.core.shell.NativeBinaryInstaller
 import kotlinx.coroutines.CoroutineScope
@@ -68,23 +67,26 @@ class CliffordService : Service() {
     private fun startCrs() {
         if (crsJob?.isActive == true) return
         crsJob = scope.launch {
-            val app = applicationContext as? HorizonsApplication
-
             // Phase 1: install + launch daemon from THIS FGS context.
             // Daemon inherits this process's oom_score_adj (~-200 to -400).
             ensureDaemonRunning()
 
-            // Phase 2: CRS heartbeat — re-launch if daemon dies, swap runtime when healthy.
+            // Phase 2: CRS heartbeat — re-launch if daemon dies, notify main process when healthy.
+            var npuActivated = false
             while (isActive) {
                 delay(CRS_INTERVAL_MS)
                 val alive = pingDaemon()
                 if (!alive) {
                     Log.w(TAG, "CRS: daemon not responding — relaunching")
+                    npuActivated = false
                     ensureDaemonRunning()
-                } else if (app != null && !app.isNpuActive) {
-                    app.activateNpuRuntime()
+                } else if (!npuActivated) {
+                    // Send broadcast to main process — direct activateNpuRuntime()
+                    // would set state on THIS (:clifford) process's Application object.
+                    sendBroadcast(Intent("com.horizons.NPU_READY"))
                     acquireNpuPerfLock()
-                    Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                    npuActivated = true
+                    Log.i(TAG, "CRS: daemon healthy — NPU_READY broadcast sent, perf lock acquired")
                 }
             }
         }

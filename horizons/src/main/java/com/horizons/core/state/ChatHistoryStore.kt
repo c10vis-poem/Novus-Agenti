@@ -42,7 +42,7 @@ class ChatHistoryStore(context: Context) {
 
     suspend fun save(session: ChatSession) = withContext(Dispatchers.IO) {
         val titled = if (session.title == "New chat" && session.messages.isNotEmpty()) {
-            val preview = session.messages.first { it.role == "user" }.text.take(40)
+            val preview = (session.messages.firstOrNull { it.role == "user" }?.text?.take(40)) ?: "New session"
             session.copy(title = preview)
         } else session
         val file = File(dir, "${titled.id}.json")
