@@ -213,18 +213,19 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ---
 
-## Job 8 Trigger Command
+## Job Trigger Command (chunked decoder + optimum)
 
 ```bash
 hf jobs uv run --flavor cpu-xl --timeout 2h \
   --with torch --with transformers --with onnx --with onnxruntime --with onnxscript \
-  --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \
+  --with optimum --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \
   --secrets HF_TOKEN --secrets QAI_HUB_API_TOKEN \
   -e MODEL_ID=Mer0vin8ian/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \
-  https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
+  https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/horizons-compile-ui-debug-zmcplk/scripts/compile_qwen3_5_9b.py
 ```
 
-`SKIP_VISION` is NOT set — all three artifacts attempted.
+`SKIP_VISION` is NOT set — all artifacts attempted.
+`DECODER_CHUNKS` auto-calculated (layers/6). Override with `-e DECODER_CHUNKS=N`.
 
 ---
 
