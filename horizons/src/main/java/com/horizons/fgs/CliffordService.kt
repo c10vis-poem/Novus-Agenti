@@ -42,6 +42,7 @@ class CliffordService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var crsJob: Job? = null
     private var launcher: DaemonLauncher? = null
+    private var npuPerfLock: Any? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -57,6 +58,7 @@ class CliffordService : Service() {
 
     override fun onDestroy() {
         crsJob?.cancel()
+        releaseNpuPerfLock()
         super.onDestroy()
     }
 
@@ -66,6 +68,9 @@ class CliffordService : Service() {
         if (crsJob?.isActive == true) return
         crsJob = scope.launch {
             val app = applicationContext as? HorizonsApplication
+
+            // Acquire NpuManager performance lock — keeps NPU clocks at max.
+            acquireNpuPerfLock()
 
             // Phase 1: install + launch daemon from THIS FGS context.
             // Daemon inherits this process's oom_score_adj (~-200 to -400).
@@ -117,6 +122,36 @@ class CliffordService : Service() {
         conn.disconnect()
         ok
     } catch (_: Exception) { false }
+
+    // ── NpuManager performance lock ─────────────────────────────────────────
+    // Reflection-based: NpuManager is a Qualcomm extension not in AOSP SDK stubs.
+    // Safe no-op on devices without the class.
+    private fun acquireNpuPerfLock() {
+        try {
+            val npuMgrClass = Class.forName("android.npu.NpuManager")
+            val mgr = getSystemService(npuMgrClass) ?: return
+            val perfModeHigh = npuMgrClass.getField("PERF_MODE_HIGH").getInt(null)
+            val lock = npuMgrClass.getMethod("acquirePerformanceLock", Int::class.javaPrimitiveType)
+                .invoke(mgr, perfModeHigh)
+            npuPerfLock = lock
+            Log.i(TAG, "NpuManager PERF_MODE_HIGH lock acquired")
+        } catch (e: ClassNotFoundException) {
+            Log.d(TAG, "NpuManager not available on this device")
+        } catch (e: Exception) {
+            Log.w(TAG, "NpuManager perf lock failed", e)
+        }
+    }
+
+    private fun releaseNpuPerfLock() {
+        val lock = npuPerfLock ?: return
+        try {
+            lock.javaClass.getMethod("release").invoke(lock)
+            Log.i(TAG, "NpuManager perf lock released")
+        } catch (e: Exception) {
+            Log.w(TAG, "NpuManager perf lock release failed", e)
+        }
+        npuPerfLock = null
+    }
 
     // ── Notification ──────────────────────────────────────────────────────────
 

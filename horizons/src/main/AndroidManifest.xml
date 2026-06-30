@@ -46,6 +46,12 @@
     <!-- Agent: Do Not Disturb policy -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
+    <!-- NPU performance lock (NpuManager) -->
+    <uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
+
+    <!-- Game SDK — required for ADPF power mode on Snapdragon 8 Elite -->
+    <uses-feature android:name="android.hardware.game" android:required="true" />
+
     <queries>
         <package android:name="com.termux" />
     </queries>

@@ -270,6 +270,7 @@ text_cfg = getattr(config, "text_config", config)
 LOAD_KW = dict(
     torch_dtype=torch.float16, device_map="cpu", low_cpu_mem_usage=True,
     token=HF_TOKEN, trust_remote_code=False,
+    attn_implementation="eager",
 )
 
 LOADER_PREFERENCE = ["AutoModelForMultimodalLM", "AutoModelForVision2Seq",
@@ -400,13 +401,25 @@ class ProjectionWrapper(torch.nn.Module):
 
 class HtpDecodeWrapper(torch.nn.Module):
     """Stateless prefill — use_cache=False because Qwen3.5 hybrid attention
-    (MHA + LinearAttention) rejects DynamicCache (has_previous_state error)."""
-    def __init__(self, m): super().__init__(); self.m = m
+    (MHA + LinearAttention) rejects DynamicCache (has_previous_state error).
+    Precomputes position_embeddings from the folded RoPE tables so decoder
+    layers receive the (cos, sin) tuple they require."""
+    def __init__(self, m, cos_tbl, sin_tbl):
+        super().__init__()
+        self.m = m
+        self.register_buffer("cos_tbl", cos_tbl, persistent=False)
+        self.register_buffer("sin_tbl", sin_tbl, persistent=False)
+
     def forward(self, input_ids, attention_mask, position_ids):
+        seq_len = position_ids.shape[-1]
+        pos_cos = self.cos_tbl[:seq_len].unsqueeze(0)
+        pos_sin = self.sin_tbl[:seq_len].unsqueeze(0)
         return self.m(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
+            position_embeddings=(pos_cos.to(input_ids.device),
+                                 pos_sin.to(input_ids.device)),
             use_cache=False,
             return_dict=True,
         ).logits
@@ -443,7 +456,7 @@ print(f"[6/11] Exporting language decoder → {ONNX_DECODER} ...")
 ids   = torch.zeros((1, MAX_SEQ_LEN), dtype=torch.int64)
 amask = torch.ones((1, MAX_SEQ_LEN), dtype=torch.int64)
 pos   = torch.arange(MAX_SEQ_LEN, dtype=torch.int64).unsqueeze(0)
-decode_wrapped = HtpDecodeWrapper(decoder_module).eval()
+decode_wrapped = HtpDecodeWrapper(decoder_module, cos_table, sin_table).eval()
 with torch.no_grad():
     torch.onnx.export(decode_wrapped, (ids, amask, pos), ONNX_DECODER,
         input_names=["input_ids","attention_mask","position_ids"],
