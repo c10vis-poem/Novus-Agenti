@@ -19,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.lang.reflect.Method
 
 /**
  * CLIFFORD — Command Line Intercept Forced Failback Over Root Daemon
@@ -42,6 +43,7 @@ class CliffordService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var crsJob: Job? = null
     private var launcher: DaemonLauncher? = null
+    private var npuPerfLock: AutoCloseable? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -57,6 +59,7 @@ class CliffordService : Service() {
 
     override fun onDestroy() {
         crsJob?.cancel()
+        releaseNpuPerfLock()
         super.onDestroy()
     }
 
@@ -80,7 +83,8 @@ class CliffordService : Service() {
                     ensureDaemonRunning()
                 } else if (app != null && !app.isNpuActive) {
                     app.activateNpuRuntime()
-                    Log.i(TAG, "CRS: daemon healthy — NpuClient activated")
+                    acquireNpuPerfLock()
+                    Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
                 }
             }
         }
@@ -117,6 +121,35 @@ class CliffordService : Service() {
         conn.disconnect()
         ok
     } catch (_: Exception) { false }
+
+    // ── NpuManager Performance Lock ───────────────────────────────────────────
+    // NpuManager is an @hide system service on Qualcomm BSPs (SM8750+).
+    // We acquire via reflection so the app compiles against stock AOSP SDK.
+    // If the service or API doesn't exist on this device, it's a silent no-op.
+
+    private fun acquireNpuPerfLock() {
+        if (npuPerfLock != null) return
+        try {
+            val npuMgr = getSystemService("npu") ?: return
+            val perfModeHigh = npuMgr.javaClass.getField("PERF_MODE_HIGH").getInt(null)
+            val acquireMethod: Method = npuMgr.javaClass
+                .getMethod("acquirePerformanceLock", Int::class.javaPrimitiveType)
+            val lock = acquireMethod.invoke(npuMgr, perfModeHigh)
+            npuPerfLock = lock as? AutoCloseable
+            Log.i(TAG, "NpuManager: PERF_MODE_HIGH lock acquired")
+        } catch (e: Exception) {
+            Log.d(TAG, "NpuManager: not available on this device (${e.javaClass.simpleName})")
+        }
+    }
+
+    private fun releaseNpuPerfLock() {
+        try {
+            npuPerfLock?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "NpuManager: lock release failed", e)
+        }
+        npuPerfLock = null
+    }
 
     // ── Notification ──────────────────────────────────────────────────────────
 

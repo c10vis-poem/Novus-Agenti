@@ -159,6 +159,15 @@
                 android:value="NPU daemon guardian" />
         </service>
 
+        <!-- Restart CLIFFORD after device boot (deferred 30s for Android 15+ FGS restriction) -->
+        <receiver
+            android:name=".fgs.CliffordBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <!-- G14: Mode B — Live Chat FGS (audio loop + LLM stream, no screen) -->
         <service
             android:name=".fgs.LiveChatService"
