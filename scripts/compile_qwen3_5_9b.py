@@ -81,13 +81,7 @@ PUBLISH_HF     = os.environ.get("PUBLISH_HF", "0") == "1"
 SKIP_VISION    = os.environ.get("SKIP_VISION", "0") == "1"
 SKIP_EXPORT    = os.environ.get("SKIP_EXPORT", "0") == "1"
 
-JOB_ID_VISION     = os.environ.get("JOB_ID_VISION", "").strip()
-JOB_ID_PROJECTION = os.environ.get("JOB_ID_PROJECTION", "").strip()
-
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-OUT_VISION     = os.path.join(OUTPUT_DIR, "qwen3_5_9b_vision_encoder.bin")
-OUT_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.bin")
 
 def decoder_chunk_out(i):
     return os.path.join(OUTPUT_DIR, f"qwen3_5_9b_decoder_chunk_{i}.bin")
@@ -253,15 +247,6 @@ def verify_dsp_placement(job, label):
 # ── SKIP_EXPORT fast path ──────────────────────────────────────────────────────────
 if SKIP_EXPORT:
     any_found = False
-    for job_id, out_path, label in [
-        (JOB_ID_VISION, OUT_VISION, "vision"),
-        (JOB_ID_PROJECTION, OUT_PROJECTION, "projection"),
-    ]:
-        if job_id:
-            print(f"[skip/{label}] Re-downloading from job {job_id} ...")
-            job = hub.get_job(job_id)
-            download_target_model(job, out_path)
-            any_found = True
     for i in range(NUM_CHUNKS):
         jid = os.environ.get(f"JOB_ID_DECODER_{i}", "").strip()
         if jid:
@@ -270,7 +255,7 @@ if SKIP_EXPORT:
             download_target_model(job, decoder_chunk_out(i))
             any_found = True
     if not any_found:
-        sys.exit("[qwen3_5] SKIP_EXPORT=1 requires at least one JOB_ID_*")
+        sys.exit("[qwen3_5] SKIP_EXPORT=1 requires at least one JOB_ID_DECODER_*")
     sys.exit(0)
 
 
@@ -634,14 +619,13 @@ print(f"      {len(calib_input_ids)} rows × {MAX_SEQ_LEN} tokens (chunk 0 calib
 
 
 # ── Step 8: QAI Hub compile ────────────────────────────────────────────────────────
-print(f"[8/11] Submitting QAI Hub compile jobs ({2 + NUM_CHUNKS} total) ...")
+# Vision + projection stay as ONNX (run on CPU via ORT at runtime).
+# QNN context binary conversion fails on the vision encoder (exit code 14)
+# due to dynamic shapes and unsupported ops in the vision tower.
+# Only decoder chunks are compiled to QNN context binary for NPU execution.
+print(f"[8/11] Submitting QAI Hub compile jobs ({NUM_CHUNKS} decoder chunks) ...")
+print("      (vision + projection ship as ONNX — ORT CPU at runtime)")
 jobs = {}
-
-if not SKIP_VISION:
-    print("      → vision encoder ...")
-    jobs["vision"] = submit_qai_hub_compile(ONNX_VISION, "qwen3_5_9b_vision_compile")
-    print("      → projection ...")
-    jobs["projection"] = submit_qai_hub_compile(ONNX_PROJECTION, "qwen3_5_9b_projection_compile")
 
 for ci in range(NUM_CHUNKS):
     label = f"decoder_chunk_{ci}"
@@ -653,12 +637,7 @@ for ci in range(NUM_CHUNKS):
 
 
 # ── Steps 9-10: download + publish ────────────────────────────────────────────────
-print("[9/11] Downloading compiled artifacts ...")
-if not SKIP_VISION:
-    download_target_model(jobs["vision"], OUT_VISION)
-    verify_dsp_placement(jobs["vision"], "vision")
-    download_target_model(jobs["projection"], OUT_PROJECTION)
-    verify_dsp_placement(jobs["projection"], "projection")
+print("[9/11] Downloading compiled decoder artifacts ...")
 for ci in range(NUM_CHUNKS):
     label = f"decoder_chunk_{ci}"
     download_target_model(jobs[label], decoder_chunk_out(ci))
@@ -672,8 +651,8 @@ if PUBLISH_HF:
     for ci in range(NUM_CHUNKS):
         to_upload.append((decoder_chunk_out(ci), f"qwen3_5_9b_decoder_chunk_{ci}.bin"))
     if not SKIP_VISION:
-        to_upload += [(OUT_VISION, "qwen3_5_9b_vision_encoder.bin"),
-                      (OUT_PROJECTION, "qwen3_5_9b_projection.bin")]
+        to_upload += [(ONNX_VISION, "qwen3_5_9b_vision_encoder.onnx"),
+                      (ONNX_PROJECTION, "qwen3_5_9b_projection.onnx")]
     job_ids_str = ", ".join(f"{k}={v.job_id}" for k, v in jobs.items())
     for local_path, repo_path in to_upload:
         api.upload_file(path_or_fileobj=local_path, path_in_repo=repo_path,
@@ -689,19 +668,16 @@ print()
 print("=" * 64)
 print("Artifacts ready:")
 if not SKIP_VISION:
-    print(f"  {OUT_VISION}")
-    print(f"  {OUT_PROJECTION}")
+    print(f"  {ONNX_VISION}  (ONNX — ORT CPU)")
+    print(f"  {ONNX_PROJECTION}  (ONNX — ORT CPU)")
 for ci in range(NUM_CHUNKS):
-    print(f"  {decoder_chunk_out(ci)}")
+    print(f"  {decoder_chunk_out(ci)}  (QNN context binary — NPU)")
 if PUBLISH_HF:
     print(f"\nhf download {HF_OUTPUT_REPO} --local-dir ~/Downloads")
-    print(f"adb push ~/Downloads/*.bin /storage/emulated/0/Download/")
+    print(f"adb push ~/Downloads/* /storage/emulated/0/Download/")
 print()
-print("Re-download this build:")
+print("Re-download decoder binaries:")
 print(f"  SKIP_EXPORT=1 \\")
-if not SKIP_VISION:
-    print(f"  JOB_ID_VISION={jobs.get('vision', type('', (), {'job_id': 'N/A'})()).job_id} \\")
-    print(f"  JOB_ID_PROJECTION={jobs.get('projection', type('', (), {'job_id': 'N/A'})()).job_id} \\")
 for ci in range(NUM_CHUNKS):
     label = f"decoder_chunk_{ci}"
     print(f"  JOB_ID_DECODER_{ci}={jobs[label].job_id} \\")
