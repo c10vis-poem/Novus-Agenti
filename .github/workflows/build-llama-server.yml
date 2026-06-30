@@ -32,10 +32,9 @@ jobs:
 
       - name: Verify binaries
         run: |
-          file /workspace/llama.cpp/build-snapdragon/bin/llama-server
-          file /workspace/llama.cpp/build-snapdragon/bin/llama-quantize
-          file /workspace/llama.cpp/build-snapdragon/bin/llama-cli
-          ls -la /workspace/llama.cpp/build-snapdragon/bin/
+          ls -la /workspace/llama.cpp/build-snapdragon/bin/llama-server
+          ls -la /workspace/llama.cpp/build-snapdragon/bin/llama-quantize
+          ls -la /workspace/llama.cpp/build-snapdragon/bin/llama-cli
 
       - name: Stage artifacts
         run: |
@@ -43,8 +42,8 @@ jobs:
           cp /workspace/llama.cpp/build-snapdragon/bin/llama-server /workspace/out/
           cp /workspace/llama.cpp/build-snapdragon/bin/llama-quantize /workspace/out/
           cp /workspace/llama.cpp/build-snapdragon/bin/llama-cli /workspace/out/
-          # Copy HTP operator libraries needed on-device
-          find /workspace/llama.cpp/build-snapdragon -name "*.so" | head -20
+          # Copy shared libraries needed on-device
+          cp /workspace/llama.cpp/build-snapdragon/bin/*.so /workspace/out/ 2>/dev/null || true
           cp /workspace/llama.cpp/build-snapdragon/lib/*.so /workspace/out/ 2>/dev/null || true
           ls -la /workspace/out/
 
@@ -83,9 +82,6 @@ jobs:
             ```
 
             Or install the Horizons APK — CliffordService launches it automatically.
-          files: |
-            /workspace/out/llama-server
-            /workspace/out/llama-quantize
-            /workspace/out/llama-cli
+          files: /workspace/out/*
           prerelease: true
           make_latest: false
