@@ -88,7 +88,7 @@ fun ChatPane(modifier: Modifier = Modifier) {
     }
 
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
-    val modelReady = backendStatus.startsWith("Adreno 830") || backendStatus.startsWith("Hexagon HTP")
+    val modelReady = backendStatus != "idle" && backendStatus != "loading…"
 
     // MediaProjection consent launcher for Mode A
     val screenShareLauncher = rememberLauncherForActivityResult(
@@ -232,25 +232,28 @@ fun ChatPane(modifier: Modifier = Modifier) {
             )
         }
 
-        // ── Model status banner ───────────────────────────────────────────────
-        if (!modelReady) {
-            val bannerMsg = when {
-                backendStatus == "idle" || backendStatus == "loading…" -> "Loading model…"
-                backendStatus.startsWith("NO MODEL") -> "No model found — check Router tab."
-                backendStatus.startsWith("GPU FAILED") -> "Engine failed — see Router tab."
-                else -> "Model not ready."
-            }
-            Surface(
-                color = MaterialTheme.colorScheme.errorContainer,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    bannerMsg,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-            }
+        // ── Backend status banner ─────────────────────────────────────────────
+        val isCloud = backendStatus.contains("Cloud")
+        val isNoBackend = backendStatus.contains("no backend")
+        val bannerColor = when {
+            !modelReady -> MaterialTheme.colorScheme.errorContainer
+            isNoBackend -> MaterialTheme.colorScheme.errorContainer
+            isCloud -> MaterialTheme.colorScheme.tertiaryContainer
+            else -> MaterialTheme.colorScheme.primaryContainer
+        }
+        val bannerText = when {
+            !modelReady -> "Loading…"
+            isNoBackend -> "No backend — add an API key in Settings or start the daemon"
+            isCloud -> "Cloud · $backendStatus"
+            else -> backendStatus
+        }
+        Surface(color = bannerColor, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                bannerText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            )
         }
 
         // ── Message list ──────────────────────────────────────────────────────

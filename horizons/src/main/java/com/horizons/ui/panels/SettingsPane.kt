@@ -131,6 +131,36 @@ fun SettingsPane(
             onSave = { app.appState.put(AppStateStore.KEY_API_QAI_HUB, it) },
         )
 
+        Text(
+            "Cloud model ID",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            color = SettingsAccent.copy(alpha = 0.7f),
+        )
+        PathField(
+            label = "e.g. qwen/qwen-2.5-7b-instruct",
+            value = creds[com.horizons.core.llm.CloudLlmRuntime.KEY_CLOUD_MODEL] ?: "",
+            onSave = {
+                app.appState.put(com.horizons.core.llm.CloudLlmRuntime.KEY_CLOUD_MODEL, it)
+                app.cloudRuntime.refreshStatus()
+            },
+        )
+
+        Text(
+            "Custom endpoint (blank = auto from API key)",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            color = SettingsAccent.copy(alpha = 0.7f),
+        )
+        PathField(
+            label = "https://your-api.com/v1/chat/completions",
+            value = creds[com.horizons.core.llm.CloudLlmRuntime.KEY_CLOUD_ENDPOINT] ?: "",
+            onSave = {
+                app.appState.put(com.horizons.core.llm.CloudLlmRuntime.KEY_CLOUD_ENDPOINT, it)
+                app.cloudRuntime.refreshStatus()
+            },
+        )
+
         HorizontalDivider(color = SettingsAccent.copy(alpha = 0.2f))
 
         // ── Engine settings ──────────────────────────────────────────────────
@@ -266,6 +296,38 @@ private fun TokenField(
                     TextButton(onClick = { onSave(draft.trim()) }) {
                         Text("Save", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = SettingsAccent)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PathField(
+    label: String,
+    value: String,
+    onSave: (String) -> Unit,
+) {
+    var draft by remember(value) { mutableStateOf(value) }
+
+    Surface(
+        color = HorizonsColors.Surface,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                label = { Text(label, color = SettingsAccent.copy(alpha = 0.4f)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = Color.White, fontSize = 12.sp),
+                colors = settingsFieldColors(),
+            )
+            if (draft != value) {
+                TextButton(onClick = { onSave(draft.trim()) }) {
+                    Text("Save", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = SettingsAccent)
                 }
             }
         }

@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
+import com.horizons.core.state.AppStateStore
 import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
 import com.horizons.ui.SlateStoneBackground
@@ -276,14 +277,43 @@ fun RouterPane(
             color = HorizonsColors.TileRouter,
         )
 
+        val creds by app.appState.snapshot.collectAsState()
         val cloudApis = listOf(
-            "SambaNova" to "sambanova.key",
-            "OpenRouter" to "openrouter.key",
-            "HuggingFace" to "hf.token",
-            "QAI Hub" to "qaihub.key",
+            "OpenRouter" to AppStateStore.KEY_API_OPENROUTER,
+            "SambaNova" to AppStateStore.KEY_API_SAMBANOVA,
+            "HuggingFace" to AppStateStore.KEY_HF_TOKEN,
+            "QAI Hub" to AppStateStore.KEY_API_QAI_HUB,
         )
 
-        cloudApis.forEach { (name, keyName) ->
+        val cloudActive = app.cloudRuntime.isConfigured
+        if (cloudActive) {
+            val cfg = app.cloudRuntime.resolveConfig()
+            Surface(
+                color = HorizonsColors.StatusAsr.copy(alpha = 0.1f),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("Cloud fallback active", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                        StatusPill("ACTIVE", active = true)
+                    }
+                    if (cfg != null) {
+                        Text(
+                            "${cfg.label} · ${cfg.model}",
+                            fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        )
+                    }
+                }
+            }
+        }
+
+        cloudApis.forEach { (name, storeKey) ->
+            val hasKey = !creds[storeKey].isNullOrBlank()
             Surface(
                 color = HorizonsColors.Surface,
                 shape = MaterialTheme.shapes.medium,
@@ -295,7 +325,10 @@ fun RouterPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(name, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                    StatusPill("AVAILABLE", active = false)
+                    StatusPill(
+                        text = if (hasKey) "KEY SET" else "NO KEY",
+                        active = hasKey,
+                    )
                 }
             }
         }

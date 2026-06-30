@@ -4,6 +4,7 @@ import android.app.Application
 import com.horizons.audio.AudioRecorder
 import com.horizons.audio.VadFactory
 import com.horizons.audio.VoiceLoopController
+import com.horizons.core.llm.CloudLlmRuntime
 import com.horizons.core.llm.LlmRuntime
 import com.horizons.core.llm.NpuClient
 import com.horizons.core.log.CrashRecorder
@@ -22,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
@@ -81,11 +83,24 @@ class HorizonsApplication : Application() {
     // -- Pending screen capture (dock button -> stored here -> chat ask) --
     val pendingScreenJpeg = MutableStateFlow<ByteArray?>(null)
 
-    // -- LLM runtime -- NpuClient is the only runtime (ort_engine daemon) --
+    // -- LLM runtimes -- daemon first, cloud fallback --
     @Volatile private var _npuClient: NpuClient? = null
-    val llmRuntime: LlmRuntime get() = _npuClient ?: throw IllegalStateException("NPU daemon not ready")
+    val cloudRuntime: CloudLlmRuntime by lazy { CloudLlmRuntime(appState) }
+
+    val llmRuntime: LlmRuntime get() {
+        _npuClient?.let { return it }
+        if (cloudRuntime.isConfigured) return cloudRuntime
+        return _fallbackRuntime
+    }
 
     val isNpuActive: Boolean get() = _npuClient != null
+
+    private val _fallbackRuntime = object : LlmRuntime {
+        override val backendStatus = MutableStateFlow("Adreno 830 · no backend")
+        override fun stream(prompt: String) = flow<String> {
+            emit("[No inference backend available — start the on-device daemon or add a cloud API key in Settings]")
+        }
+    }
 
     // -- Chat mode (A/B/C) -- updated by FGS services on start/stop --
     val chatMode = MutableStateFlow(ChatMode.C)
@@ -200,6 +215,8 @@ class HorizonsApplication : Application() {
         // CLIFFORD (BRD) -- launches daemon from FGS context so it inherits
         // oom_score_adj ~-200 to -400. CRS loop monitors + rehydrates. No root, no Shizuku.
         com.horizons.fgs.CliffordService.start(this)
+
+        cloudRuntime.refreshStatus()
 
         // Start Kokoro model check/download; init TTS engine once the model is ready.
         kokoroManager.ensureReady()
