@@ -292,24 +292,26 @@ class HorizonsApplication : Application() {
             val f = java.io.File(root, name)
             if (f.canRead()) return f.absolutePath
         }
-        // Any model file imported into the app-private models dir (newest first)
+        // Any LLM model file imported into the app-private models dir (newest first).
+        // Excludes Whisper/STT GGML files — ort_engine can't load those.
+        fun isLlmCandidate(f: java.io.File): Boolean {
+            val n = f.name.lowercase()
+            if (!ModelImportActivity.MODEL_EXTENSIONS.any { n.endsWith(it) }) return false
+            // Whisper STT variants ship as ggml-{tiny,base,small,medium,large}.bin — skip them.
+            if (n.startsWith("ggml-tiny") || n.startsWith("ggml-base") ||
+                n.startsWith("ggml-small") || n.startsWith("ggml-medium") ||
+                n.startsWith("ggml-large") || n.contains("whisper")) return false
+            return true
+        }
         modelsDir.listFiles()
-            ?.filter { f -> f.isFile && ModelImportActivity.MODEL_EXTENSIONS.any { f.name.lowercase().endsWith(it) } }
+            ?.filter { it.isFile && isLlmCandidate(it) }
             ?.maxByOrNull { it.lastModified() }
             ?.let { return it.absolutePath }
-        // Shell find -- any .bin dropped into Downloads
-        for (findBin in listOf("/system/bin/find", "/system/xbin/find")) {
-            if (!java.io.File(findBin).exists()) continue
-            try {
-                val proc = ProcessBuilder(
-                    findBin, "/storage/emulated/0/Download", "-name", "*.bin", "-type", "f",
-                ).redirectErrorStream(false).start()
-                val hit = proc.inputStream.bufferedReader().readLine()?.trim() ?: ""
-                proc.destroy()
-                if (hit.isNotBlank() && java.io.File(hit).canRead()) return hit
-            } catch (_: Exception) { }
-            break
-        }
+        // Same scan in Downloads — but only pick LLM-shaped files, not Whisper.
+        java.io.File("/storage/emulated/0/Download").listFiles()
+            ?.filter { it.isFile && isLlmCandidate(it) }
+            ?.maxByOrNull { it.lastModified() }
+            ?.let { return it.absolutePath }
         return null
     }
 
