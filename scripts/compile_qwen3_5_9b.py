@@ -478,9 +478,9 @@ class DecoderChunkWrapper(torch.nn.Module):
             pos_emb = self._rotary_emb(x, position_ids)
         for layer in self.layers:
             if pos_emb is not None:
-                out = layer(x, attention_mask=attention_mask,
+                out = layer(x, pos_emb,
+                            attention_mask=attention_mask,
                             position_ids=position_ids,
-                            position_embeddings=pos_emb,
                             use_cache=False)
             else:
                 out = layer(x, attention_mask=attention_mask,
