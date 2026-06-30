@@ -112,7 +112,7 @@ class CloudLlmRuntime(private val appState: AppStateStore) : LlmRuntime {
             conn.connectTimeout = 10_000
             conn.readTimeout = 120_000
 
-            conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
 
             if (conn.responseCode !in 200..299) {
                 val err = conn.errorStream?.bufferedReader()?.readText()?.take(500) ?: "HTTP ${conn.responseCode}"
@@ -120,7 +120,7 @@ class CloudLlmRuntime(private val appState: AppStateStore) : LlmRuntime {
                 return@flow
             }
 
-            BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+            BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
                 var line = reader.readLine()
                 while (line != null) {
                     if (line.startsWith("data: ") && line.length > 6) {
