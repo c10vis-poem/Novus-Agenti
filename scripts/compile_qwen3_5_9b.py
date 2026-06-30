@@ -208,12 +208,7 @@ NUM_CHUNKS = int(os.environ.get("NUM_CHUNKS", "4"))
 COMPILE_OPTIONS_BASE = " ".join([
     "--target_runtime qnn_context_binary",
     "--quantize_full_type w4a16",
-    "--quantize_weight_bits 4",
-    "--disable_fusion",
-    "--bias_as_int32",
-    "--scratch_size_mib 16",
-    "--max_dynamic_tensor_size_mib 64",
-    f"--partition_overrides {PARTITION_JSON}",
+    "--qnn_options context_max_spill_fill_buffers=16",
 ])
 
 
