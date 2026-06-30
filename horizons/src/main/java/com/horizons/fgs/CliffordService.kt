@@ -45,6 +45,16 @@ class CliffordService : Service() {
     private var launcher: DaemonLauncher? = null
     private var npuPerfLock: AutoCloseable? = null
 
+    private enum class DaemonState(val label: String) {
+        BinaryMissing("waiting for daemon binary"),
+        ModelMissing("waiting for model file"),
+        Launching("starting daemon…"),
+        Unhealthy("daemon offline"),
+        Healthy("NPU daemon active"),
+    }
+
+    @Volatile private var state: DaemonState = DaemonState.BinaryMissing
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopSelf()
@@ -53,6 +63,13 @@ class CliffordService : Service() {
         startForeground(NOTIF_ID, buildNotification())
         startCrs()
         return START_STICKY
+    }
+
+    private fun updateState(new: DaemonState) {
+        if (state == new) return
+        state = new
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, buildNotification())
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -79,12 +96,20 @@ class CliffordService : Service() {
                 delay(CRS_INTERVAL_MS)
                 val alive = pingDaemon()
                 if (!alive) {
+                    // Don't downgrade to Unhealthy when we're waiting on a missing
+                    // binary or model — those states are more informative.
+                    if (state == DaemonState.Healthy || state == DaemonState.Launching) {
+                        updateState(DaemonState.Unhealthy)
+                    }
                     Log.w(TAG, "CRS: daemon not responding — relaunching")
                     ensureDaemonRunning()
-                } else if (app != null && !app.isNpuActive) {
-                    app.activateNpuRuntime()
-                    acquireNpuPerfLock()
-                    Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                } else {
+                    updateState(DaemonState.Healthy)
+                    if (app != null && !app.isNpuActive) {
+                        app.activateNpuRuntime()
+                        acquireNpuPerfLock()
+                        Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                    }
                 }
             }
         }
@@ -94,20 +119,26 @@ class CliffordService : Service() {
         val app = applicationContext as? HorizonsApplication ?: return
         NativeBinaryInstaller.install(this)
         if (!NativeBinaryInstaller.isInstalled(this)) {
+            updateState(DaemonState.BinaryMissing)
             Log.w(TAG, "CRS: no daemon binary installed — waiting for assets")
             return
         }
         val modelPath = app.resolveNpuModelPath() ?: run {
-            Log.w(TAG, "CRS: no .bin model found — waiting for model")
+            updateState(DaemonState.ModelMissing)
+            Log.w(TAG, "CRS: no model found — waiting for model")
             return
         }
         val binaryName = NativeBinaryInstaller.installedBinaryName(this)
             ?: DaemonLauncher.ENGINE_BINARY
         val l = DaemonLauncher(this, binaryName).also { launcher = it }
         if (!l.isRunning()) {
+            updateState(DaemonState.Launching)
             l.launch(listOf("--model", modelPath))
                 .onSuccess { Log.i(TAG, "CRS: daemon launched PID=${it.pid}") }
-                .onFailure { Log.e(TAG, "CRS: daemon launch failed", it) }
+                .onFailure {
+                    updateState(DaemonState.Unhealthy)
+                    Log.e(TAG, "CRS: daemon launch failed", it)
+                }
         }
     }
 
@@ -164,7 +195,7 @@ class CliffordService : Service() {
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("Novus Agenti")
-            .setContentText("NPU daemon active")
+            .setContentText(state.label)
             .setOngoing(true)
             .build()
     }
