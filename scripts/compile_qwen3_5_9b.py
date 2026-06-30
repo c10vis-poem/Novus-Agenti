@@ -108,10 +108,16 @@ import qai_hub as hub
 from huggingface_hub import login, HfApi
 
 login(token=HF_TOKEN)
+os.environ["QAI_HUB_API_TOKEN"] = QAI_TOKEN
+cfg_dir = os.path.expanduser("~/.qai_hub")
+cfg_file = os.path.join(cfg_dir, "client.ini")
+if not os.path.exists(cfg_file):
+    os.makedirs(cfg_dir, exist_ok=True)
+    with open(cfg_file, "w") as f:
+        f.write(f"[api]\napi_token = {QAI_TOKEN}\n")
+    print(f"      wrote {cfg_file}")
 if hasattr(hub, "configure"):
     hub.configure(api_token=QAI_TOKEN)
-else:
-    os.environ.setdefault("QAI_HUB_API_TOKEN", QAI_TOKEN)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────────
