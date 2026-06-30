@@ -3,7 +3,7 @@
 compile_qwen3_5_9b.py — Qwen/Qwen3.5-9B (multimodal) → Hexagon HTP NPU binaries
 
 PRIMARY TARGET. First-ever compile of the Qwen3.5-9B native-multimodal architecture
-to Snapdragon 8 Elite Hexagon HTP. Produces chunked NPU artifacts:
+to Snapdragon 8 Elite QRD Hexagon HTP. Produces chunked NPU artifacts:
 
     qwen3_5_9b_vision_encoder.bin         — vision tower (image patches → embeddings)
     qwen3_5_9b_projection.bin             — vision→language adapter (embeddings → token space)
@@ -41,7 +41,7 @@ Optional env:
     MAX_SEQ_LEN           default 4096
     OUTPUT_DIR            default /tmp
     HF_OUTPUT_REPO        default Mer0vin8ian/qwen3-5-9b-npu-sm8750
-    QAI_HUB_DEVICE        default "Snapdragon 8 Elite"
+    QAI_HUB_DEVICE        default "Snapdragon 8 Elite QRD"
     NUM_CHUNKS            default 4 — number of decoder layer-group chunks
     CALIB_TOKENS          default 10000
     CALIB_DATASET         default wikitext-2-raw-v1
@@ -74,7 +74,7 @@ MODEL_ID       = os.environ.get("MODEL_ID", "Mer0vin8ian/Qwen3.5-9B")
 MAX_SEQ_LEN    = int(os.environ.get("MAX_SEQ_LEN", "4096"))
 OUTPUT_DIR     = os.environ.get("OUTPUT_DIR", "/tmp")
 HF_OUTPUT_REPO = os.environ.get("HF_OUTPUT_REPO", "Mer0vin8ian/qwen3-5-9b-npu-sm8750")
-QAI_HUB_DEVICE = os.environ.get("QAI_HUB_DEVICE", "Snapdragon 8 Elite")
+QAI_HUB_DEVICE = os.environ.get("QAI_HUB_DEVICE", "Snapdragon 8 Elite QRD")
 CALIB_TOKENS   = int(os.environ.get("CALIB_TOKENS", "10000"))
 CALIB_DATASET  = os.environ.get("CALIB_DATASET", "wikitext-2-raw-v1")
 PUBLISH_HF     = os.environ.get("PUBLISH_HF", "0") == "1"
