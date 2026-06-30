@@ -447,21 +447,22 @@ print(f"      lm_head:      {'found' if lm_head else 'NOT FOUND'}")
 if embed_tokens is None or lm_head is None:
     sys.exit("[qwen3_5] Missing embed_tokens or lm_head — cannot chunk decoder")
 
-# Find a rotary_emb from ANY decoder layer (hybrid arch: linear_attention layers
-# lack self_attn.rotary_emb, but full_attention layers have it).
+# Find rotary_emb anywhere in the decoder module tree. Qwen3.5 stores a single
+# shared Qwen3_5TextRotaryEmbedding at model level, not per-layer.
 _global_rotary_emb = None
-for _lay in all_layers:
-    for _attn_attr in ("self_attn", "linear_attn", "attn"):
-        _attn = getattr(_lay, _attn_attr, None)
-        if _attn is not None:
-            _rot = getattr(_attn, "rotary_emb", None)
-            if _rot is not None:
-                _global_rotary_emb = _rot
-                break
-    if _global_rotary_emb is not None:
+for _sub in model_inner.modules():
+    _rot = getattr(_sub, "rotary_emb", None)
+    if _rot is not None and hasattr(_rot, "forward"):
+        _global_rotary_emb = _rot
         break
 if _global_rotary_emb is None:
-    sys.exit("[qwen3_5] No rotary_emb found in any decoder layer — cannot export")
+    for _sub in decoder_module.modules():
+        _rot = getattr(_sub, "rotary_emb", None)
+        if _rot is not None and hasattr(_rot, "forward"):
+            _global_rotary_emb = _rot
+            break
+if _global_rotary_emb is None:
+    sys.exit("[qwen3_5] No rotary_emb found in decoder module tree — cannot export")
 print(f"      global rotary_emb: {type(_global_rotary_emb).__name__}")
 
 
