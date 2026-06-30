@@ -220,7 +220,13 @@ These are STATIC across sessions. Rotation happens AFTER the build ships. Repo i
 
 ---
 
-## Single-Path Architecture
+## Single-Path Architecture — Qwen3.5-9B Build
+
+Scoped to the Qwen3.5-9B → Hexagon HTP compile/deploy pipeline. The Horizons
+app itself is multi-runtime by design: each model family ships with its own
+uploadable runtime binary (e.g. `ort_engine` for ORT+QNN, future binaries for
+ExecuTorch / SNPE / TFLite / Jetson Tensor targets). Adding a new runtime is
+"drop the binary in via ModelImportActivity, register it in `RUNTIME_FILES`."
 
 | Layer | What | Status |
 |---|---|---|
@@ -375,8 +381,8 @@ release/debug.keystore           committed by design
 
 - Never push `main` without explicit user permission
 - Never `--no-verify`, `push --force`, `reset --hard` without confirming
-- No CPU fallback in app LLM
-- No in-process tensor runtime — daemon path or nothing
+- No CPU fallback in the Qwen3.5-9B path (NPU or nothing for that model)
+- No in-process tensor runtime — every model runs via its own uploadable daemon binary
 - `M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti` is REFERENCE-ONLY
 - Do NOT set `SKIP_VISION=1` in the default trigger command
 - `--max_dynamic_tensor_size_mib` stays at **64** until empirically verified
@@ -411,11 +417,14 @@ release/debug.keystore           committed by design
 
 ## What Was Ripped Out — Do NOT Reference
 
+Scoped to the Qwen3.5-9B build path. Other model families ship their own
+runtime binaries; this table is not a constraint on future runtimes.
+
 | Old | Replaced by |
 |---|---|
-| Track 1 / Track 2 | single path |
-| LiteRT / LiteRT-LM | ort_engine daemon |
-| genie_engine | ort_engine (ORT + QNN EP) |
+| Track 1 / Track 2 (for Qwen3.5-9B) | single path: ONNX → QNN context binary → Hexagon HTP |
+| LiteRT / LiteRT-LM (for Qwen3.5-9B) | ort_engine daemon |
+| genie_engine (for Qwen3.5-9B) | ort_engine (ORT + QNN EP) |
 | Separate Watchdog | CliffordService (CLIFFORD == Watchdog) |
 | Nexa SDK, OmniNeural, Moonshine | dead |
 | Cloud failover in app LLM | HttpFetch agent tool |
