@@ -447,9 +447,26 @@ print(f"      lm_head:      {'found' if lm_head else 'NOT FOUND'}")
 if embed_tokens is None or lm_head is None:
     sys.exit("[qwen3_5] Missing embed_tokens or lm_head — cannot chunk decoder")
 
+# Find a rotary_emb from ANY decoder layer (hybrid arch: linear_attention layers
+# lack self_attn.rotary_emb, but full_attention layers have it).
+_global_rotary_emb = None
+for _lay in all_layers:
+    for _attn_attr in ("self_attn", "linear_attn", "attn"):
+        _attn = getattr(_lay, _attn_attr, None)
+        if _attn is not None:
+            _rot = getattr(_attn, "rotary_emb", None)
+            if _rot is not None:
+                _global_rotary_emb = _rot
+                break
+    if _global_rotary_emb is not None:
+        break
+if _global_rotary_emb is None:
+    sys.exit("[qwen3_5] No rotary_emb found in any decoder layer — cannot export")
+print(f"      global rotary_emb: {type(_global_rotary_emb).__name__}")
+
 
 class DecoderChunkWrapper(torch.nn.Module):
-    def __init__(self, layer_list, chunk_idx, num_chunks,
+    def __init__(self, layer_list, chunk_idx, num_chunks, rotary_emb,
                  embed_tokens=None, final_norm=None, lm_head=None):
         super().__init__()
         self.chunk_idx = chunk_idx
@@ -463,29 +480,17 @@ class DecoderChunkWrapper(torch.nn.Module):
                 self.final_norm = final_norm
             if lm_head is not None:
                 self.lm_head = lm_head
-        self._rotary_emb = None
-        for lay in layer_list:
-            rot = getattr(getattr(lay, "self_attn", None), "rotary_emb", None)
-            if rot is not None:
-                self._rotary_emb = rot
-                break
+        self._rotary_emb = rotary_emb
 
     def forward(self, x, attention_mask, position_ids):
         if self.is_first:
             x = self.embed_tokens(x)
-        pos_emb = None
-        if self._rotary_emb is not None:
-            pos_emb = self._rotary_emb(x, position_ids)
+        pos_emb = self._rotary_emb(x, position_ids)
         for layer in self.layers:
-            if pos_emb is not None:
-                out = layer(x, pos_emb,
-                            attention_mask=attention_mask,
-                            position_ids=position_ids,
-                            use_cache=False)
-            else:
-                out = layer(x, attention_mask=attention_mask,
-                            position_ids=position_ids,
-                            use_cache=False)
+            out = layer(x, pos_emb,
+                        attention_mask=attention_mask,
+                        position_ids=position_ids,
+                        use_cache=False)
             x = out[0] if isinstance(out, tuple) else out
         if self.is_last:
             if hasattr(self, "final_norm"):
@@ -545,6 +550,7 @@ for ci in range(NUM_CHUNKS):
 
     wrapper = DecoderChunkWrapper(
         layer_list, ci, NUM_CHUNKS,
+        rotary_emb=_global_rotary_emb,
         embed_tokens=embed_tokens if ci == 0 else None,
         final_norm=final_norm if ci == NUM_CHUNKS - 1 else None,
         lm_head=lm_head if ci == NUM_CHUNKS - 1 else None,
