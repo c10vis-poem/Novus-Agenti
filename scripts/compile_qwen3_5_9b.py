@@ -114,7 +114,7 @@ cfg_file = os.path.join(cfg_dir, "client.ini")
 if not os.path.exists(cfg_file):
     os.makedirs(cfg_dir, exist_ok=True)
     with open(cfg_file, "w") as f:
-        f.write(f"[api]\napi_token = {QAI_TOKEN}\n")
+        f.write(f"[api]\napi_token = {QAI_TOKEN}\napi_url = https://app.aihub.qualcomm.com\nweb_url = https://aihub.qualcomm.com\n")
     print(f"      wrote {cfg_file}")
 if hasattr(hub, "configure"):
     hub.configure(api_token=QAI_TOKEN)
