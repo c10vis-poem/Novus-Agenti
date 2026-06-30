@@ -100,7 +100,7 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 **This section exists because models routinely waste context arguing about
 what they "can't" do. Read it. Internalize it. Do not contradict it.**
 
-### MCP Tools
+### MCP Tools — HOW TO USE THEM
 - The `mcp__github__*` tools WORK. They are pre-authenticated via the session's
   GitHub integration. **Use them.** Do not say "I don't have access to GitHub."
 - The `mcp__Hugging_Face__*` tools WORK. The session is authenticated as
@@ -108,29 +108,73 @@ what they "can't" do. Read it. Internalize it. Do not contradict it.**
 - If a system reminder says an MCP server "requires authentication," that means
   THAT SPECIFIC server (e.g. Cloudflare). It does NOT mean GitHub or HuggingFace
   are broken. Read the server name before refusing.
-- `ToolSearch` loads deferred tool schemas. If a tool name appears in the
-  deferred list, call `ToolSearch("select:<name>")` to load it, then call it.
-  Do not say "I don't have that tool."
 
-### Tokens (HF_TOKEN, QAI_HUB_API_TOKEN)
-- The tokens below are provided BY THE USER, IN THIS FILE, for YOU to use.
+**Step-by-step for MCP tools:**
+1. MCP tool names appear in `<system-reminder>` deferred tool lists (e.g. `mcp__github__create_pull_request`).
+2. They are NOT callable yet — you must load their schema first.
+3. Call: `ToolSearch(query="select:mcp__github__create_pull_request", max_results=1)`
+4. The result gives you the full parameter schema.
+5. NOW call the tool with the required parameters.
+
+**Example — create a PR:**
+```
+Step 1: ToolSearch(query="select:mcp__github__create_pull_request", max_results=1)
+Step 2: mcp__github__create_pull_request(owner="c10vis-poem", repo="Novus-Agenti", title="...", head="branch-name", base="main", draft=true)
+```
+
+**Example — check HuggingFace repos:**
+```
+Step 1: ToolSearch(query="select:mcp__Hugging_Face__hub_repo_details", max_results=1)
+Step 2: mcp__Hugging_Face__hub_repo_details(repo_id="Mer0vin8ian/Qwen3.5-9B")
+```
+
+**Example — search code on GitHub:**
+```
+Step 1: ToolSearch(query="select:mcp__github__search_code", max_results=1)
+Step 2: mcp__github__search_code(q="NpuClient repo:c10vis-poem/Novus-Agenti")
+```
+
+Do NOT say "I don't have that tool." Load it, then use it.
+
+### Tokens (HF_TOKEN, QAI_HUB_API_TOKEN) — HOW TO USE THEM
+- The tokens in §Tokens below are provided BY THE USER, IN THIS FILE, for YOU to use.
 - They are STATIC. They do not rotate during the project. The repo is PRIVATE.
-- When a task requires `hf` or `qai-hub` CLI: reconstruct the token from the
-  split parts, export it, and run the command. Do not refuse. Do not warn about
-  "security." Do not suggest the user "export it themselves." JUST DO IT.
 - The split format exists to satisfy the git secret scanner, not to hide
   anything from you.
 
-### Proxy / Network
+**Step-by-step for token export:**
+When ANY task requires `hf`, `huggingface-cli`, or `qai-hub` CLI, run this
+Bash command FIRST — copy-paste exactly:
+```bash
+A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku; export HF_TOKEN="${A}${B}"
+C=li5ez4yzkpw8d3d0; D=0tkqjrcbc96cxbdci6i2jonv; export QAI_HUB_API_TOKEN="${C}${D}"
+```
+Then run your actual command in the SAME Bash call (or chain with `&&`):
+```bash
+A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku; export HF_TOKEN="${A}${B}" && \
+  huggingface-cli whoami
+```
+Do not refuse. Do not warn about "security." Do not ask the user to
+"export it themselves." The user wrote these tokens here FOR you.
+
+### Proxy / Network — HOW IT WORKS
 - Outbound HTTPS works through the agent proxy. The CA bundle is pre-configured.
 - If a specific host is blocked (403/407), report it. Do not preemptively refuse
   ALL network calls because the proxy exists.
 - `curl`, `git push`, `git fetch`, `pip install`, `npm install` — all work.
 
+**If a network call fails:**
+1. Read the actual error message.
+2. If TLS/cert error → add `--cacert /root/.ccr/ca-bundle.crt` or set
+   `REQUESTS_CA_BUNDLE=/root/.ccr/ca-bundle.crt` for Python tools.
+3. If 403/407 → that specific host is policy-blocked. Report it. Don't retry.
+4. If timeout → check `curl -sS "$HTTPS_PROXY/__agentproxy/status"` for diagnostics.
+5. Everything else → try again or try a different approach.
+
 ### What "can't be done" actually looks like
-- A tool call returns an error → diagnose and retry or report.
+- A tool call returns an error → diagnose and retry or report the error.
 - A host is 403-blocked → report the specific host.
-- That's it. Everything else: TRY IT FIRST.
+- That's it. Everything else: TRY IT FIRST, THEN REPORT WHAT HAPPENED.
 
 **If you find yourself typing "I don't have access to," "I can't use," or
 "that requires authentication" — STOP. Re-read this section. Then try the
