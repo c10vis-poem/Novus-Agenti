@@ -90,6 +90,7 @@ class ModelImportActivity : ComponentActivity() {
         if (uri == null) return finishWithError("No file URI in intent")
 
         val fileName = resolveFileName(uri)
+        Log.i(TAG, "handleIntent: action=${intent.action} uri=$uri resolved fileName='$fileName'")
         when {
             isModelFile(fileName) -> {
                 statusText.value = "Importing $fileName…"
@@ -103,12 +104,13 @@ class ModelImportActivity : ComponentActivity() {
                 }
             }
             isRuntimeFile(fileName) -> {
-                statusText.value = "Installing $fileName…"
+                val canonical = canonicalRuntimeName(fileName)
+                statusText.value = "Installing $canonical…"
                 scope.launch {
                     importFile(
-                        uri, fileName,
+                        uri, canonical,
                         destDir = filesDir,
-                        executable = fileName == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY,
+                        executable = canonical == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY,
                         label = "Runtime component",
                     )
                 }
@@ -173,7 +175,28 @@ class ModelImportActivity : ComponentActivity() {
         return MODEL_EXTENSIONS.any { lower.endsWith(it) }
     }
 
-    private fun isRuntimeFile(name: String): Boolean = name in RUNTIME_FILES
+    private fun isRuntimeFile(name: String): Boolean {
+        val lower = name.lowercase()
+        // Tolerant match: handles download-dedupe suffixes ("ort_engine (1)"),
+        // versioned QNN libs ("libQnnHtpV75Skel.so"), and case variations.
+        if (lower.startsWith("ort_engine")) return true
+        if (lower.startsWith("libonnxruntime") && lower.endsWith(".so")) return true
+        if (lower.startsWith("libqnn") && lower.endsWith(".so")) return true
+        return false
+    }
+
+    /** Canonical filename to write to disk — strip Android's "(1)" download suffixes. */
+    private fun canonicalRuntimeName(name: String): String {
+        val lower = name.lowercase()
+        return when {
+            lower.startsWith("ort_engine") -> com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
+            lower.startsWith("libonnxruntime") -> "libonnxruntime.so"
+            lower.startsWith("libqnnhtpv75skel") -> "libQnnHtpV75Skel.so"
+            lower.startsWith("libqnnhtp") -> "libQnnHtp.so"
+            lower.startsWith("libqnnsystem") -> "libQnnSystem.so"
+            else -> name
+        }
+    }
 
     private fun finishWithError(msg: String) {
         Log.w(TAG, msg)

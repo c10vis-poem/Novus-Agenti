@@ -130,25 +130,36 @@ fun MonitorPane(
             val name = queryDisplayName(ctx, uri) ?: uri.lastPathSegment ?: "imported_model"
             val lower = name.lowercase()
             val isModel = com.horizons.ModelImportActivity.MODEL_EXTENSIONS.any { lower.endsWith(it) }
-            val isRuntime = name in com.horizons.ModelImportActivity.RUNTIME_FILES
+            val isRuntime = lower.startsWith("ort_engine") ||
+                (lower.startsWith("libonnxruntime") && lower.endsWith(".so")) ||
+                (lower.startsWith("libqnn") && lower.endsWith(".so"))
             if (!isModel && !isRuntime) {
                 importStatus = "Unsupported file type: $name"
                 return@rememberLauncherForActivityResult
             }
+            val canonical = when {
+                isModel -> name
+                lower.startsWith("ort_engine") -> com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
+                lower.startsWith("libonnxruntime") -> "libonnxruntime.so"
+                lower.startsWith("libqnnhtpv75skel") -> "libQnnHtpV75Skel.so"
+                lower.startsWith("libqnnhtp") -> "libQnnHtp.so"
+                lower.startsWith("libqnnsystem") -> "libQnnSystem.so"
+                else -> name
+            }
             val destDir = if (isModel) modelsDir else app.filesDir
-            val executable = isRuntime && name == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
-            importStatus = "Importing $name…"
+            val executable = isRuntime && canonical == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
+            importStatus = "Importing $canonical…"
             scope.launch {
                 try {
                     withContext(Dispatchers.IO) {
                         destDir.mkdirs()
-                        val dest = File(destDir, name)
+                        val dest = File(destDir, canonical)
                         ctx.contentResolver.openInputStream(uri)?.use { input ->
                             dest.outputStream().use { out -> input.copyTo(out) }
                         } ?: throw IllegalStateException("Cannot open input stream")
                         if (executable) dest.setExecutable(true, true)
                     }
-                    importStatus = "Imported $name"
+                    importStatus = "Imported $canonical"
                     importTick++
                 } catch (e: Exception) {
                     importStatus = "Import failed: ${e.message}"

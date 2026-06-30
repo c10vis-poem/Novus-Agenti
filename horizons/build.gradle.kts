@@ -25,8 +25,8 @@ android {
         applicationId = "com.horizons"
         minSdk = 31
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.0-phase1"
+        versionCode = 3
+        versionName = "0.1.1-phase1"
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
         // Razr Ultra is arm64-v8a only.
         ndk { abiFilters += "arm64-v8a" }
