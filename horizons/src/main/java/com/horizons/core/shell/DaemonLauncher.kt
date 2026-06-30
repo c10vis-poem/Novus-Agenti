@@ -7,13 +7,18 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Launches the native ONNX-RT/QNN engine binary as a detached background daemon.
+ * Launches the llama-server binary as a detached background daemon.
  *
- * Expected binary location: context.filesDir/ort_engine
- * Deploy via: adb push ort_engine /data/data/com.horizons/files/ort_engine
- *             adb shell chmod +x /data/data/com.horizons/files/ort_engine
+ * Expected binary location: context.filesDir/llama-server
+ * Deploy via: adb push llama-server /data/data/com.horizons/files/llama-server
+ *             adb shell chmod +x /data/data/com.horizons/files/llama-server
  *
  * The daemon serves inference requests at 127.0.0.1:8080 (see NpuClient).
+ * Uses OpenAI-compatible /v1/chat/completions endpoint.
+ *
+ * Environment variables:
+ *   GGML_HEXAGON_NDEV=2   — multi-session NPU
+ *   DSP_LIBRARY_PATH      — points to filesDir for QNN DSP skel libraries
  *
  * Priority: If root is available, oom_score_adj is set to -1000 (unkillable by lmkd).
  * Without root, the daemon inherits the app's oom_score_adj and may be killed under
@@ -42,11 +47,21 @@ class DaemonLauncher(
             if (!engine.canExecute()) engine.setExecutable(true)
 
             val logFile = File(context.getExternalFilesDir(null), "$binaryName.log")
+            val filesDir = context.filesDir.absolutePath
+
+            // Build the launch command with llama-server flags.
+            // --model is expected via engineArgs (e.g. "--model /path/to/model.gguf").
+            val args = engineArgs.joinToString(" ")
+            val cmd = "${engine.absolutePath} $args " +
+                "--host 127.0.0.1 --port $ENGINE_PORT -c 2048 --threads 4"
+
+            // Set environment variables for Hexagon NPU access.
+            val envExports = "export GGML_HEXAGON_NDEV=2; " +
+                "export DSP_LIBRARY_PATH=$filesDir; "
 
             // mksh -T- detaches the child from the controlling tty, reparenting it
             // to init so it survives shell exit. Equivalent to nohup + setsid.
-            val args = engineArgs.joinToString(" ")
-            val shellCmd = "${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
+            val shellCmd = "${envExports}${cmd} >> ${logFile.absolutePath} 2>&1 &"
 
             return@withContext try {
                 val proc = ProcessBuilder("/system/bin/sh", "-T-", "-c", shellCmd)
@@ -100,8 +115,7 @@ class DaemonLauncher(
 
     companion object {
         private const val TAG    = "DaemonLauncher"
-        const val GENIE_BINARY   = "genie_engine"
-        const val ENGINE_BINARY  = "ort_engine"
+        const val ENGINE_BINARY  = "llama-server"
         const val ENGINE_PORT    = 8080
     }
 }

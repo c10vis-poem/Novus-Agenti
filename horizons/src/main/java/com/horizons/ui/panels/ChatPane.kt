@@ -9,31 +9,45 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,23 +58,37 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.horizons.ChatMessage
 import com.horizons.ChatMode
 import com.horizons.HorizonsApplication
+import com.horizons.ui.WaterDropletBackground
+import com.horizons.ui.theme.HorizonsColors
 import com.horizons.audio.AudioRecorder
+import com.horizons.core.state.ChatSession
 import com.horizons.fgs.LiveChatService
 import com.horizons.fgs.ScreenShareService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
+
+private val ChatAccent = HorizonsColors.TileChat
+private val CarbonBg = Color(0xFF1A1E22)
+private val CarbonCard = Color(0xFF252A30)
 
 @Composable
 fun ChatPane(modifier: Modifier = Modifier) {
@@ -70,6 +98,7 @@ fun ChatPane(modifier: Modifier = Modifier) {
     val busy by app.chatBusy.collectAsState()
     val pendingJpeg by app.pendingScreenJpeg.collectAsState()
     val currentMode by app.chatMode.collectAsState()
+    val sessions by app.chatHistory.sessions.collectAsState()
 
     var input by remember { mutableStateOf("") }
     var isRecording by remember { mutableStateOf(false) }
@@ -77,6 +106,8 @@ fun ChatPane(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    var showPlusMenu by remember { mutableStateOf(false) }
 
     val lastText = messages.lastOrNull()?.text ?: ""
     LaunchedEffect(lastText) {
@@ -84,9 +115,8 @@ fun ChatPane(modifier: Modifier = Modifier) {
     }
 
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
-    val modelReady = backendStatus.startsWith("Adreno 830") || backendStatus.startsWith("Hexagon HTP")
+    val modelReady = backendStatus != "idle" && backendStatus != "loading…"
 
-    // MediaProjection consent launcher for Mode A
     val screenShareLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -111,15 +141,14 @@ fun ChatPane(modifier: Modifier = Modifier) {
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
     fun selectMode(mode: ChatMode) {
-        // Mic + screen-share FGS hard-require RECORD_AUDIO or startForeground() crashes.
         if ((mode == ChatMode.A || mode == ChatMode.B) && !hasMicPermission()) {
-            scope.launch { snackbarHostState.showSnackbar("Grant microphone permission first (Android Settings → Apps → Horizons → Permissions)") }
+            scope.launch { snackbarHostState.showSnackbar("Grant microphone permission first") }
             return
         }
         when (mode) {
             ChatMode.A -> {
-                // Stop any running FGS first, then request consent
                 stopFgsIfRunning()
+                app.setSessionMode("live")
                 val projectionManager =
                     context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE)
                             as MediaProjectionManager
@@ -127,14 +156,14 @@ fun ChatPane(modifier: Modifier = Modifier) {
             }
             ChatMode.B -> {
                 stopFgsIfRunning()
+                app.setSessionMode("voice")
                 ContextCompat.startForegroundService(
-                    context,
-                    Intent(context, LiveChatService::class.java),
+                    context, Intent(context, LiveChatService::class.java),
                 )
             }
             ChatMode.C -> {
                 stopFgsIfRunning()
-                // chatMode is reset to C by the services in their onDestroy
+                app.setSessionMode("standard")
             }
         }
     }
@@ -198,153 +227,231 @@ fun ChatPane(modifier: Modifier = Modifier) {
         }
     }
 
-    Column(modifier.fillMaxSize()) {
-
-        // ── Mode toggle row ───────────────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilterChip(
-                selected = currentMode == ChatMode.A,
-                onClick = { selectMode(ChatMode.A) },
-                label = { Text("Screen") },
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ChatSidePanel(
+                sessions = sessions,
+                onNewSession = {
+                    app.newChatSession()
+                    scope.launch { drawerState.close() }
+                },
+                onLoadSession = { id ->
+                    app.loadSession(id)
+                    scope.launch { drawerState.close() }
+                },
+                onDeleteSession = { id ->
+                    scope.launch { app.chatHistory.delete(id) }
+                },
+                activeSessionId = app.activeSessionId,
             )
-            FilterChip(
-                selected = currentMode == ChatMode.B,
-                onClick = { selectMode(ChatMode.B) },
-                label = { Text("Chat") },
-            )
-            FilterChip(
-                selected = currentMode == ChatMode.C,
-                onClick = { selectMode(ChatMode.C) },
-                label = { Text("One-shot") },
-            )
-        }
+        },
+        modifier = modifier,
+    ) {
+        Box(Modifier.fillMaxSize()) {
+        WaterDropletBackground()
+        Column(Modifier.fillMaxSize()) {
 
-        // ── Model status banner ───────────────────────────────────────────────
-        if (!modelReady) {
-            val bannerMsg = when {
-                backendStatus == "idle" || backendStatus == "loading…" -> "Loading model…"
-                backendStatus.startsWith("NO MODEL") -> "No model found — check Router tab."
-                backendStatus.startsWith("GPU FAILED") -> "Engine failed — see Router tab."
-                else -> "Model not ready."
-            }
-            Surface(
-                color = MaterialTheme.colorScheme.errorContainer,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    bannerMsg,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-            }
-        }
-
-        // ── Message list ──────────────────────────────────────────────────────
-        LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            state = listState,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(messages) { msg -> ChatBubble(msg) }
-        }
-
-        // ── Attachment thumbnail strip ─────────────────────────────────────────
-        if (pendingJpeg != null) {
-            val bmp: Bitmap? = remember(pendingJpeg!!.size) {
-                BitmapFactory.decodeByteArray(pendingJpeg, 0, pendingJpeg!!.size)
-            }
+            // ── Top bar: mode toggle + history button ─────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                    .background(CarbonBg)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (bmp != null) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Attached image",
-                        modifier = Modifier.size(52.dp),
-                        contentScale = ContentScale.Crop
-                    )
+                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                    Text("☰", fontSize = 18.sp, color = ChatAccent)
                 }
-                Text(
-                    "Image attached — add a question and tap Ask",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f)
+                FilterChip(
+                    selected = currentMode == ChatMode.C,
+                    onClick = { selectMode(ChatMode.C) },
+                    label = { Text("Standard", fontSize = 11.sp) },
                 )
-                IconButton(onClick = { app.pendingScreenJpeg.value = null }) {
-                    Text("×", style = MaterialTheme.typography.titleMedium)
+                FilterChip(
+                    selected = currentMode == ChatMode.A,
+                    onClick = { selectMode(ChatMode.A) },
+                    label = { Text("Live", fontSize = 11.sp) },
+                )
+                FilterChip(
+                    selected = currentMode == ChatMode.B,
+                    onClick = { selectMode(ChatMode.B) },
+                    label = { Text("Voice", fontSize = 11.sp) },
+                )
+            }
+
+            // ── Backend status banner ─────────────────────────────────────────
+            val isCloud = backendStatus.contains("Cloud")
+            val isNoBackend = backendStatus.contains("no backend")
+            val bannerColor = when {
+                !modelReady -> MaterialTheme.colorScheme.errorContainer
+                isNoBackend -> MaterialTheme.colorScheme.errorContainer
+                isCloud -> MaterialTheme.colorScheme.tertiaryContainer
+                else -> MaterialTheme.colorScheme.primaryContainer
+            }
+            val bannerText = when {
+                !modelReady -> "Loading…"
+                isNoBackend -> "No backend — add API key in Settings or start daemon"
+                isCloud -> "Cloud · $backendStatus"
+                else -> backendStatus
+            }
+            Surface(color = bannerColor, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    bannerText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
+
+            // ── Message list (carbon tile bubbles) ────────────────────────────
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items(messages) { msg -> CarbonBubble(msg) }
+            }
+
+            // ── Attachment thumbnail strip ────────────────────────────────────
+            if (pendingJpeg != null) {
+                val bmp: Bitmap? = remember(pendingJpeg!!.size) {
+                    BitmapFactory.decodeByteArray(pendingJpeg, 0, pendingJpeg!!.size)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CarbonBg)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (bmp != null) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "Attached image",
+                            modifier = Modifier.size(48.dp),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                    Text(
+                        "Image attached — ask a question",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { app.pendingScreenJpeg.value = null }) {
+                        Text("×", fontSize = 18.sp, color = ChatAccent)
+                    }
+                }
+            }
+
+            SnackbarHost(hostState = snackbarHostState)
+
+            // ── Input bar ─────────────────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CarbonBg)
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // + button (attach files / load skills)
+                if (!busy) {
+                    Box {
+                        IconButton(onClick = { showPlusMenu = true }) {
+                            Text("+", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = ChatAccent)
+                        }
+                        DropdownMenu(
+                            expanded = showPlusMenu,
+                            onDismissRequest = { showPlusMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Attach Image") },
+                                onClick = {
+                                    showPlusMenu = false
+                                    attachLauncher.launch("image/*")
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Attach File") },
+                                onClick = {
+                                    showPlusMenu = false
+                                    attachLauncher.launch("*/*")
+                                },
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Load System Prompt") },
+                                onClick = {
+                                    showPlusMenu = false
+                                    input = "/system "
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Agent Mode") },
+                                onClick = {
+                                    showPlusMenu = false
+                                    input = "/agent "
+                                },
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = {
+                        Text(
+                            if (pendingJpeg != null) "Ask about the image…" else "Message",
+                            color = Color.White.copy(alpha = 0.3f),
+                        )
+                    },
+                    singleLine = true,
+                    enabled = !busy,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { submit() }),
+                )
+
+                if (busy) {
+                    Button(
+                        onClick = { app.stopAll() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) { Text("Stop") }
+                } else {
+                    IconButton(onClick = { onMicClick() }) {
+                        Text(
+                            if (isRecording) "●" else "🎙",
+                            fontSize = 18.sp,
+                            color = if (isRecording) Color.Red else ChatAccent,
+                        )
+                    }
+                    Button(
+                        onClick = { submit() },
+                        enabled = (input.isNotBlank() || pendingJpeg != null),
+                        colors = ButtonDefaults.buttonColors(containerColor = ChatAccent.copy(alpha = 0.2f)),
+                    ) {
+                        Text(
+                            if (pendingJpeg != null) "Ask" else "Send",
+                            color = ChatAccent,
+                        )
+                    }
                 }
             }
         }
-
-        // ── Snackbar ──────────────────────────────────────────────────────────
-        SnackbarHost(hostState = snackbarHostState)
-
-        // ── Input bar ─────────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Attach button
-            if (!busy) {
-                IconButton(onClick = { attachLauncher.launch("image/*") }) {
-                    Text("📎", style = MaterialTheme.typography.titleMedium)
-                }
-            }
-
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(if (pendingJpeg != null) "Ask about the image…" else "Message") },
-                singleLine = true,
-                enabled = !busy,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { submit() }),
-            )
-
-            if (busy) {
-                Button(
-                    onClick = { app.stopAll() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    ),
-                ) { Text("Stop") }
-            } else {
-                // Mic button
-                IconButton(onClick = { onMicClick() }) {
-                    Text(
-                        if (isRecording) "🔴" else "🎙️",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-                // Send / Ask button
-                Button(
-                    onClick = { submit() },
-                    enabled = (input.isNotBlank() || pendingJpeg != null),
-                ) {
-                    Text(if (pendingJpeg != null) "Ask" else "Send")
-                }
-            }
         }
     }
 }
 
 @Composable
-private fun ChatBubble(msg: ChatMessage) {
+private fun CarbonBubble(msg: ChatMessage) {
     val isUser = msg.role == "user"
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -352,17 +459,152 @@ private fun ChatBubble(msg: ChatMessage) {
     ) {
         Surface(
             shape = MaterialTheme.shapes.medium,
-            color = if (isUser) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant,
+            color = if (isUser) CarbonCard else HorizonsColors.Surface,
+            shadowElevation = 2.dp,
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             SelectionContainer {
                 Text(
                     text = msg.text,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Default,
+                    ),
+                    color = if (isUser) ChatAccent else Color.White.copy(alpha = 0.9f),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ChatSidePanel(
+    sessions: List<ChatSession>,
+    onNewSession: () -> Unit,
+    onLoadSession: (String) -> Unit,
+    onDeleteSession: (String) -> Unit,
+    activeSessionId: String,
+) {
+    val dateFmt = remember { SimpleDateFormat("MMM d, HH:mm", Locale.US) }
+
+    ModalDrawerSheet(
+        drawerContainerColor = CarbonBg,
+        modifier = Modifier.width(280.dp),
+    ) {
+        Column(
+            Modifier
+                .fillMaxHeight()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "CHAT",
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = ChatAccent,
+            )
+            Text(
+                "/ interface",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                color = ChatAccent.copy(alpha = 0.5f),
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            // New session button
+            Button(
+                onClick = onNewSession,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ChatAccent.copy(alpha = 0.15f),
+                ),
+            ) {
+                Text("+ New Session", fontFamily = FontFamily.Monospace, color = ChatAccent)
+            }
+
+            HorizontalDivider(color = ChatAccent.copy(alpha = 0.2f))
+
+            Text(
+                "History",
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = ChatAccent.copy(alpha = 0.7f),
+            )
+
+            // Session list
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(sessions) { session ->
+                    val isActive = session.id == activeSessionId
+                    Surface(
+                        color = if (isActive) ChatAccent.copy(alpha = 0.1f) else CarbonCard,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onLoadSession(session.id) },
+                    ) {
+                        Row(
+                            Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    session.title.take(30),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isActive) ChatAccent else Color.White.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        dateFmt.format(Date(session.createdAt)),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 9.sp,
+                                        color = Color.White.copy(alpha = 0.3f),
+                                    )
+                                    if (session.mode != "standard") {
+                                        Text(
+                                            session.mode.uppercase(),
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = ChatAccent.copy(alpha = 0.5f),
+                                        )
+                                    }
+                                    Text(
+                                        "${session.messages.size} msgs",
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 9.sp,
+                                        color = Color.White.copy(alpha = 0.3f),
+                                    )
+                                }
+                            }
+                            if (!isActive) {
+                                TextButton(onClick = { onDeleteSession(session.id) }) {
+                                    Text("×", fontSize = 14.sp, color = Color.White.copy(alpha = 0.3f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = ChatAccent.copy(alpha = 0.2f))
+
+            // Bottom settings hint
+            Text(
+                "Swipe right to close",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 9.sp,
+                color = Color.White.copy(alpha = 0.2f),
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

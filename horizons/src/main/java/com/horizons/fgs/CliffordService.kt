@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import com.horizons.HorizonsApplication
-import com.horizons.core.llm.NpuClient
 import com.horizons.core.shell.DaemonLauncher
 import com.horizons.core.shell.NativeBinaryInstaller
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +18,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.lang.reflect.Method
 
 /**
  * CLIFFORD — Command Line Intercept Forced Failback Over Root Daemon
@@ -42,6 +42,7 @@ class CliffordService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var crsJob: Job? = null
     private var launcher: DaemonLauncher? = null
+    private var npuPerfLock: AutoCloseable? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -57,6 +58,7 @@ class CliffordService : Service() {
 
     override fun onDestroy() {
         crsJob?.cancel()
+        releaseNpuPerfLock()
         super.onDestroy()
     }
 
@@ -65,22 +67,26 @@ class CliffordService : Service() {
     private fun startCrs() {
         if (crsJob?.isActive == true) return
         crsJob = scope.launch {
-            val app = applicationContext as? HorizonsApplication
-
             // Phase 1: install + launch daemon from THIS FGS context.
             // Daemon inherits this process's oom_score_adj (~-200 to -400).
             ensureDaemonRunning()
 
-            // Phase 2: CRS heartbeat — re-launch if daemon dies, swap runtime when healthy.
+            // Phase 2: CRS heartbeat — re-launch if daemon dies, notify main process when healthy.
+            var npuActivated = false
             while (isActive) {
                 delay(CRS_INTERVAL_MS)
                 val alive = pingDaemon()
                 if (!alive) {
                     Log.w(TAG, "CRS: daemon not responding — relaunching")
+                    npuActivated = false
                     ensureDaemonRunning()
-                } else if (app != null && !app.isNpuActive) {
-                    app.activateNpuRuntime()
-                    Log.i(TAG, "CRS: daemon healthy — NpuClient activated")
+                } else if (!npuActivated) {
+                    // Send broadcast to main process — direct activateNpuRuntime()
+                    // would set state on THIS (:clifford) process's Application object.
+                    sendBroadcast(Intent("com.horizons.NPU_READY"))
+                    acquireNpuPerfLock()
+                    npuActivated = true
+                    Log.i(TAG, "CRS: daemon healthy — NPU_READY broadcast sent, perf lock acquired")
                 }
             }
         }
@@ -94,7 +100,7 @@ class CliffordService : Service() {
             return
         }
         val modelPath = app.resolveNpuModelPath() ?: run {
-            Log.w(TAG, "CRS: no .bin/.dlc model found — waiting for model")
+            Log.w(TAG, "CRS: no .bin model found — waiting for model")
             return
         }
         val binaryName = NativeBinaryInstaller.installedBinaryName(this)
@@ -117,6 +123,35 @@ class CliffordService : Service() {
         conn.disconnect()
         ok
     } catch (_: Exception) { false }
+
+    // ── NpuManager Performance Lock ───────────────────────────────────────────
+    // NpuManager is an @hide system service on Qualcomm BSPs (SM8750+).
+    // We acquire via reflection so the app compiles against stock AOSP SDK.
+    // If the service or API doesn't exist on this device, it's a silent no-op.
+
+    private fun acquireNpuPerfLock() {
+        if (npuPerfLock != null) return
+        try {
+            val npuMgr = getSystemService("npu") ?: return
+            val perfModeHigh = npuMgr.javaClass.getField("PERF_MODE_HIGH").getInt(null)
+            val acquireMethod: Method = npuMgr.javaClass
+                .getMethod("acquirePerformanceLock", Int::class.javaPrimitiveType)
+            val lock = acquireMethod.invoke(npuMgr, perfModeHigh)
+            npuPerfLock = lock as? AutoCloseable
+            Log.i(TAG, "NpuManager: PERF_MODE_HIGH lock acquired")
+        } catch (e: Exception) {
+            Log.d(TAG, "NpuManager: not available on this device (${e.javaClass.simpleName})")
+        }
+    }
+
+    private fun releaseNpuPerfLock() {
+        try {
+            npuPerfLock?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "NpuManager: lock release failed", e)
+        }
+        npuPerfLock = null
+    }
 
     // ── Notification ──────────────────────────────────────────────────────────
 

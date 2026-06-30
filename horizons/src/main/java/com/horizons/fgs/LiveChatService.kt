@@ -17,7 +17,7 @@ import com.horizons.audio.VoiceLoopController
  * Mode B — Live Chat FGS.
  *
  * foregroundServiceType: microphone
- * Runs the audio loop + Gemma stream continuously. No screen capture.
+ * Runs the audio loop + LLM stream continuously. No screen capture.
  * Sticky notification: tap to stop the service and return to Mode C.
  */
 class LiveChatService : Service() {
