@@ -8,9 +8,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,10 +25,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -37,12 +43,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -63,6 +73,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
+import com.horizons.core.state.SavedCommand
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -90,6 +101,7 @@ fun TerminalPanel(
     val scope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableIntStateOf(0) }
+    val shellCmd = remember { mutableStateOf("") }
 
     val rainColumns = remember { generateRainColumns(40) }
     val transition = rememberInfiniteTransition(label = "matrix")
@@ -163,11 +175,30 @@ fun TerminalPanel(
                         )
                     },
                 )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = {
+                        Text(
+                            "Prompts",
+                            fontFamily = FontFamily.Monospace,
+                            color = if (selectedTab == 2) MatrixGreen else MatrixGreen.copy(alpha = 0.4f),
+                        )
+                    },
+                )
             }
 
             when (selectedTab) {
-                0 -> ShellTab(app = app, scope = scope)
+                0 -> ShellTab(app = app, scope = scope, cmdState = shellCmd)
                 1 -> TaskerTab(app = app, scope = scope)
+                2 -> PromptsTab(
+                    app = app,
+                    scope = scope,
+                    onCommandSelected = { command ->
+                        shellCmd.value = command
+                        selectedTab = 0
+                    },
+                )
             }
         }
     }
@@ -218,9 +249,10 @@ private fun DrawScope.drawMatrixRain(columns: List<RainColumn>, progress: Float)
 private fun ShellTab(
     app: HorizonsApplication,
     scope: kotlinx.coroutines.CoroutineScope,
+    cmdState: MutableState<String>,
 ) {
     val listState = rememberLazyListState()
-    var cmd by remember { mutableStateOf("") }
+    var cmd by cmdState
     var running by remember { mutableStateOf(false) }
     val history = remember { mutableStateListOf<ShellEntry>() }
 
@@ -455,6 +487,191 @@ private fun TaskerTab(
             Icon(Icons.Filled.Send, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Dispatch task", fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PromptsTab(
+    app: HorizonsApplication,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onCommandSelected: (String) -> Unit,
+) {
+    val commands by app.savedCommands.commands.collectAsState()
+    val grouped = commands.groupBy { it.category }
+
+    var newLabel by remember { mutableStateOf("") }
+    var newCommand by remember { mutableStateOf("") }
+    var newCategory by remember { mutableStateOf("") }
+
+    Column(
+        Modifier.fillMaxSize().padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "Saved Commands",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            color = MatrixGreen,
+        )
+
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            grouped.forEach { (category, cmds) ->
+                item(key = "header_$category") {
+                    Text(
+                        category.uppercase(),
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = MatrixGreen.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                item(key = "grid_$category") {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        cmds.forEach { cmd ->
+                            PromptCard(
+                                cmd = cmd,
+                                onTap = { onCommandSelected(cmd.command) },
+                                onDelete = { scope.launch { app.savedCommands.remove(cmd.label) } },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = MatrixGreen.copy(alpha = 0.2f))
+
+        Text(
+            "ADD COMMAND",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            color = MatrixGreen.copy(alpha = 0.6f),
+        )
+
+        OutlinedTextField(
+            value = newLabel,
+            onValueChange = { newLabel = it },
+            label = { Text("Label", color = MatrixGreen.copy(alpha = 0.4f)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                cursorColor = MatrixGreen,
+            ),
+        )
+        OutlinedTextField(
+            value = newCommand,
+            onValueChange = { newCommand = it },
+            label = { Text("Command", color = MatrixGreen.copy(alpha = 0.4f)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                cursorColor = MatrixGreen,
+            ),
+        )
+        OutlinedTextField(
+            value = newCategory,
+            onValueChange = { newCategory = it },
+            label = { Text("Category (optional)", color = MatrixGreen.copy(alpha = 0.4f)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                cursorColor = MatrixGreen,
+            ),
+        )
+        Button(
+            onClick = {
+                val label = newLabel.trim()
+                val command = newCommand.trim()
+                if (label.isNotEmpty() && command.isNotEmpty()) {
+                    val cat = newCategory.trim().ifEmpty { "general" }
+                    scope.launch {
+                        app.savedCommands.add(SavedCommand(label, command, cat))
+                    }
+                    newLabel = ""
+                    newCommand = ""
+                    newCategory = ""
+                }
+            },
+            enabled = newLabel.isNotBlank() && newCommand.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MatrixGreen.copy(alpha = 0.15f),
+                contentColor = MatrixGreen,
+            ),
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Save Command", fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
+private fun PromptCard(
+    cmd: SavedCommand,
+    onTap: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.clickable(onClick = onTap),
+        colors = CardDefaults.cardColors(
+            containerColor = MatrixGreen.copy(alpha = 0.08f),
+        ),
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    cmd.label,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = MatrixGreen,
+                )
+                Text(
+                    cmd.command,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = MatrixGreen.copy(alpha = 0.5f),
+                    maxLines = 1,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            Surface(
+                modifier = Modifier.size(20.dp).clickable(onClick = onDelete),
+                shape = CircleShape,
+                color = Color.Transparent,
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Delete",
+                    tint = MatrixGreen.copy(alpha = 0.4f),
+                    modifier = Modifier.size(14.dp).padding(2.dp),
+                )
+            }
         }
     }
 }

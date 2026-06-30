@@ -13,6 +13,8 @@ import com.horizons.core.perf.GameModeBoost.gameBoosted
 import com.horizons.core.agent.AgentLoop
 import com.horizons.core.shell.TaskerBridge
 import com.horizons.core.state.AppStateStore
+import com.horizons.core.state.ChatHistoryStore
+import com.horizons.core.state.SavedCommandStore
 import com.horizons.core.voice.KokoroModelManager
 import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
@@ -54,6 +56,8 @@ class HorizonsApplication : Application() {
         private set
 
     val settingsStore: SettingsStore by lazy { SettingsStore(this) }
+    val chatHistory: ChatHistoryStore by lazy { ChatHistoryStore(this) }
+    val savedCommands: SavedCommandStore by lazy { SavedCommandStore(this) }
     val tasker: TaskerBridge by lazy { TaskerBridge(this) }
 
     // -- Agentic loop -- LLM + full Android API tool registry --
@@ -140,6 +144,41 @@ class HorizonsApplication : Application() {
     private val _chatBusy = MutableStateFlow(false)
     val chatBusy: StateFlow<Boolean> = _chatBusy.asStateFlow()
 
+    private var _activeSessionId: String = java.util.UUID.randomUUID().toString()
+    val activeSessionId: String get() = _activeSessionId
+    private var _activeSessionMode: String = "standard"
+
+    fun newChatSession() {
+        saveCurrentSession()
+        _chatMessages.value = emptyList()
+        _activeSessionId = java.util.UUID.randomUUID().toString()
+        _activeSessionMode = "standard"
+    }
+
+    fun loadSession(sessionId: String) {
+        saveCurrentSession()
+        val session = chatHistory.getSession(sessionId) ?: return
+        _chatMessages.value = session.messages
+        _activeSessionId = session.id
+        _activeSessionMode = session.mode
+    }
+
+    fun saveCurrentSession() {
+        val msgs = _chatMessages.value
+        if (msgs.isEmpty()) return
+        scope.launch {
+            chatHistory.save(
+                com.horizons.core.state.ChatSession(
+                    id = _activeSessionId,
+                    messages = msgs,
+                    mode = _activeSessionMode,
+                )
+            )
+        }
+    }
+
+    fun setSessionMode(mode: String) { _activeSessionMode = mode }
+
     fun sendChat(prompt: String) {
         if (_chatBusy.value) return
         _chatMessages.value = _chatMessages.value + ChatMessage("user", prompt)
@@ -163,6 +202,7 @@ class HorizonsApplication : Application() {
             } finally {
                 _chatBusy.value = false
                 GameModeBoost.exitHotLoop(this@HorizonsApplication)
+                saveCurrentSession()
             }
         }
     }
@@ -195,6 +235,7 @@ class HorizonsApplication : Application() {
             } finally {
                 _chatBusy.value = false
                 GameModeBoost.exitHotLoop(this@HorizonsApplication)
+                saveCurrentSession()
             }
         }
     }

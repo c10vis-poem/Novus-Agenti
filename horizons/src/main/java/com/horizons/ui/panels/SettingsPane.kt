@@ -1,5 +1,9 @@
 package com.horizons.ui.panels
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,8 +29,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,10 +45,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.horizons.HorizonsApplication
 import com.horizons.core.state.AppStateStore
 import com.horizons.ui.SlateStoneBackground
 import com.horizons.ui.theme.HorizonsColors
+import kotlinx.coroutines.launch
 
 private val SettingsAccent = HorizonsColors.TileSettings
 
@@ -234,6 +242,295 @@ fun SettingsPane(
                 inactiveTrackColor = SettingsAccent.copy(alpha = 0.15f),
             ),
         )
+
+        HorizontalDivider(color = SettingsAccent.copy(alpha = 0.2f))
+
+        // ── Verbosity ────────────────────────────────────────────────────
+        SectionLabel("Verbosity")
+
+        val verbosityLabels = listOf("Concise", "Normal", "Detailed", "Verbose")
+        val currentVerbosity = creds["settings.verbosity"] ?: "Normal"
+        val verbosityIndex = verbosityLabels.indexOf(currentVerbosity).coerceAtLeast(0)
+
+        Text(
+            "Response detail: $currentVerbosity",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            color = SettingsAccent.copy(alpha = 0.7f),
+        )
+        Slider(
+            value = verbosityIndex.toFloat(),
+            onValueChange = { v ->
+                val label = verbosityLabels[v.toInt().coerceIn(0, 3)]
+                app.appState.put("settings.verbosity", label)
+            },
+            valueRange = 0f..3f,
+            steps = 2,
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = SettingsAccent,
+                activeTrackColor = SettingsAccent,
+                inactiveTrackColor = SettingsAccent.copy(alpha = 0.15f),
+            ),
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            verbosityLabels.forEach { label ->
+                Text(
+                    label,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    color = if (label == currentVerbosity) SettingsAccent
+                            else SettingsAccent.copy(alpha = 0.35f),
+                )
+            }
+        }
+
+        HorizontalDivider(color = SettingsAccent.copy(alpha = 0.2f))
+
+        // ── Memory ───────────────────────────────────────────────────────
+        SectionLabel("Memory")
+        Text(
+            "Persistent key-value memory retained by the assistant.",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+
+        val memoryEntries = creds.filter { it.key.startsWith("memory.") }
+
+        if (memoryEntries.isEmpty()) {
+            Text(
+                "(no memory entries)",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                color = SettingsAccent.copy(alpha = 0.4f),
+            )
+        } else {
+            memoryEntries.forEach { (key, value) ->
+                Surface(
+                    color = HorizonsColors.Surface,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                key.removePrefix("memory."),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SettingsAccent,
+                            )
+                            Text(
+                                value,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.8f),
+                            )
+                        }
+                        TextButton(onClick = { app.appState.remove(key) }) {
+                            Text(
+                                "Remove",
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFFF6B6B),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add new memory entry
+        var newMemKey by remember { mutableStateOf("") }
+        var newMemVal by remember { mutableStateOf("") }
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = newMemKey,
+                    onValueChange = { newMemKey = it },
+                    label = { Text("Key", color = SettingsAccent.copy(alpha = 0.4f)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = Color.White, fontSize = 12.sp),
+                    colors = settingsFieldColors(),
+                )
+                OutlinedTextField(
+                    value = newMemVal,
+                    onValueChange = { newMemVal = it },
+                    label = { Text("Value", color = SettingsAccent.copy(alpha = 0.4f)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = Color.White, fontSize = 12.sp),
+                    colors = settingsFieldColors(),
+                )
+                if (newMemKey.isNotBlank() && newMemVal.isNotBlank()) {
+                    TextButton(onClick = {
+                        app.appState.put("memory.${newMemKey.trim()}", newMemVal.trim())
+                        newMemKey = ""
+                        newMemVal = ""
+                    }) {
+                        Text("Add", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = SettingsAccent)
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = SettingsAccent.copy(alpha = 0.2f))
+
+        // ── Permissions ──────────────────────────────────────────────────
+        SectionLabel("Permissions")
+
+        @Composable
+        fun PermissionRow(name: String, granted: Boolean) {
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    name,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+                Text(
+                    if (granted) "GRANTED" else "DENIED",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (granted) Color(0xFF4CAF50) else Color(0xFFFF6B6B),
+                )
+            }
+        }
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                PermissionRow(
+                    "RECORD_AUDIO",
+                    ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED,
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    PermissionRow(
+                        "POST_NOTIFICATIONS",
+                        ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+                    )
+                }
+                PermissionRow(
+                    "MANAGE_EXTERNAL_STORAGE",
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        android.os.Environment.isExternalStorageManager()
+                    } else {
+                        ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                    },
+                )
+                PermissionRow(
+                    "SYSTEM_ALERT_WINDOW",
+                    AndroidSettings.canDrawOverlays(ctx),
+                )
+            }
+        }
+
+        HorizontalDivider(color = SettingsAccent.copy(alpha = 0.2f))
+
+        // ── System Registrations ─────────────────────────────────────────
+        SectionLabel("System Registrations")
+        Text(
+            "These require manual setup via Android Settings.",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+
+        @Composable
+        fun RegistrationRow(name: String, status: String) {
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    name,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+                Text(
+                    status,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = SettingsAccent.copy(alpha = 0.7f),
+                )
+            }
+        }
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                RegistrationRow("System TTS (Kokoro)", "Check System > TTS")
+                RegistrationRow("Default assistant", "Check System > Assist app")
+                RegistrationRow("Accessibility service", "Check System > Accessibility")
+                RegistrationRow("Notification listener", "Check System > Notification access")
+            }
+        }
+
+        HorizontalDivider(color = SettingsAccent.copy(alpha = 0.2f))
+
+        // ── Chat History Retention ───────────────────────────────────────
+        SectionLabel("Chat History Retention")
+
+        val coroutineScope = rememberCoroutineScope()
+        var retentionDays by remember { mutableFloatStateOf(app.chatHistory.retentionDays.toFloat()) }
+
+        Text(
+            "Keep chats for ${retentionDays.toInt()} days",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            color = SettingsAccent.copy(alpha = 0.7f),
+        )
+        Slider(
+            value = retentionDays,
+            onValueChange = { v ->
+                retentionDays = v
+                app.chatHistory.retentionDays = v.toInt()
+            },
+            onValueChangeFinished = {
+                coroutineScope.launch { app.chatHistory.pruneOld() }
+            },
+            valueRange = 7f..90f,
+            steps = 82,
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = SettingsAccent,
+                activeTrackColor = SettingsAccent,
+                inactiveTrackColor = SettingsAccent.copy(alpha = 0.15f),
+            ),
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("7 days", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = SettingsAccent.copy(alpha = 0.4f))
+            Text("90 days", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = SettingsAccent.copy(alpha = 0.4f))
+        }
 
         Spacer(Modifier.height(24.dp))
     }
