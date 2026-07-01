@@ -217,6 +217,8 @@ fun MonitorPane(
                                 fontWeight = FontWeight.Bold,
                                 color = if (active) HorizonsColors.TileMonitor
                                         else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp),
                             )
                             Text(
                                 if (active) "● ACTIVE" else "${sizeMb} MB",

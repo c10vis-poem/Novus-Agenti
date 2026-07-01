@@ -1,6 +1,8 @@
 package com.horizons
 
+import android.app.ActivityManager
 import android.app.Application
+import android.os.Process
 import com.horizons.audio.AudioRecorder
 import com.horizons.audio.VadFactory
 import com.horizons.audio.VoiceLoopController
@@ -248,11 +250,24 @@ class HorizonsApplication : Application() {
         return result.trim()
     }
 
+    private fun isMainProcess(): Boolean {
+        val pid = Process.myPid()
+        val am = getSystemService(ACTIVITY_SERVICE) as? ActivityManager ?: return true
+        return am.runningAppProcesses?.firstOrNull { it.pid == pid }
+            ?.processName == packageName
+    }
+
     override fun onCreate() {
         com.horizons.core.diag.Breadcrumb.install(this)
         com.horizons.core.diag.Breadcrumb.drop("onCreate_enter")
         super.onCreate()
         com.horizons.core.diag.Breadcrumb.drop("onCreate_after_super")
+
+        if (!isMainProcess()) {
+            com.horizons.core.diag.Breadcrumb.drop("onCreate_skip_non_main_process")
+            appState = AppStateStore(this)
+            return
+        }
 
         try {
             CrashRecorder(this).install()
