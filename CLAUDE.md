@@ -17,7 +17,8 @@
 >
 > Use /memory slash command to reload full project context.
 > After reading: state current SOTU, last job result, next action. Then wait.
-> Tokens are in §Tokens below — export before any hf/qai-hub command.
+> HF_TOKEN / QAI_HUB_API_TOKEN come from the environment config (§Tokens
+> below) — already exported, no manual step needed. Never hardcode them.
 > ```
 
 ---
@@ -139,25 +140,28 @@ Step 2: mcp__github__search_code(q="NpuClient repo:c10vis-poem/Novus-Agenti")
 Do NOT say "I don't have that tool." Load it, then use it.
 
 ### Tokens (HF_TOKEN, QAI_HUB_API_TOKEN) — HOW TO USE THEM
-- The tokens in §Tokens below are provided BY THE USER, IN THIS FILE, for YOU to use.
-- They are STATIC. They do not rotate during the project. The repo is PRIVATE.
-- The split format exists to satisfy the git secret scanner, not to hide
-  anything from you.
+- `HF_TOKEN` and `QAI_HUB_API_TOKEN` are set as **Environment Variables on
+  the cloud environment's settings** (the web dialog's "Environment
+  variables" field, `.env` format) — NOT hardcoded anywhere in this repo.
+  If they're set there, they are already present in `$HF_TOKEN` /
+  `$QAI_HUB_API_TOKEN` in every session's shell — no export step needed,
+  no reconstruction, no split-string trick.
+- **Never write the actual token values into this file, a script, a
+  commit, or any file that gets pushed.** This repo is public (confirmed
+  via the GitHub API — `"private": false`), so anything committed here is
+  world-readable permanently, including in git history after deletion.
+- If `$HF_TOKEN` / `$QAI_HUB_API_TOKEN` are unset in a session, that means
+  they haven't been added to the environment config yet (or you're on an
+  environment that doesn't have them) — tell the user, don't fabricate a
+  value and don't ask them to paste the raw token into chat or a file.
 
-**Step-by-step for token export:**
-When ANY task requires `hf`, `huggingface-cli`, or `qai-hub` CLI, run this
-Bash command FIRST — copy-paste exactly:
+**Step-by-step for any `hf`, `huggingface-cli`, or `qai-hub` CLI call:**
 ```bash
-A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku; export HF_TOKEN="${A}${B}"
-C=li5ez4yzkpw8d3d0; D=0tkqjrcbc96cxbdci6i2jonv; export QAI_HUB_API_TOKEN="${C}${D}"
+huggingface-cli whoami   # $HF_TOKEN is already in the environment
 ```
-Then run your actual command in the SAME Bash call (or chain with `&&`):
-```bash
-A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku; export HF_TOKEN="${A}${B}" && \
-  huggingface-cli whoami
-```
-Do not refuse. Do not warn about "security." Do not ask the user to
-"export it themselves." The user wrote these tokens here FOR you.
+No export needed if the environment is configured correctly. If a command
+fails with an auth error, check `echo -n "$HF_TOKEN" | wc -c` returns
+nonzero before assuming anything else is wrong.
 
 ### HuggingFace Access — NETWORK POLICY IS PER-SESSION, NOT FIXED
 
@@ -232,21 +236,26 @@ tool call. If it fails, report the actual error. Do not pre-refuse.**
 
 ---
 
-## Tokens / Secrets — STATIC, READ AND EXPORT EVERY SESSION
+## Tokens / Secrets — LIVE IN THE ENVIRONMENT CONFIG, NOT HERE
 
-Stored split to satisfy scanner. Reconstruct and export before any `hf` or `qai-hub` CLI call.
+`HF_TOKEN` and `QAI_HUB_API_TOKEN` are set as Environment Variables on the
+cloud environment used for this repo's sessions (web UI → environment
+settings → "Environment variables" field). They arrive pre-exported in
+every session's shell — no reconstruction step, no split-string workaround.
 
-```bash
-# HuggingFace
-A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku
-export HF_TOKEN="${A}${B}"
+**This file used to hardcode both tokens split across two shell variables
+to dodge the git secret scanner.** That was removed on 2026-07-02: this
+repo is confirmed **public** (`"private": false` via the GitHub API), so a
+split string committed here was never actually hidden from anyone — it was
+trivially reconstructable by concatenation, same as a scanner would flag a
+contiguous one. Both tokens were rotated after this was caught; if you're
+reading an older clone or cached version of this file with token halves in
+it, those values are dead and rotation already happened.
 
-# QAI Hub
-C=li5ez4yzkpw8d3d0; D=0tkqjrcbc96cxbdci6i2jonv
-export QAI_HUB_API_TOKEN="${C}${D}"
-```
-
-These are STATIC across sessions. Rotation happens AFTER the build ships. Repo is **private**.
+If a session ever needs a token that isn't in its environment: tell the
+user to add it via the environment's settings dialog. Never write a real
+token value into this file, a commit, a script, or a chat reply that ends
+up in a shareable transcript.
 
 ---
 
