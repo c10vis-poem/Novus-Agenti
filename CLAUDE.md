@@ -9,10 +9,11 @@
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
->   2. wiki/GPT-OSS-Reference.md (full read)
->   3. wiki/SESSION{N}-HANDOFF.md (latest N)
->   4. models/manifest.yaml
->   5. scripts/compile_qwen3_5_9b.py
+>   2. wiki/GPT-DAEMON-REFERENCE.md (full read)
+>   3. wiki/NPU-RUNTIME-PATHS.md (full read)
+>   4. wiki/SESSION{N}-HANDOFF.md (latest N)
+>   5. models/manifest.yaml
+>   6. scripts/compile_qwen3_5_9b.py
 >
 > Use /memory slash command to reload full project context.
 > After reading: state current SOTU, last job result, next action. Then wait.
@@ -27,11 +28,12 @@ Type `/memory` in any Claude Code session to reload full project context.
 
 **Sequence:**
 1. Read `CLAUDE.md` (this file, all sections)
-2. Read `wiki/GPT-OSS-Reference.md`
-3. Read latest `wiki/SESSION{N}-HANDOFF.md`
-4. Read `models/manifest.yaml`
-5. Read `scripts/compile_qwen3_5_9b.py`
-6. Produce a SOTU summary and confirm next action before touching any file
+2. Read `wiki/GPT-DAEMON-REFERENCE.md`
+3. Read `wiki/NPU-RUNTIME-PATHS.md`
+4. Read latest `wiki/SESSION{N}-HANDOFF.md`
+5. Read `models/manifest.yaml`
+6. Read `scripts/compile_qwen3_5_9b.py`
+7. Produce a SOTU summary and confirm next action before touching any file
 
 ---
 
@@ -319,27 +321,50 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ---
 
-## State of the Union — 2026-06-27 (session 8)
+## State of the Union — 2026-07-02 (session 12, branch `horizons-closeout-hf-review-ycjkm3`)
 
 ### Done
-- PR #3 merged → main (Android app framework)
-- PR #2 closed
-- M-RoPE two-pronged fix committed (`2af893b`)
-- `wiki/GPT-OSS-Reference.md` committed and corrected
-- `--max_dynamic_tensor_size_mib` at 64 MiB (canonical)
-- Content remodel: `agents/`, `rules/`, `skills/` rewritten (commit `14ed85b`)
-- Dead weight deleted: `scripts/compile_qwen3_vl.py`, `wiki/EDGE-MODEL-LISTS.md`
-- `wiki/SESSION8-HANDOFF.md` written
-- Repo set to **private**
+- App-side crash fixes: multi-process crash loop, ChatHistoryStore, Monitor
+  card overflow — PR #8, CI green
+- Real Performance Metrics (tokens/sec, first-token latency, device memory)
+  wired into RouterPane from actual LlmRuntime stream timing
+- Prompt/Script Library added to MonitorPane (real `SavedCommandStore`)
+- Settings → Terminal/Artifacts quick-nav wired
+- `wiki/GPT-OSS-Reference.md` → corrected to `wiki/GPT-DAEMON-REFERENCE.md`
+  everywhere in this file — that filename never existed in the repo;
+  sessions since at least session 11 were reading a required-reading list
+  pointing at a nonexistent file
+- `wiki/NPU-RUNTIME-PATHS.md` added — six runtime paths + the host-only
+  nature of the Hexagon/QNN SDK distribution (QPM3, desktop-only, never
+  on-device)
+- `wiki/SESSION12-HANDOFF.md` written
+- Repo confirmed **public** via the GitHub API this session (`"private":
+  false`) — contradicts the "Repo set to private" line from session 8's
+  SOTU below. Unclear if it was ever actually made private or if that
+  entry was aspirational; flagging rather than asserting either way
 
 ### Pending — in order
-1. **Job 8** — trigger command below
-2. **`ort_engine` C++ daemon** — not yet scaffolded
+1. **Job 8** — trigger command below. Blocked in some remote sessions by
+   `huggingface.co` egress policy (per-session-container, not fixed —
+   verify with `curl -sS "$HTTPS_PROXY/__agentproxy/status"` before
+   assuming either way)
+2. **`ort_engine` C++ daemon** — not yet scaffolded. Must be cross-compiled
+   via CI (e.g. `ghcr.io/snapdragon-toolchain/arm64-android:v0.7`, tag
+   existence verified this session), not built locally — see
+   `wiki/NPU-RUNTIME-PATHS.md`
 3. **NpuManager lock** — wire into `CliffordService.kt`
 4. **GameManager** — wire into `HorizonsApplication.kt`
 5. **Manifest** — `uses-feature` + `HIGH_PERFORMANCE`
-6. **`build-apk.yml`** — repoint to `${{ github.repository }}`
-7. **`watchdog/`** — fold into CliffordService or delete
+6. **RouterPane "routing rules"** — use-cloud-when-NPU-unavailable etc.
+   Deliberately not built yet; needs a real rule engine, not UI toggles
+   that don't affect behavior
+7. **SettingsPane "Themes"** — deliberately not built; needs a switchable
+   palette system, `HorizonsColors` is currently a flat hardcoded object
+8. **Stale `agents/`/`skills/` files** — `neuralmash-builder.system.md`,
+   `sub-agent.system.md` reference dead stack (Nexa SDK, OmniNeural, NPU
+   v79); `horizons-wiki/SKILL.md` and `project-memory/SKILL.md` point at
+   files that don't exist in this repo. Not yet fixed.
+9. **`watchdog/`** — fold into CliffordService or delete
 
 ---
 
@@ -391,8 +416,10 @@ skills/
 models/manifest.yaml
 scripts/compile_qwen3_5_9b.py   PRIMARY
 wiki/
-  GPT-OSS-Reference.md
-  SESSION5,6,8-HANDOFF.md
+  GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
+  NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
+  FEATURE-SPEC.md                 UI tile spec
+  SESSION{5,6,8,9,10,11,12}-HANDOFF.md
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
   core/llm/NpuClient.kt
