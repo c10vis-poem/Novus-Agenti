@@ -19,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.lang.reflect.Method
 
 /**
  * CLIFFORD — Command Line Intercept Forced Failback Over Root Daemon
@@ -42,21 +43,43 @@ class CliffordService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var crsJob: Job? = null
     private var launcher: DaemonLauncher? = null
+    private var npuPerfLock: AutoCloseable? = null
+
+    private enum class DaemonState(val label: String) {
+        BinaryMissing("waiting for daemon binary"),
+        ModelMissing("waiting for model file"),
+        Launching("starting daemon…"),
+        Unhealthy("daemon offline"),
+        Healthy("NPU daemon active"),
+    }
+
+    @Volatile private var state: DaemonState = DaemonState.BinaryMissing
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Init Breadcrumb in this process too so last() can read boot.log.
+        com.horizons.core.diag.Breadcrumb.install(this)
+        com.horizons.core.diag.Breadcrumb.drop("CliffordService_started")
         startForeground(NOTIF_ID, buildNotification())
         startCrs()
         return START_STICKY
+    }
+
+    private fun updateState(new: DaemonState) {
+        if (state == new) return
+        state = new
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, buildNotification())
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         crsJob?.cancel()
+        releaseNpuPerfLock()
         super.onDestroy()
     }
 
@@ -74,13 +97,28 @@ class CliffordService : Service() {
             // Phase 2: CRS heartbeat — re-launch if daemon dies, swap runtime when healthy.
             while (isActive) {
                 delay(CRS_INTERVAL_MS)
+                // Refresh notification so the breadcrumb text stays current
+                // even when state didn't change.
+                runCatching {
+                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    nm.notify(NOTIF_ID, buildNotification())
+                }
                 val alive = pingDaemon()
                 if (!alive) {
+                    // Don't downgrade to Unhealthy when we're waiting on a missing
+                    // binary or model — those states are more informative.
+                    if (state == DaemonState.Healthy || state == DaemonState.Launching) {
+                        updateState(DaemonState.Unhealthy)
+                    }
                     Log.w(TAG, "CRS: daemon not responding — relaunching")
                     ensureDaemonRunning()
-                } else if (app != null && !app.isNpuActive) {
-                    app.activateNpuRuntime()
-                    Log.i(TAG, "CRS: daemon healthy — NpuClient activated")
+                } else {
+                    updateState(DaemonState.Healthy)
+                    if (app != null && !app.isNpuActive) {
+                        app.activateNpuRuntime()
+                        acquireNpuPerfLock()
+                        Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                    }
                 }
             }
         }
@@ -90,20 +128,26 @@ class CliffordService : Service() {
         val app = applicationContext as? HorizonsApplication ?: return
         NativeBinaryInstaller.install(this)
         if (!NativeBinaryInstaller.isInstalled(this)) {
+            updateState(DaemonState.BinaryMissing)
             Log.w(TAG, "CRS: no daemon binary installed — waiting for assets")
             return
         }
         val modelPath = app.resolveNpuModelPath() ?: run {
-            Log.w(TAG, "CRS: no .bin/.dlc model found — waiting for model")
+            updateState(DaemonState.ModelMissing)
+            Log.w(TAG, "CRS: no model found — waiting for model")
             return
         }
         val binaryName = NativeBinaryInstaller.installedBinaryName(this)
             ?: DaemonLauncher.ENGINE_BINARY
         val l = DaemonLauncher(this, binaryName).also { launcher = it }
         if (!l.isRunning()) {
+            updateState(DaemonState.Launching)
             l.launch(listOf("--model", modelPath))
                 .onSuccess { Log.i(TAG, "CRS: daemon launched PID=${it.pid}") }
-                .onFailure { Log.e(TAG, "CRS: daemon launch failed", it) }
+                .onFailure {
+                    updateState(DaemonState.Unhealthy)
+                    Log.e(TAG, "CRS: daemon launch failed", it)
+                }
         }
     }
 
@@ -118,6 +162,35 @@ class CliffordService : Service() {
         ok
     } catch (_: Exception) { false }
 
+    // ── NpuManager Performance Lock ───────────────────────────────────────────
+    // NpuManager is an @hide system service on Qualcomm BSPs (SM8750+).
+    // We acquire via reflection so the app compiles against stock AOSP SDK.
+    // If the service or API doesn't exist on this device, it's a silent no-op.
+
+    private fun acquireNpuPerfLock() {
+        if (npuPerfLock != null) return
+        try {
+            val npuMgr = getSystemService("npu") ?: return
+            val perfModeHigh = npuMgr.javaClass.getField("PERF_MODE_HIGH").getInt(null)
+            val acquireMethod: Method = npuMgr.javaClass
+                .getMethod("acquirePerformanceLock", Int::class.javaPrimitiveType)
+            val lock = acquireMethod.invoke(npuMgr, perfModeHigh)
+            npuPerfLock = lock as? AutoCloseable
+            Log.i(TAG, "NpuManager: PERF_MODE_HIGH lock acquired")
+        } catch (e: Exception) {
+            Log.d(TAG, "NpuManager: not available on this device (${e.javaClass.simpleName})")
+        }
+    }
+
+    private fun releaseNpuPerfLock() {
+        try {
+            npuPerfLock?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "NpuManager: lock release failed", e)
+        }
+        npuPerfLock = null
+    }
+
     // ── Notification ──────────────────────────────────────────────────────────
 
     private fun buildNotification(): Notification {
@@ -128,10 +201,16 @@ class CliffordService : Service() {
                     .also { it.description = "NPU daemon process guardian" }
             )
         }
+        // Surface the most recent app-lifecycle breadcrumb in the notification
+        // body so the user can see WHERE the main process died without opening
+        // the app or pulling logs.
+        val crumb = com.horizons.core.diag.Breadcrumb.last()
+        val expanded = "${state.label}\nlast: $crumb"
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("Novus Agenti")
-            .setContentText("NPU daemon active")
+            .setContentText(state.label)
+            .setStyle(Notification.BigTextStyle().bigText(expanded))
             .setOngoing(true)
             .build()
     }

@@ -1,62 +1,54 @@
 ---
 name: project-memory
 description: |
-  Bundles Horizons project memory — SOTU, prompt prefix, execution board,
-  and the architecture wiki — as a single cacheable context block. Use when
-  the at-bat needs full project context (architecture decisions, multi-tile
-  coordination, greenfield rebuild work). Skip when the at-bat is a narrow
-  isolated change (single-file fix, lint cleanup) — read only SOTU then.
+  Quick-load Horizons project memory — just the SOTU section of CLAUDE.md
+  plus the latest session handoff. Use when the at-bat is a narrow isolated
+  change (single-file fix, lint cleanup, one-off CI fix) that doesn't need
+  the full architecture wiki. For anything touching multiple subsystems or
+  requiring architecture/design context, use the `horizons-wiki` skill
+  instead — it loads CLAUDE.md in full plus the runtime-paths reference.
 allowed-tools:
   - Read
   - Grep
   - Glob
 ---
 
-# Project memory — Horizons
+# Project memory — Horizons (quick variant)
 
-This skill is the **canonical project memory bundle**. It loads the three
-session pickup files plus the stable wiki as one block so agents that need
-full context get it in one cache hit.
+This skill is the **lightweight session pickup**. It loads only the SOTU
+section of `CLAUDE.md` plus the latest `wiki/SESSION{N}-HANDOFF.md` — not
+the full architecture bundle. If the task needs more than that, stop and
+use the `horizons-wiki` skill instead.
+
+There is no separate `SOTU.md`, `PROMPT_PREFIX.md`, `EXECUTION_BOARD.md`,
+or `CLAUDE_AT_HORIZONS.md` in this repo — those file names are leftovers
+from an earlier project structure. The real SOTU lives inline in
+`CLAUDE.md` under `## State of the Union`.
 
 ## What to read (in this order)
 
-1. `SOTU.md` — current state of the union. Always read first. One screen.
-2. `PROMPT_PREFIX.md` — pointers + rules. No inline content.
-3. `EXECUTION_BOARD.md` — live milestones. Find your claim here.
-4. `CLAUDE_AT_HORIZONS.md` — stable architecture wiki. The 9 boundaries,
-   Truman Show, three control surfaces, state management.
-5. `GREENFIELD_PLAN.md` — rebuild scope, salvage list, scrap list.
-6. `DECISIONS.md` — ADR log; the *why* behind each cut.
-7. `OPEN_QUESTIONS.md` — single inbox for blockers awaiting operator answers.
-8. `GLOSSARY.md` — one-liners for terms, paths, models.
+1. `CLAUDE.md` — read the `## State of the Union` section specifically
+   (search for that heading; don't re-read the whole file for a narrow fix)
+2. Latest `wiki/SESSION{N}-HANDOFF.md` — find the highest N in `wiki/`
 
 ## What this skill is for
 
-- Fresh agent landing in the repo, needs to know what's going on.
-- Multi-tile coordination (changes that touch state, terminal, model layer).
-- Greenfield work — porting salvage files, wiring Nexa SDK, building
-  per-tile terminal, building the cloud-frontend adapter.
+- Fresh agent landing in the repo for a small, contained task.
+- One-off CI fix — SOTU + the failing CI log is enough.
+- Doc-only edits that don't touch architecture.
 
 ## What this skill is NOT for
 
-- Single-file lint cleanup. Read SOTU only.
-- Doc-only edits that don't touch architecture. Read SOTU + the doc.
-- One-off CI fix. Read SOTU + the failing CI log.
+- Multi-file coordination, architecture decisions, or anything touching
+  the compile pipeline, daemon design, or UI spec — use `horizons-wiki`.
 
 ## Maintenance protocol
 
-- The skill itself doesn't get edited per-session. The files it points at do.
-- If a new pickup file is added (e.g. `DECISIONS.md`), update §"What to read".
-- Cache: this skill's content is cacheable. Edits invalidate the cache —
-  batch between sessions.
-
-## The three pickup files (operator-maintained)
-
-| File | Updated when | Cadence |
-|---|---|---|
-| `SOTU.md` | End of every session | per-session |
-| `PROMPT_PREFIX.md` | Rules / pointers change | between sessions |
-| `EXECUTION_BOARD.md` | Milestone claim/advance | per-edit |
-
-If you arrive in a session and SOTU is older than the most recent commit
-date, flag it — the prior agent skipped close-out.
+- The skill itself doesn't get edited per-session. `CLAUDE.md`'s SOTU
+  section and the latest handoff file do.
+- If you arrive in a session and the SOTU date is older than the most
+  recent commit date, flag it — the prior session skipped close-out.
+- Before trusting anything the SOTU or a handoff says about network
+  reachability (HuggingFace, etc.), re-verify — see CLAUDE.md's
+  `§HuggingFace Access` section. That kind of claim goes stale fast and
+  is scoped per remote-session container, not project-wide.

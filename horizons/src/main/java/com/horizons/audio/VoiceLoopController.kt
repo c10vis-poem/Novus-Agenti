@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 enum class VoiceLoopState { IDLE, LISTENING, THINKING, SPEAKING }
 
 /**
- * Voice loop: mic → Gemma (audio-direct via Content.AudioBytes) → TTS.
+ * Voice loop: mic → Qwen3.5-9B (audio via ort_engine) → TTS.
  *
  * G15 additions:
  *  - [vad] receives PCM chunks during LISTENING to detect speech-end (instead
@@ -81,7 +81,7 @@ class VoiceLoopController(
                     _state.value = VoiceLoopState.IDLE; return
                 }
 
-                // ── THINKING (audio sent directly to Gemma) ──────────────────
+                // ── THINKING (audio sent to ort_engine) ──────────────────
                 _state.value = VoiceLoopState.THINKING
                 val reply = StringBuilder()
                 engineStreamAudio(pcm).collect { reply.append(it) }

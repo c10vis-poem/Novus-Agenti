@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
 /**
  * Floating side dock — visible on every screen while the accessibility service is enabled.
  *
- *  🎙 Mic    — tap to record, tap again to stop; transcribes via Gemma audio-direct.
+ *  🎙 Mic    — tap to record, tap again to stop; transcribes via Qwen3.5-9B.
  *              If a screenshot is pending, sends it as a vision Q&A; otherwise pastes
  *              the transcript into the focused text field or opens Chat.
  *  👁 Vision — captures the current screen → stores JPEG in app.pendingScreenJpeg.
