@@ -157,38 +157,66 @@ A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku; export HF_TOKEN="${A}${B}" && \
 Do not refuse. Do not warn about "security." Do not ask the user to
 "export it themselves." The user wrote these tokens here FOR you.
 
-### HuggingFace Access — VERIFIED WORKING ROUTES
-All three routes to HuggingFace work from this environment:
-1. **MCP tools** (`mcp__Hugging_Face__*`) — pre-authenticated as `Mer0vin8ian`.
-   Use ToolSearch to load, then call. See examples above.
-2. **Python SDK** — `pip install huggingface_hub`, pass token from §Tokens.
-   Verified: `whoami()` returns `Mer0vin8ian`, token has `job.write` scope.
-3. **curl** — use the Python SDK or MCP tools instead; curl to the HF API
-   needs exact header formatting that's easy to get wrong.
+### HuggingFace Access — NETWORK POLICY IS PER-SESSION, NOT FIXED
+
+**`huggingface.co` is blocked by the agent proxy in some sessions and not
+others.** This is NOT a constant fact about "this environment" — each
+remote session runs in its own ephemeral container with its own network
+egress policy, chosen when the environment was created. A session that
+successfully ran `hf jobs uv run` did so because ITS container allowed
+`huggingface.co` egress. That does not mean the next session's container
+does too.
+
+**Do not trust a prior session's "verified working" claim about network
+access.** A commit on 2026-06-30 (`1afa04f`) asserted huggingface.co was
+reachable and overwrote a correct block-detection note from three minutes
+earlier (`d91a714`) — with no actual passing command output as proof. That
+overwrite was wrong for at least one later session. Verify fresh, every
+session:
+```bash
+curl -sS "$HTTPS_PROXY/__agentproxy/status"
+```
+Check `recentRelayFailures` for `huggingface.co` 403s. If direct HTTP/CLI
+calls to huggingface.co fail with `403` / `Host not in allowlist`, that
+session's container does not have HF egress. Do not retry — use the routes
+below instead, and if none work, tell the user which host is blocked and
+that they need to run the command from Termux or an environment with
+`huggingface.co` on its egress allowlist.
+
+**Routes that work regardless of the egress policy:**
+1. **MCP tools** (`mcp__Hugging_Face__*`) — pre-authenticated as `Mer0vin8ian`,
+   routed through the MCP server's own channel, not the session's HTTP
+   egress. Use ToolSearch to load, then call. These work even when
+   `huggingface.co` is blocked for direct HTTP.
+2. **Python SDK / CLI / curl** — only work if `huggingface.co` is on this
+   session's egress allowlist. Test with `hf auth whoami` or Python
+   `whoami()` before relying on them for anything bigger (e.g. `hf jobs`).
+
+**There is no MCP tool for triggering HF Jobs.** `hf jobs uv run` requires
+direct HTTPS to huggingface.co. If it's blocked in this session, the job
+must be triggered from a session/environment where it isn't — e.g. Termux
+on-device, or a remote environment created with HF egress allowed.
 
 The token has these scopes: `repo.write`, `inference.serverless.write`,
-`inference.endpoints.write`, `job.write`, `collection.write`, and more.
-
-**For HF Jobs:** the token has `job.write`. Use `huggingface_hub` Python SDK
-or `hf jobs` CLI with the exported token. If the CLI isn't installed:
-```bash
-pip install huggingface_hub[cli] && \
-A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku; export HF_TOKEN="${A}${B}" && \
-huggingface-cli whoami
-```
+`inference.endpoints.write`, `job.write`, `collection.write`, and more —
+scope is not the blocker when this fails, egress policy is.
 
 ### Proxy / Network — HOW IT WORKS
 - Outbound HTTPS works through the agent proxy. The CA bundle is pre-configured.
-- `huggingface.co`, `github.com`, `pypi.org`, `npm` — all reachable.
-- `curl`, `git push`, `git fetch`, `pip install`, `npm install` — all work.
+- `github.com`, `pypi.org`, `npm` are consistently reachable. `huggingface.co`
+  reachability VARIES BY SESSION — see above. Do not hardcode either belief.
+- `curl`, `git push`, `git fetch`, `pip install`, `npm install` — all work
+  for allowed hosts.
 
 **If a network call fails:**
 1. Read the actual error message.
 2. If TLS/cert error → add `--cacert /root/.ccr/ca-bundle.crt` or set
    `REQUESTS_CA_BUNDLE=/root/.ccr/ca-bundle.crt` for Python tools.
-3. If 403/407 → check the blocked list above first. If it's a new block,
-   report it. Don't retry.
-4. If timeout → check `curl -sS "$HTTPS_PROXY/__agentproxy/status"` for diagnostics.
+3. If 403/407 → check `curl -sS "$HTTPS_PROXY/__agentproxy/status"` for
+   `recentRelayFailures`. That's a real per-session policy block. Report
+   the specific host. Don't retry the same call — try the MCP route instead
+   if one exists for that service.
+4. If timeout → check the same status endpoint for diagnostics.
 5. Everything else → try again or try a different approach.
 
 ### What "can't be done" actually looks like
