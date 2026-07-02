@@ -79,6 +79,8 @@ fun RouterPane(
     val modelPath = app.resolveNpuModelPath()
     val modelExists = modelPath != null
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
+    val perf by app.llmRuntime.perfMetrics.collectAsState()
+    val isCloudBackend = backendStatus.contains("Cloud")
 
     Box(modifier = modifier.fillMaxSize()) {
     SlateStoneBackground()
@@ -181,6 +183,107 @@ fun RouterPane(
                                 modifier = Modifier.padding(8.dp),
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = Accent.copy(alpha = 0.2f))
+
+        // ── Performance Metrics ──────────────────────────────────────────────
+        RouterSection("Performance")
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (perf == null) {
+                Text(
+                    "No inference run yet this session — send a chat message to populate.",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(16.dp),
+                )
+            } else {
+                val p = perf!!
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "First token",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                        Text(
+                            "${p.firstTokenMs} ms",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Accent,
+                        )
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            if (isCloudBackend) "Stream rate (approx)" else "Tokens/sec",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                        Text(
+                            "%.1f tok/s".format(p.tokensPerSec),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Accent,
+                        )
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "Tokens this reply",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                        Text(
+                            "${p.tokenCount}",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    val memInfo = remember {
+                        android.app.ActivityManager.MemoryInfo().also {
+                            (ctx.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager)
+                                .getMemoryInfo(it)
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "Device memory used",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                        Text(
+                            "${(memInfo.totalMem - memInfo.availMem) / (1024 * 1024)} MB / ${memInfo.totalMem / (1024 * 1024)} MB",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 }
             }

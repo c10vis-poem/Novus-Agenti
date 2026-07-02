@@ -4,6 +4,7 @@ import android.net.Uri
 import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,8 @@ fun MonitorPane(
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
     val vault by app.appState.snapshot.collectAsState()
     val scope = rememberCoroutineScope()
+    val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+        as android.content.ClipboardManager
 
     Box(modifier = modifier.fillMaxSize()) {
     SlateStoneBackground()
@@ -234,6 +237,97 @@ fun MonitorPane(
                             fontSize = 9.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                         )
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = HorizonsColors.TileMonitor.copy(alpha = 0.2f))
+
+        // ── Prompt / Script Library ──────────────────────────────────────────
+        Text(
+            "Prompt / Script Library",
+            style = MaterialTheme.typography.titleMedium,
+            color = HorizonsColors.TileMonitor,
+            fontFamily = FontFamily.Monospace,
+        )
+        Text(
+            "Saved scripts and command templates. Tap to copy — paste into Chat or Terminal.",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+
+        val savedCommands by app.savedCommands.commands.collectAsState()
+        var copiedLabel by remember { mutableStateOf<String?>(null) }
+
+        if (savedCommands.isEmpty()) {
+            Surface(
+                color = HorizonsColors.Surface,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "No saved scripts. Add commands from the Terminal's Prompts tab.",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        } else {
+            savedCommands.groupBy { it.category }.forEach { (category, cmds) ->
+                Text(
+                    category.uppercase(),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    color = HorizonsColors.TileMonitor.copy(alpha = 0.6f),
+                )
+                cmds.forEach { cmd ->
+                    Surface(
+                        color = if (copiedLabel == cmd.label) HorizonsColors.TileMonitor.copy(alpha = 0.12f)
+                                else HorizonsColors.Surface,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                clipboard.setPrimaryClip(
+                                    android.content.ClipData.newPlainText(cmd.label, cmd.command)
+                                )
+                                copiedLabel = cmd.label
+                            },
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    cmd.label,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = HorizonsColors.TileMonitor,
+                                )
+                                Text(
+                                    cmd.command,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    maxLines = 1,
+                                )
+                            }
+                            Text(
+                                if (copiedLabel == cmd.label) "COPIED" else "COPY",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (copiedLabel == cmd.label) HorizonsColors.StatusAsr
+                                        else HorizonsColors.TileMonitor.copy(alpha = 0.5f),
+                            )
+                        }
                     }
                 }
             }

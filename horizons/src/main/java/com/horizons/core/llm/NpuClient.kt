@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onEach
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -34,7 +35,26 @@ class NpuClient : LlmRuntime {
     private val _backendStatus = MutableStateFlow("Hexagon HTP · NPU (ort_engine daemon)")
     override val backendStatus: StateFlow<String> = _backendStatus.asStateFlow()
 
-    override fun stream(prompt: String): Flow<String> = flow {
+    private val _perfMetrics = MutableStateFlow<LlmRuntime.PerfMetrics?>(null)
+    override val perfMetrics: StateFlow<LlmRuntime.PerfMetrics?> = _perfMetrics.asStateFlow()
+
+    override fun stream(prompt: String): Flow<String> {
+        val startNanos = System.nanoTime()
+        var firstTokenNanos = -1L
+        var tokenCount = 0
+        return rawStream(prompt).onEach {
+            tokenCount++
+            if (firstTokenNanos < 0) firstTokenNanos = System.nanoTime()
+            val elapsedSec = (System.nanoTime() - firstTokenNanos) / 1_000_000_000.0
+            _perfMetrics.value = LlmRuntime.PerfMetrics(
+                firstTokenMs = (firstTokenNanos - startNanos) / 1_000_000,
+                tokensPerSec = if (elapsedSec > 0) tokenCount / elapsedSec else 0.0,
+                tokenCount = tokenCount,
+            )
+        }
+    }
+
+    private fun rawStream(prompt: String): Flow<String> = flow {
         if (!isDaemonReachable()) {
             emit("[NPU daemon not reachable at 127.0.0.1:${DaemonLauncher.ENGINE_PORT}]")
             return@flow

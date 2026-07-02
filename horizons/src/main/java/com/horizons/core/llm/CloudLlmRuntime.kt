@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onEach
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -28,6 +29,9 @@ class CloudLlmRuntime(private val appState: AppStateStore) : LlmRuntime {
 
     private val _backendStatus = MutableStateFlow("Cloud API · not configured")
     override val backendStatus: StateFlow<String> = _backendStatus.asStateFlow()
+
+    private val _perfMetrics = MutableStateFlow<LlmRuntime.PerfMetrics?>(null)
+    override val perfMetrics: StateFlow<LlmRuntime.PerfMetrics?> = _perfMetrics.asStateFlow()
 
     data class CloudConfig(
         val endpoint: String,
@@ -81,7 +85,23 @@ class CloudLlmRuntime(private val appState: AppStateStore) : LlmRuntime {
         }
     }
 
-    override fun stream(prompt: String): Flow<String> = flow {
+    override fun stream(prompt: String): Flow<String> {
+        val startNanos = System.nanoTime()
+        var firstTokenNanos = -1L
+        var tokenCount = 0
+        return rawStream(prompt).onEach {
+            tokenCount++
+            if (firstTokenNanos < 0) firstTokenNanos = System.nanoTime()
+            val elapsedSec = (System.nanoTime() - firstTokenNanos) / 1_000_000_000.0
+            _perfMetrics.value = LlmRuntime.PerfMetrics(
+                firstTokenMs = (firstTokenNanos - startNanos) / 1_000_000,
+                tokensPerSec = if (elapsedSec > 0) tokenCount / elapsedSec else 0.0,
+                tokenCount = tokenCount,
+            )
+        }
+    }
+
+    private fun rawStream(prompt: String): Flow<String> = flow {
         val cfg = resolveConfig()
         if (cfg == null) {
             emit("[No cloud API configured — add an API key in Settings]")

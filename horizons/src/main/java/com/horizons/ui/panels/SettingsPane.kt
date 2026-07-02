@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings as AndroidSettings
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.horizons.HorizonsApplication
+import com.horizons.Panel
 import com.horizons.core.state.AppStateStore
 import com.horizons.ui.SlateStoneBackground
 import com.horizons.ui.theme.HorizonsColors
@@ -57,6 +59,7 @@ private val SettingsAccent = HorizonsColors.TileSettings
 @Composable
 fun SettingsPane(
     onBack: () -> Unit,
+    onNavigate: (Panel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
@@ -442,6 +445,63 @@ fun SettingsPane(
                 PermissionRow(
                     "SYSTEM_ALERT_WINDOW",
                     AndroidSettings.canDrawOverlays(ctx),
+                )
+            }
+        }
+
+        HorizontalDivider(color = SettingsAccent.copy(alpha = 0.2f))
+
+        // ── Script Access / Failure Logs ───────────────────────────────────
+        SectionLabel("Script Access")
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth().clickable { onNavigate(Panel.Terminal) },
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Saved scripts and prompts",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.85f),
+                )
+                Text(
+                    "TERMINAL →",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SettingsAccent,
+                )
+            }
+        }
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth().clickable { onNavigate(Panel.Artifacts) },
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Failure logs · crash reports · boot diagnostics",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.85f),
+                )
+                Text(
+                    "ARTIFACTS →",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SettingsAccent,
                 )
             }
         }

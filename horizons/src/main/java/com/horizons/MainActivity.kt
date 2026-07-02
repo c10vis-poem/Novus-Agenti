@@ -140,6 +140,7 @@ class MainActivity : ComponentActivity() {
                             )
                             Panel.Settings  -> SettingsPane(
                                 onBack = { activePanel = null },
+                                onNavigate = { activePanel = it },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
