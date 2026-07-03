@@ -1,7 +1,8 @@
 # Cache prompting — hard rules
 
-For directions + trade-offs see `wiki/CACHE_PROMPTING.md`. This file is the
-contract.
+This file is the contract — self-contained, no separate directions doc.
+(An earlier version pointed at `wiki/CACHE_PROMPTING.md`; that file was
+never actually created in this repo.)
 
 1. **Max 4 `cache_control` markers per request.** Layout:
    tools → system block → history-summary → reserved mid-conversation.
