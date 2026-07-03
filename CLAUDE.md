@@ -5,7 +5,7 @@
 > ```
 > Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
 > → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
-> Canonical repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+> Canonical repo: c10vis-poem/Novus-Agenti, branch claude/job-8-launch-emayt6.
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
@@ -16,7 +16,7 @@
 >
 > Use /memory slash command to reload full project context.
 > After reading: state current SOTU, last job result, next action. Then wait.
-> Tokens are in §Tokens below — export before any hf/qai-hub command.
+> HF_TOKEN and QAI_HUB_API_TOKEN come from the environment — never store them in this file.
 > ```
 
 ---
@@ -55,17 +55,17 @@ If this file and a handoff disagree, **this file wins**.
 
 ### How to brief every sub-agent
 Every sub-agent prompt must include:
-- Repo: `c10vis-poem/Novus-Agenti`, branch `claude/project-scope-review-lf615p`
+- Repo: `c10vis-poem/Novus-Agenti`, branch `claude/job-8-launch-emayt6`
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
 
 **Template:**
 ```
-Repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+Repo: c10vis-poem/Novus-Agenti, branch claude/job-8-launch-emayt6.
 Read CLAUDE.md fully before anything else.
 Task: [SPECIFIC TASK].
-Do NOT commit to main. Do NOT push to any branch other than claude/project-scope-review-lf615p.
+Do NOT commit to main. Do NOT push to any branch other than claude/job-8-launch-emayt6.
 ```
 
 ### Context budget rules
@@ -91,25 +91,13 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 
 - **`c10vis-poem/Novus-Agenti`** — THE canonical repo. All commits, pushes, CI, artifacts go here.
 - **`M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti`** — REFERENCE-ONLY. Never push, commit, or modify.
-- Working branch: `claude/project-scope-review-lf615p`. PR #4 tracks it.
+- Working branch: `claude/job-8-launch-emayt6`. PR #4 tracks it.
 
 ---
 
-## Tokens / Secrets — STATIC, READ AND EXPORT EVERY SESSION
+## Tokens / Secrets
 
-Stored split to satisfy scanner. Reconstruct and export before any `hf` or `qai-hub` CLI call.
-
-```bash
-# HuggingFace
-A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku
-export HF_TOKEN="${A}${B}"
-
-# QAI Hub
-C=li5ez4yzkpw8d3d0; D=0tkqjrcbc96cxbdci6i2jonv
-export QAI_HUB_API_TOKEN="${C}${D}"
-```
-
-These are STATIC across sessions. Rotation happens AFTER the build ships. Repo is **private**.
+Do NOT store tokens in this file, in any form (plain, split, or otherwise obfuscated). `HF_TOKEN` and `QAI_HUB_API_TOKEN` are provided via the environment/secret manager. If either is unset, stop and ask — do not hardcode a replacement here.
 
 ---
 
@@ -178,27 +166,28 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ---
 
-## State of the Union — 2026-06-27 (session 8)
+## State of the Union — 2026-07-03 (session 9, "job-8-launch")
 
-### Done
-- PR #3 merged → main (Android app framework)
-- PR #2 closed
-- M-RoPE two-pronged fix committed (`2af893b`)
-- `wiki/GPT-OSS-Reference.md` committed and corrected
-- `--max_dynamic_tensor_size_mib` at 64 MiB (canonical)
-- Content remodel: `agents/`, `rules/`, `skills/` rewritten (commit `14ed85b`)
-- Dead weight deleted: `scripts/compile_qwen3_vl.py`, `wiki/EDGE-MODEL-LISTS.md`
-- `wiki/SESSION8-HANDOFF.md` written
-- Repo set to **private**
+### Done this session
+- Removed hardcoded/split `HF_TOKEN` + `QAI_HUB_API_TOKEN` from `CLAUDE.md`; both now come from the environment only (`1940b75`)
+- Fixed stale branch refs (`claude/project-scope-review-lf615p`, which no longer exists) → `claude/job-8-launch-emayt6` throughout this file
+- Opened draft PR #9 for the token/branch cleanup
+- Job 8 launched (`6a473cb9...`) — failed, vision wrapper missing `grid_thw`
+- Fixed vision export input shape + `grid_thw` (`c9284b0`); relaunched as Job 9 (`6a473e80...`) — got through all 27 vision blocks, failed at final SDPA→ONNX conversion (`enable_gqa=True` unsupported by legacy exporter)
+- Attempted fix: monkeypatch `use_gqa_in_sdpa` → `False` (`228d513`); relaunched as Job 10 (`6a473f10...`) — **same assertion recurred, patch ineffective**
 
-### Pending — in order
-1. **Job 8** — trigger command below
-2. **`ort_engine` C++ daemon** — not yet scaffolded
-3. **NpuManager lock** — wire into `CliffordService.kt`
-4. **GameManager** — wire into `HorizonsApplication.kt`
-5. **Manifest** — `uses-feature` + `HIGH_PERFORMANCE`
-6. **`build-apk.yml`** — repoint to `${{ github.repository }}`
-7. **`watchdog/`** — fold into CliffordService or delete
+### Blocked — stopped per explicit instruction, do not auto-retry
+- **SDPA/ONNX `enable_gqa` export failure** — see Job Execution Log below for full detail and next-step hypothesis. Needs `modeling_qwen3_5.py` attention-forward source inspection before the next attempt.
+
+### Pending — in order (unchanged from session 8, blocked behind the above)
+1. **Vision/decoder ONNX export** — blocked on `enable_gqa` SDPA export issue
+2. **QAI Hub compile** — not reached yet (job never got past ONNX export)
+3. **`ort_engine` C++ daemon** — not yet scaffolded
+4. **NpuManager lock** — wire into `CliffordService.kt`
+5. **GameManager** — wire into `HorizonsApplication.kt`
+6. **Manifest** — `uses-feature` + `HIGH_PERFORMANCE`
+7. **`build-apk.yml`** — repoint to `${{ github.repository }}`
+8. **`watchdog/`** — fold into CliffordService or delete
 
 ---
 
@@ -209,7 +198,11 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 | 1–4 | Various load/submodule errors | Iterative | Done |
 | 5 | `has_previous_state on LinearAttention` | `use_cache=False` | Done |
 | 6–7 | `cat(): got 5 and 4` M-RoPE shape | Two-pronged fix `2af893b` | Done |
-| **8** | pending | — | **Ready** |
+| 8 | `Qwen3_5VisionModel.forward() missing grid_thw` — vision wrapper only passed `pixel_values` | Added `grid_thw` + Qwen2-VL-style flattened patch tensor (`1940b75`→`c9284b0`) | Failed |
+| 9 | `AssertionError: conversion of scaled_dot_product_attention not implemented if enable_gqa is True` — legacy TorchScript ONNX exporter's opset14 SDPA symbolic can't handle `enable_gqa=True`, hit on the last vision block (26/27) | Monkeypatched `transformers.integrations.sdpa_attention.use_gqa_in_sdpa` → `False` to force the manual `repeat_kv` fallback path (`228d513`) | **Failed — same assertion recurred, patch did not take effect** |
+| **10** | **BLOCKED — see below** | — | Not attempted |
+
+**Job 10 blocker (unresolved):** the `use_gqa_in_sdpa` monkeypatch did not prevent `enable_gqa=True` from reaching `scaled_dot_product_attention` — the assertion at `torch/onnx/.../symbolic_opset14.py:156` recurred identically. Root cause not yet confirmed; candidates: (a) `Qwen3_5VisionAttention`/`Qwen3_5TextAttention` may call `F.scaled_dot_product_attention` directly with a hardcoded `enable_gqa=True` rather than going through `sdpa_attention_forward`, bypassing the patched `use_gqa_in_sdpa` gate entirely; (b) the patch may need to target a different import binding (e.g. if `enable_gqa` is computed once at module load or via `functools.partial` capturing the pre-patch value). Needs source inspection of `modeling_qwen3_5.py`'s attention forward (not just `sdpa_attention.py`) before the next attempt — do not blindly retry the same patch.
 
 ---
 
@@ -221,7 +214,7 @@ hf jobs uv run --flavor cpu-xl --timeout 2h \
   --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \
   --secrets HF_TOKEN --secrets QAI_HUB_API_TOKEN \
   -e MODEL_ID=Mer0vin8ian/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \
-  https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
+  https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/job-8-launch-emayt6/scripts/compile_qwen3_5_9b.py
 ```
 
 `SKIP_VISION` is NOT set — all three artifacts attempted.
