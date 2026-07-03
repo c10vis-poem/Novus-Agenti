@@ -390,12 +390,32 @@ as fact that are actually false. Findings, ranked, and fixes applied:
   "coming in follow-up commits" when all four already exist with more
   content than described) — deleted.
 - `agents/neuralmash-builder.system.md`, `agents/sub-agent.system.md`,
-  top-level `sub-agent.agent.yaml`, `agents/.snapshots/*.yaml`, and
-  `rules/README.md` / `rules/GIT_HYGIENE.md` / `rules/AAR_DECOMPILE.md`
-  — dispatched to sub-agents to rewrite/archive; see next session's
-  handoff for completion status if not marked done below.
+  top-level `sub-agent.agent.yaml` — rewritten to describe the real
+  stack (Qwen3.5-9B → qnn_context_binary → ort_engine, both real
+  branches) instead of dead Nexa/OmniNeural/v79 content and pointers at
+  the reference-only repo as source-of-truth.
+- `agents/.snapshots/*.yaml` — left as historical captures (not
+  corrected in place, that would be dishonest); added
+  `agents/.snapshots/README.md` disclaiming them as dead-stack,
+  audit-trail-only.
+- `agents/build-runner.yaml` — session 8's SOTU claimed this was
+  "rewritten as `novus-compile-runner`... scoped to HF Jobs + QAI Hub
+  pipeline." **That claim was itself false** — the file is still named
+  `horizons-build-runner`, scoped to Android CI, and was never touched.
+  That scope is legitimate on its own merits (Android CI is a real,
+  separate concern from the compile pipeline) so it wasn't renamed, but
+  two real bugs in it were fixed: `environment_hint` said JDK 21
+  (CLAUDE.md says 17), and `Working branch: main` ignored the two-track
+  branch setup.
+- `rules/README.md` / `rules/GIT_HYGIENE.md` — dead pickup-file names
+  (`SOTU.md`/`PROMPT_PREFIX.md`/`EXECUTION_BOARD.md`/
+  `CLAUDE_AT_HORIZONS.md`) replaced with real files, matching the
+  pattern already fixed in `AT_BAT_PROTOCOL.md`.
+- `rules/AAR_DECOMPILE.md` — archived-header added (Nexa-specific,
+  not applicable to current stack, kept only for the reusable
+  javap-decompile technique).
 - Full findings (including lower-confidence items intentionally left
-  untouched pending your input) are in the session 13 handoff.
+  untouched pending operator input) are in the session 13 handoff.
 
 ### Pending — in order
 1. **Job 8** — trigger command below. Blocked in some remote sessions by
