@@ -48,8 +48,28 @@ Type `/memory` in any Claude Code session to reload full project context.
 
 1. **Read** — the files above, in order, completely
 2. **State** — current SOTU and next action
-3. **Act** — fan out parallel work only after confirming read is done
+3. **Act** — check the priority tree below FIRST, before touching the
+   general Pending list
 4. **Document** — before ending: update SOTU in this file, write `wiki/SESSION{N+1}-HANDOFF.md`
+
+### Act — priority tree (check top to bottom, stop at the first match)
+
+Reading this file is not the same as acting on every item in it.
+"Act" means: find which of these applies, do that, THEN fall through
+to the general Pending list.
+
+1. **HF egress just became available?** Run
+   `curl -sS "$HTTPS_PROXY/__agentproxy/status"`. If `huggingface.co`
+   is NOT in `recentRelayFailures` → run `hf auth whoami`, and if that
+   returns `Mer0vin8ian`, your first action is triggering **Job 8**
+   (command in `§Job 8 Trigger Command`). This is almost certainly why
+   a session exists right after the operator reconfigures an
+   environment's network access — don't spend that session on general
+   cleanup before checking this.
+2. **User gave an explicit task in their first message?** Do that.
+   It overrides the Pending list below.
+3. **Neither of the above?** Work `§State of the Union`'s Pending list,
+   top to bottom.
 
 If this file and a handoff disagree, **this file wins**.
 
