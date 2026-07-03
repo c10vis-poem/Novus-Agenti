@@ -105,6 +105,44 @@ verify), and walked through cloud environment setup (network allowlist,
 env vars, token rotation) at length in chat — no separate commit for
 that, it's operator-side configuration.
 
+### Later same session — token security, priority tree, OpenWiki
+
+- **Removed hardcoded HF_TOKEN/QAI_HUB_API_TOKEN from CLAUDE.md entirely**
+  (commit `c046272`). They'd been split across shell variables specifically
+  to dodge the git secret scanner — not real security, since the repo is
+  public and a split string is trivially reconstructable. Tokens now live
+  only in the cloud environment's Environment Variables config. **Both
+  tokens need rotation** — operator was walked through this, unclear if
+  completed by end of session, check first thing next session.
+- **Added an explicit priority tree to the Order of Operations** (commit
+  `27b5d35`). A fresh session spun up right after the operator
+  reconfigured the environment's network access read CLAUDE.md fully
+  (correctly) then started working the general Pending list instead of
+  the obvious actual reason it existed — verify HF egress, fire Job 8.
+  Had to be manually interrupted. Fixed: `§Order of Operations` now has
+  an explicit if/then check — HF egress confirmed working → Job 8 first,
+  before any general cleanup work.
+- **`c10vis-poem/openwiki` added to this session** (separate repo, not
+  part of Novus-Agenti). It's a real LangChain-AI CLI tool that writes/
+  maintains agent-facing docs for a codebase. Built and shipped a real
+  feature on the operator's fork: an optional `openwiki/SKILL.md`
+  convention letting a target repo customize OpenWiki's system prompt
+  per-project ("memory as a skill") without forking OpenWiki itself.
+  Verified with `tsc`/eslint/prettier plus a direct functional check
+  (no live LLM call available in this environment). Pushed to branch
+  `claude/project-skill-file`, opened as draft PR c10vis-poem/openwiki#1,
+  subscribed for CI/review monitoring. **Not yet merged** — needs a real
+  end-to-end run against a repo with a `SKILL.md` before merging, which
+  wasn't possible here (no LLM API key configured in this container).
+- **Job 8 status is unclear at end of session.** Operator reported
+  launching a separate session after reconfiguring the environment, that
+  session got sidetracked doing redundant cleanup work, operator
+  interrupted it and told it to trigger Job 8 directly. Whether that
+  actually succeeded (job accepted, running, completed, or failed) was
+  never confirmed back in *this* session — **check HF Jobs status /
+  `Mer0vin8ian/qwen3-5-9b-npu-sm8750` on HF Hub first thing next
+  session**, don't assume it's still "pending, never triggered."
+
 ## Resume block
 
 ```
@@ -114,19 +152,32 @@ Canonical repo: c10vis-poem/Novus-Agenti. Two tracks, two branches — see
 CLAUDE.md's resume prompt for which one matches your task.
 
 READ THESE IN ORDER BEFORE ANY ACTION:
-  1. CLAUDE.md (full read, all sections)
+  1. CLAUDE.md (full read, all sections — includes the new priority tree
+     under Order of Operations, check it before acting)
   2. wiki/GPT-DAEMON-REFERENCE.md (full read)
   3. wiki/NPU-RUNTIME-PATHS.md (full read)
   4. wiki/SESSION13-HANDOFF.md (THIS FILE)
   5. models/manifest.yaml
   6. scripts/compile_qwen3_5_9b.py
 
+FIRST ACTION, before anything else: check whether Job 8 was actually
+triggered and what happened to it (operator reported telling a separate
+session to fire it, but that was never confirmed back here). Check
+HF Hub for Mer0vin8ian/qwen3-5-9b-npu-sm8750 and/or ask the operator
+directly. Do not assume it's still untriggered, and do not re-trigger
+it if it's already running/done.
+
+Also check: did the operator rotate HF_TOKEN/QAI_HUB_API_TOKEN and put
+the new values in the environment's Environment Variables field? The
+old values were removed from CLAUDE.md this session for being exposed
+in a public repo's history — if unrotated, that's still an open item.
+
+Separately, c10vis-poem/openwiki#1 (draft PR, different repo, a
+project-skill-file feature) is open and unmerged — needs a live
+end-to-end test before merging, not just the static checks already run.
+
 CLAUDE.md was carrying two significant false claims (wrong branch, wrong
 ort_engine build status) that are now fixed — don't assume anything else
 in it is automatically trustworthy either; verify against actual repo
 state before repeating a claim from any doc, including this one.
-
-Next: two operator-input items above (orphaned classes, FEATURE-SPEC STT
-line), then continue down CLAUDE.md's Pending list (Job 8 → on-device
-daemon verification → NpuManager/GameManager wiring).
 ```
