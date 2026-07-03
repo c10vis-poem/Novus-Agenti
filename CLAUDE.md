@@ -5,7 +5,7 @@
 > ```
 > Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
 > → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
-> Canonical repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+> Canonical repo: c10vis-poem/Novus-Agenti, branch claude/job-8-launch-emayt6.
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
@@ -16,7 +16,7 @@
 >
 > Use /memory slash command to reload full project context.
 > After reading: state current SOTU, last job result, next action. Then wait.
-> Tokens are in §Tokens below — export before any hf/qai-hub command.
+> HF_TOKEN and QAI_HUB_API_TOKEN come from the environment — never store them in this file.
 > ```
 
 ---
@@ -55,17 +55,17 @@ If this file and a handoff disagree, **this file wins**.
 
 ### How to brief every sub-agent
 Every sub-agent prompt must include:
-- Repo: `c10vis-poem/Novus-Agenti`, branch `claude/project-scope-review-lf615p`
+- Repo: `c10vis-poem/Novus-Agenti`, branch `claude/job-8-launch-emayt6`
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
 
 **Template:**
 ```
-Repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+Repo: c10vis-poem/Novus-Agenti, branch claude/job-8-launch-emayt6.
 Read CLAUDE.md fully before anything else.
 Task: [SPECIFIC TASK].
-Do NOT commit to main. Do NOT push to any branch other than claude/project-scope-review-lf615p.
+Do NOT commit to main. Do NOT push to any branch other than claude/job-8-launch-emayt6.
 ```
 
 ### Context budget rules
@@ -91,25 +91,13 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 
 - **`c10vis-poem/Novus-Agenti`** — THE canonical repo. All commits, pushes, CI, artifacts go here.
 - **`M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti`** — REFERENCE-ONLY. Never push, commit, or modify.
-- Working branch: `claude/project-scope-review-lf615p`. PR #4 tracks it.
+- Working branch: `claude/job-8-launch-emayt6`. PR #4 tracks it.
 
 ---
 
-## Tokens / Secrets — STATIC, READ AND EXPORT EVERY SESSION
+## Tokens / Secrets
 
-Stored split to satisfy scanner. Reconstruct and export before any `hf` or `qai-hub` CLI call.
-
-```bash
-# HuggingFace
-A=hf_hgoMDAjlClKnqj; B=ccpVZVwiiRsOudhJmDku
-export HF_TOKEN="${A}${B}"
-
-# QAI Hub
-C=li5ez4yzkpw8d3d0; D=0tkqjrcbc96cxbdci6i2jonv
-export QAI_HUB_API_TOKEN="${C}${D}"
-```
-
-These are STATIC across sessions. Rotation happens AFTER the build ships. Repo is **private**.
+Do NOT store tokens in this file, in any form (plain, split, or otherwise obfuscated). `HF_TOKEN` and `QAI_HUB_API_TOKEN` are provided via the environment/secret manager. If either is unset, stop and ask — do not hardcode a replacement here.
 
 ---
 
@@ -221,7 +209,7 @@ hf jobs uv run --flavor cpu-xl --timeout 2h \
   --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \
   --secrets HF_TOKEN --secrets QAI_HUB_API_TOKEN \
   -e MODEL_ID=Mer0vin8ian/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \
-  https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
+  https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/job-8-launch-emayt6/scripts/compile_qwen3_5_9b.py
 ```
 
 `SKIP_VISION` is NOT set — all three artifacts attempted.
