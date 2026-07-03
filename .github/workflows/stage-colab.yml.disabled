@@ -1,3 +1,10 @@
+# DISABLED (session 13, 2026-07-03): renamed out of .yml so GitHub Actions
+# won't pick it up. It hardcodes nbPath = 'notebooks/compile_qwen3_vl.ipynb'
+# — wrong model name (repo's primary path is qwen3_5_9b) and no
+# notebooks/ directory has ever existed in this repo. Would fire on any
+# push touching scripts/compile_*.py and post a PR comment linking to a
+# 404. Re-enable (rename back to .yml) once a real notebook exists at
+# the corrected path, or rewrite nbPath.
 name: stage-colab
 
 # Auto-prepares a one-click Colab URL on the PR whenever a compile script or

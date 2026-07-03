@@ -5,7 +5,13 @@
 > ```
 > Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
 > → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
-> Canonical repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+> Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS, TWO BRANCHES —
+> pick the one matching your actual task, don't assume there's only one:
+>   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
+>     claude/project-scope-review-lf615p, PR #4
+>   - APP track (Android app, daemon, UI): branch
+>     claude/horizons-closeout-hf-review-ycjkm3, PR #8 — most recent work
+>     (sessions 9-12) happened here
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
@@ -58,17 +64,20 @@ If this file and a handoff disagree, **this file wins**.
 
 ### How to brief every sub-agent
 Every sub-agent prompt must include:
-- Repo: `c10vis-poem/Novus-Agenti`, branch `claude/project-scope-review-lf615p`
+- Repo: `c10vis-poem/Novus-Agenti`, and the correct branch for the track
+  (`claude/project-scope-review-lf615p` for compile work, PR #4;
+  `claude/horizons-closeout-hf-review-ycjkm3` for app work, PR #8)
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
 
 **Template:**
 ```
-Repo: c10vis-poem/Novus-Agenti, branch claude/project-scope-review-lf615p.
+Repo: c10vis-poem/Novus-Agenti, branch <the branch matching your track — see
+CLAUDE.md's resume prompt for which one>.
 Read CLAUDE.md fully before anything else.
 Task: [SPECIFIC TASK].
-Do NOT commit to main. Do NOT push to any branch other than claude/project-scope-review-lf615p.
+Do NOT commit to main. Do NOT push to any branch other than the one above.
 ```
 
 ### Context budget rules
@@ -94,7 +103,10 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 
 - **`c10vis-poem/Novus-Agenti`** — THE canonical repo. All commits, pushes, CI, artifacts go here.
 - **`M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti`** — REFERENCE-ONLY. Never push, commit, or modify.
-- Working branch: `claude/project-scope-review-lf615p`. PR #4 tracks it.
+- Two active working branches, one per track — see the resume prompt at
+  the top of this file for which one matches your task:
+  `claude/project-scope-review-lf615p` (compile, PR #4) and
+  `claude/horizons-closeout-hf-review-ycjkm3` (app, PR #8).
 
 ---
 
@@ -272,7 +284,7 @@ ExecuTorch / SNPE / TFLite / Jetson Tensor targets). Adding a new runtime is
 | **Model** | `Mer0vin8ian/Qwen3.5-9B` — 9.65B params, `qwen3_5` arch. Multimodal via **deepstack vision injection** at decoder layers. NOT a separate encoder pipeline. | Source on HF Hub |
 | **ONNX export** | `scripts/compile_qwen3_5_9b.py` on HF Jobs `cpu-xl` | M-RoPE fix committed. Job 8 pending. |
 | **QAI Hub compile** | ONNX → `qnn_context_binary` (W4A16) server-side. | Job 8 pending |
-| **Runtime: `ort_engine`** | ONNX Runtime + QNN Execution Provider on aarch64-android. Serves `POST http://127.0.0.1:8080/api/v1/generate`. | Not yet built |
+| **Runtime: `ort_engine`** | ONNX Runtime + QNN Execution Provider on aarch64-android. Serves `POST http://127.0.0.1:8080/api/v1/generate`. | Scaffolded — `daemon/src/` has real `engine.cpp`/`http_server.cpp`/`tokenizer.cpp`/`sampler.h`/`main.cpp` (735 lines), CI cross-compiles it (`build-apk.yml` "Build ort_engine daemon" step) and packages it into the release artifact. Not yet verified on-device against a real compiled model. |
 | **Daemon guardian** | `CliffordService` FGS — CLIFFORD == Watchdog. `START_STICKY`, `specialUse`, 15s CRS recovery loop. | In codebase |
 | **Bridge** | `NpuClient.kt` → `POST http://127.0.0.1:8080/api/v1/generate` | In codebase |
 | **Agent layer** | `AgentLoop` + 22 tools | In codebase |
@@ -330,9 +342,9 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ---
 
-## State of the Union — 2026-07-02 (session 12, branch `horizons-closeout-hf-review-ycjkm3`)
+## State of the Union — 2026-07-03 (session 13, branch `horizons-closeout-hf-review-ycjkm3`)
 
-### Done
+### Done — session 12 (2026-07-02)
 - App-side crash fixes: multi-process crash loop, ChatHistoryStore, Monitor
   card overflow — PR #8, CI green
 - Real Performance Metrics (tokens/sec, first-token latency, device memory)
@@ -340,27 +352,60 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 - Prompt/Script Library added to MonitorPane (real `SavedCommandStore`)
 - Settings → Terminal/Artifacts quick-nav wired
 - `wiki/GPT-OSS-Reference.md` → corrected to `wiki/GPT-DAEMON-REFERENCE.md`
-  everywhere in this file — that filename never existed in the repo;
-  sessions since at least session 11 were reading a required-reading list
-  pointing at a nonexistent file
-- `wiki/NPU-RUNTIME-PATHS.md` added — six runtime paths + the host-only
-  nature of the Hexagon/QNN SDK distribution (QPM3, desktop-only, never
-  on-device)
+  everywhere in this file — that filename never existed in the repo
+- `wiki/NPU-RUNTIME-PATHS.md` added
 - `wiki/SESSION12-HANDOFF.md` written
-- Repo confirmed **public** via the GitHub API this session (`"private":
-  false`) — contradicts the "Repo set to private" line from session 8's
-  SOTU below. Unclear if it was ever actually made private or if that
-  entry was aspirational; flagging rather than asserting either way
+- Repo confirmed **public** via the GitHub API (`"private": false`)
+- Hardcoded `HF_TOKEN`/`QAI_HUB_API_TOKEN` removed from this file entirely
+  — moved to the cloud environment's Environment Variables config. Both
+  tokens need rotation (they were exposed in this public repo's history).
+- `rules/AT_BAT_PROTOCOL.md` fixed (dead file pointers, corrected 2-repair-
+  attempt-then-orchestrator-then-gate strike model), `wiki/FAILURE_LOG.md`
+  created, `rules/CACHE_PROMPT_RULES.md` dangling ref removed
+
+### Done — session 13 (2026-07-03), full repo audit for dead weight / false claims
+Dispatched an Explore agent to re-audit the whole repo (not just the docs
+already touched) for dead references, redundant content, and claims stated
+as fact that are actually false. Findings, ranked, and fixes applied:
+- **This file had a real self-contradiction**: resume prompt / sub-agent
+  template / Repo Policy all said the working branch was
+  `claude/project-scope-review-lf615p` (PR #4), while the SOTU and the
+  actual checked-out branch were `horizons-closeout-hf-review-ycjkm3`
+  (PR #8). Root cause: there are genuinely **two active tracks with two
+  different branches** (compile vs app) and this file only ever
+  documented one of them as "the" branch. Fixed — resume prompt now
+  states both tracks explicitly.
+- **`ort_engine` "not yet built" was false** — `daemon/src/` has a real
+  735-line implementation (engine.cpp, http_server.cpp, tokenizer.cpp,
+  sampler.h, main.cpp) and CI already cross-compiles and packages it.
+  `models/manifest.yaml` had the correct `status: scaffolded` the whole
+  time; this file was 4+ days out of date. Fixed throughout this file.
+- `watchdog/` — was already deleted 2026-06-30 (commit `1ab4e7a`); this
+  file still listed it as a pending TODO. Removed.
+- `models/manifest.yaml`'s comment pointing at the nonexistent
+  `wiki/GPT-OSS-Reference.md` — fixed to `wiki/GPT-DAEMON-REFERENCE.md`.
+- `horizons/src/main/java/com/horizons/core/README.md` was entirely
+  stale (referenced a nonexistent `GREENFIELD_PLAN.md`, a nonexistent
+  `nexa/` package, and listed `voice/`/`screen/`/`log/`/`shell/` as
+  "coming in follow-up commits" when all four already exist with more
+  content than described) — deleted.
+- `agents/neuralmash-builder.system.md`, `agents/sub-agent.system.md`,
+  top-level `sub-agent.agent.yaml`, `agents/.snapshots/*.yaml`, and
+  `rules/README.md` / `rules/GIT_HYGIENE.md` / `rules/AAR_DECOMPILE.md`
+  — dispatched to sub-agents to rewrite/archive; see next session's
+  handoff for completion status if not marked done below.
+- Full findings (including lower-confidence items intentionally left
+  untouched pending your input) are in the session 13 handoff.
 
 ### Pending — in order
 1. **Job 8** — trigger command below. Blocked in some remote sessions by
    `huggingface.co` egress policy (per-session-container, not fixed —
    verify with `curl -sS "$HTTPS_PROXY/__agentproxy/status"` before
    assuming either way)
-2. **`ort_engine` C++ daemon** — not yet scaffolded. Must be cross-compiled
-   via CI (e.g. `ghcr.io/snapdragon-toolchain/arm64-android:v0.7`, tag
-   existence verified this session), not built locally — see
-   `wiki/NPU-RUNTIME-PATHS.md`
+2. **`ort_engine` on-device verification** — the daemon builds and is
+   packaged by CI; what's still open is verifying it actually loads and
+   serves a real compiled model on a physical Hexagon HTP v75 device,
+   which needs Job 8's output first.
 3. **NpuManager lock** — wire into `CliffordService.kt`
 4. **GameManager** — wire into `HorizonsApplication.kt`
 5. **Manifest** — `uses-feature` + `HIGH_PERFORMANCE`
@@ -369,11 +414,17 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
    that don't affect behavior
 7. **SettingsPane "Themes"** — deliberately not built; needs a switchable
    palette system, `HorizonsColors` is currently a flat hardcoded object
-8. **Stale `agents/`/`skills/` files** — `neuralmash-builder.system.md`,
-   `sub-agent.system.md` reference dead stack (Nexa SDK, OmniNeural, NPU
-   v79); `horizons-wiki/SKILL.md` and `project-memory/SKILL.md` point at
-   files that don't exist in this repo. Not yet fixed.
-9. **`watchdog/`** — fold into CliffordService or delete
+8. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
+   `core/shell/SecureResourceRelay.kt`, `core/screen/ScreenshotCapture.kt`
+   — fully implemented, never wired to any caller. Likely mid-flight
+   features (screenshot capture for Vision-Agent tile, secure shell
+   token relay, structured interaction logging), not accidental cruft —
+   confirm with operator before deleting.
+9. **CI publish-target TODO below** — could not find evidence it's still
+   real (checked `build-apk.yml`'s full history, no foreign repo ever
+   hardcoded, `softprops/action-gh-release@v2` has no `repository:` field
+   so it already defaults to this repo). Verify against a live release
+   page before removing the TODO outright.
 
 ---
 
@@ -406,13 +457,15 @@ hf jobs uv run --flavor cpu-xl --timeout 2h \
 ## Repo File Map
 
 ```
-c10vis-poem/Novus-Agenti  (private)
+c10vis-poem/Novus-Agenti  (public — confirmed via GitHub API, not private)
 
 CLAUDE.md                     ← THIS FILE
 agents/
   build-runner.yaml             novus-compile-runner
   neuralmash-builder.system.md  Novus-Agenti stack
   sub-agent.system.md           Novus-Agenti stack
+daemon/                          ort_engine C++ daemon (scaffolded, CI-built)
+  src/engine.cpp, http_server.cpp, tokenizer.cpp, sampler.h, main.cpp
 rules/
   AAR_DECOMPILE.md              QNN artifact inspection
   AT_BAT_PROTOCOL.md
@@ -428,16 +481,21 @@ wiki/
   GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
   NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
   FEATURE-SPEC.md                 UI tile spec
-  SESSION{5,6,8,9,10,11,12}-HANDOFF.md
+  FAILURE_LOG.md                  append-only strike/failure ledger
+  SESSION{5,6,8,9,10,11,12,13}-HANDOFF.md
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
   core/llm/NpuClient.kt
   core/shell/DaemonLauncher.kt
   core/agent/AgentLoop.kt
-.github/workflows/build-apk.yml  (TODO: repoint)
-watchdog/                        (TODO: fold or delete)
+.github/workflows/build-apk.yml
 release/debug.keystore           committed by design
 ```
+`watchdog/` was already deleted (2026-06-30) — don't look for it.
+`.github/workflows/build-apk.yml`'s publish-target TODO could not be
+confirmed still real as of session 13 (no foreign repo found hardcoded
+anywhere in its history) — verify against a live release page before
+assuming it needs work.
 
 ---
 
@@ -457,7 +515,14 @@ release/debug.keystore           committed by design
 
 - AGP 8.8.0 · Kotlin 2.1.0 · compileSdk 35 · minSdk 31 · JDK 17 · arm64-v8a only
 - Signing: `release/debug.keystore` (committed by design)
-- CI: `build-apk.yml` needs publish target repointed to `${{ github.repository }}`
+- `build-apk.yml` cross-compiles `ort_engine` (daemon/) via CMake/NDK,
+  builds the APK, publishes both plus `libonnxruntime.so` to a
+  `latest-debug` GitHub Release. Publish target already defaults to
+  this repo (`softprops/action-gh-release@v2` has no `repository:`
+  override) — an old TODO here claiming otherwise could not be verified
+  as still real; if a CI run's release step actually misfires, check
+  the repo's Settings → Actions → General → Workflow permissions first
+  (that's what broke it once this session, not the publish-target).
 
 ---
 

@@ -85,7 +85,7 @@ class VoiceLoopController(
                 _state.value = VoiceLoopState.THINKING
                 val reply = StringBuilder()
                 engineStreamAudio(pcm).collect { reply.append(it) }
-                if (reply.isBlank() || reply.startsWith("[LiteRtRuntime")) {
+                if (reply.isBlank()) {
                     Log.w(TAG, "Audio stream returned no usable reply: $reply")
                     if (continuousMode) continue else { _state.value = VoiceLoopState.IDLE; return }
                 }

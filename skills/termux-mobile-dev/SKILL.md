@@ -13,8 +13,8 @@ description: >-
 
 # Termux Mobile Dev Environment
 
-Full reference: [`wiki/Termux-VNC-Matrix-Environment.md`](../../wiki/Termux-VNC-Matrix-Environment.md).
-This skill is the fast-path decision tree; the wiki has the full prose + sources.
+This file is the full reference — there is no separate `wiki/Termux-VNC-Matrix-Environment.md`;
+an earlier version of this skill linked to one that was never actually created.
 
 ## Topology
 - **Host:** phone, Termux, no root → Xtigervnc + XFCE.

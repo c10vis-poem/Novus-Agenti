@@ -138,7 +138,7 @@ GPU sub-graphs throttle to background frequency without the boost.
 | Performance | Optimized for Qualcomm, lower latency | Slightly higher overhead from EP bridge |
 | Flexibility | Qualcomm models only | Any ONNX model, multiple backends |
 | Maturity | Newer, less documented | Mature, well-documented |
-| Our status | Not yet built | Not yet built |
+| Our status | Not built | Scaffolded (`daemon/src/`, CI-built) |
 
-**Current plan:** Build ort_engine first (more docs, broader compatibility).
+**Current plan:** ort_engine built first (more docs, broader compatibility).
 Genie can be explored later if ORT+QNN EP latency is insufficient.
