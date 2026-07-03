@@ -381,6 +381,15 @@ _qm35.apply_rotary_pos_emb = _patched_apply_rotary_pos_emb
 print(f"      apply_rotary_pos_emb → precomputed [1,1,S,{HEAD_DIM}] FP16 Gather")
 
 
+# ── Step 2.6: disable native GQA in SDPA for ONNX export ──────────────────────────
+# torch.onnx's scaled_dot_product_attention symbolic asserts if enable_gqa=True.
+# Forcing use_gqa_in_sdpa() -> False routes both vision (MHA) and decoder (GQA,
+# kv=4) attention through the manual repeat_kv() path instead, which is exportable.
+import transformers.integrations.sdpa_attention as _sdpa
+_sdpa.use_gqa_in_sdpa = lambda *a, **k: False
+print("      use_gqa_in_sdpa → forced False (ONNX SDPA export compatibility)")
+
+
 # ── Step 3: static-shape wrappers ─────────────────────────────────────────────────
 print("[3/11] Building static-shape wrappers ...")
 
