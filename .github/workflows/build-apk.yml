@@ -98,6 +98,24 @@ jobs:
           mkdir -p horizons/src/main/jniLibs/arm64-v8a
           cp daemon/build/ort_engine horizons/src/main/jniLibs/arm64-v8a/libort_engine.so
 
+      - name: Package llama.cpp runtime into APK native libs
+        # GGUF family: llama-server + its lib set ride in the APK too. SELinux
+        # denies exec/dlopen from filesDir for targetSdk 29+, so importing these
+        # via ModelImportActivity can never work — nativeLibraryDir is the only
+        # sanctioned location. Sourced from this repo's latest-debug release
+        # (cross-compiled 2026-06-30; arch registry includes qwen35).
+        run: |
+          cd horizons/src/main/jniLibs/arm64-v8a
+          base=https://github.com/c10vis-poem/Novus-Agenti/releases/download/latest-debug
+          for f in libllama.so libllama-common.so libllama-server-impl.so \
+                   libggml.so libggml-base.so libggml-cpu.so libggml-hexagon.so \
+                   libggml-opencl.so libmtmd.so; do
+            curl -fL --retry 3 -o "$f" "$base/$f"
+          done
+          # thin exe, renamed to match DaemonLauncher.PACKAGED_LLAMA_LIB
+          curl -fL --retry 3 -o libllama_server.so "$base/llama-server"
+          ls -la
+
       - name: Build Horizons debug APK
         run: ./gradlew :horizons:assembleDebug -PnexaEnabled=false --no-daemon --stacktrace
 

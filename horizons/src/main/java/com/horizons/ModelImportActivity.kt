@@ -238,6 +238,13 @@ class ModelImportActivity : ComponentActivity() {
             "libggml-hexagon.so",
             "libggml-opencl.so",
             "libmtmd.so",
+            // DSP-side skel the ggml-hexagon backend loads via FastRPC from
+            // DSP_LIBRARY_PATH (filesDir) — verified name from the binary:
+            // "libggml-htp-v%u.so". Unlike the daemon exe/libs (SELinux blocks
+            // exec/dlopen from filesDir), this is DATA read by the FastRPC
+            // driver, so the filesDir import path works for it.
+            "libggml-htp-v79.so",
+            "libggml-htp-v75.so",
         )
     }
 }
