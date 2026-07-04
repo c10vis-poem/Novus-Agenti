@@ -3,15 +3,19 @@
 compile_qwen3_5_9b.py — Qwen/Qwen3.5-9B (multimodal) → Hexagon HTP NPU binaries
 
 PRIMARY TARGET. First-ever compile of the Qwen3.5-9B native-multimodal architecture
-to Snapdragon 8 Elite Hexagon HTP. Produces three paired NPU artifacts:
+to Snapdragon 8 Elite QRD Hexagon HTP. Produces chunked NPU artifacts:
 
-    qwen3_5_9b_vision_encoder.bin    — vision tower (image patches → embeddings)
-    qwen3_5_9b_projection.bin        — vision→language adapter (embeddings → token space)
-    qwen3_5_9b_language_decoder.bin  — autoregressive text decoder + cross-attn
+    qwen3_5_9b_vision_encoder.bin         — vision tower (image patches → embeddings)
+    qwen3_5_9b_projection.bin             — vision→language adapter (embeddings → token space)
+    qwen3_5_9b_decoder_chunk_{0..N-1}.bin — language decoder split into N layer-group chunks
+
+The decoder is split into NUM_CHUNKS (default 4) layer groups to keep each ONNX
+upload and QAI Hub compile job within practical size limits. At runtime the
+ort_engine daemon loads all chunks sequentially.
 
 At runtime the ort_engine daemon (ONNX Runtime + QNN execution provider) loads the
-.bin into a single QNN context and serves inference. The compiled qnn_context_binary
-is compatible with ORT+QNN-EP; no Genie SDK required.
+.bin files and serves inference. The compiled qnn_context_binary is compatible with
+ORT+QNN-EP; no Genie SDK required.
 
 Sources of truth (do not paraphrase elsewhere):
   • wiki/GPT-OSS-Reference.md         — Hexagon failure modes + mitigations
@@ -23,9 +27,10 @@ Hexagon constraints applied (per GPT-OSS reference, §1-§3):
   • KV cache           pre-allocated at MAX_SEQ_LEN (QnnTensorUpdate buggy >4 MiB)
   • --disable_fusion   MHA fusion only works for static seq + INT8 weights
   • --bias-as-int32    INT8 bias overflow guard
-  • partition override Softmax + TopK forced to CPU
+  • partition override Softmax + TopK forced to CPU (partition_override.json)
   • Scratch 16 MiB / dynamic tensor 64 MiB / single NPU context
   • W4A16              per-channel INT4 weights, FP16 activations
+  • Chunked decoder    split into NUM_CHUNKS layer groups for manageable compile sizes
 
 Required env (HF Jobs injects via --secrets):
     HF_TOKEN              HuggingFace write token (Mer0vin8ian)
@@ -36,7 +41,8 @@ Optional env:
     MAX_SEQ_LEN           default 4096
     OUTPUT_DIR            default /tmp
     HF_OUTPUT_REPO        default Mer0vin8ian/qwen3-5-9b-npu-sm8750
-    QAI_HUB_DEVICE        default "Snapdragon 8 Elite"
+    QAI_HUB_DEVICE        default "Snapdragon 8 Elite QRD"
+    NUM_CHUNKS            default 4 — number of decoder layer-group chunks
     CALIB_TOKENS          default 10000
     CALIB_DATASET         default wikitext-2-raw-v1
     PUBLISH_HF            "1" to upload all three artifacts after compile
@@ -44,7 +50,7 @@ Optional env:
     SKIP_EXPORT           "1" to re-download a previous job (requires JOB_ID*)
     JOB_ID_VISION         re-download id for vision encoder
     JOB_ID_PROJECTION     re-download id for projection
-    JOB_ID_DECODER        re-download id for language decoder
+    JOB_ID_DECODER_*      re-download ids for decoder chunks (JOB_ID_DECODER_0, etc.)
 
 Run on HF Jobs (cpu-xl, ~$1/hr, 124GB RAM — no GPU needed, compile is server-side):
     hf jobs uv run --flavor cpu-xl --timeout 2h \\
@@ -68,7 +74,7 @@ MODEL_ID       = os.environ.get("MODEL_ID", "Mer0vin8ian/Qwen3.5-9B")
 MAX_SEQ_LEN    = int(os.environ.get("MAX_SEQ_LEN", "4096"))
 OUTPUT_DIR     = os.environ.get("OUTPUT_DIR", "/tmp")
 HF_OUTPUT_REPO = os.environ.get("HF_OUTPUT_REPO", "Mer0vin8ian/qwen3-5-9b-npu-sm8750")
-QAI_HUB_DEVICE = os.environ.get("QAI_HUB_DEVICE", "Snapdragon 8 Elite")
+QAI_HUB_DEVICE = os.environ.get("QAI_HUB_DEVICE", "Snapdragon 8 Elite QRD")
 CALIB_TOKENS   = int(os.environ.get("CALIB_TOKENS", "10000"))
 CALIB_DATASET  = os.environ.get("CALIB_DATASET", "wikitext-2-raw-v1")
 PUBLISH_HF     = os.environ.get("PUBLISH_HF", "0") == "1"
@@ -77,13 +83,14 @@ SKIP_EXPORT    = os.environ.get("SKIP_EXPORT", "0") == "1"
 
 JOB_ID_VISION     = os.environ.get("JOB_ID_VISION", "").strip()
 JOB_ID_PROJECTION = os.environ.get("JOB_ID_PROJECTION", "").strip()
-JOB_ID_DECODER    = os.environ.get("JOB_ID_DECODER", "").strip()
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 OUT_VISION     = os.path.join(OUTPUT_DIR, "qwen3_5_9b_vision_encoder.bin")
 OUT_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.bin")
-OUT_DECODER    = os.path.join(OUTPUT_DIR, "qwen3_5_9b_language_decoder.bin")
+
+def decoder_chunk_out(i):
+    return os.path.join(OUTPUT_DIR, f"qwen3_5_9b_decoder_chunk_{i}.bin")
 
 print(f"[qwen3_5] {MODEL_ID} → {QAI_HUB_DEVICE} (Hexagon HTP), max_seq_len={MAX_SEQ_LEN}")
 
@@ -101,10 +108,16 @@ import qai_hub as hub
 from huggingface_hub import login, HfApi
 
 login(token=HF_TOKEN)
+os.environ["QAI_HUB_API_TOKEN"] = QAI_TOKEN
+cfg_dir = os.path.expanduser("~/.qai_hub")
+cfg_file = os.path.join(cfg_dir, "client.ini")
+if not os.path.exists(cfg_file):
+    os.makedirs(cfg_dir, exist_ok=True)
+    with open(cfg_file, "w") as f:
+        f.write(f"[api]\napi_token = {QAI_TOKEN}\napi_url = https://app.aihub.qualcomm.com\nweb_url = https://aihub.qualcomm.com\n")
+    print(f"      wrote {cfg_file}")
 if hasattr(hub, "configure"):
     hub.configure(api_token=QAI_TOKEN)
-else:
-    os.environ.setdefault("QAI_HUB_API_TOKEN", QAI_TOKEN)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────────
@@ -187,29 +200,23 @@ def write_partition_override(path):
     with open(path, "w") as f:
         json.dump(partition, f, indent=2)
 
+PARTITION_JSON = os.path.join(OUTPUT_DIR, "partition_override.json")
+write_partition_override(PARTITION_JSON)
 
-COMPILE_OPTIONS_BASE = " ".join([
-    "--target_runtime qnn_context_binary",
-    "--quantize_full_type w4a16",
-    "--quantize_io",
-    "--quantize_weight_bits 4",
-    "--disable_fusion",
-    "--bias_as_int32",
-    "--scratch_size_mib 16",
-    "--max_dynamic_tensor_size_mib 64",
-])
+NUM_CHUNKS = int(os.environ.get("NUM_CHUNKS", "4"))
+
+COMPILE_OPTIONS_BASE = "--target_runtime qnn_context_binary --quantize_full_type w4a16 --quantize_io"
 
 
-def submit_qai_hub_compile(onnx_path, name, extra_options=""):
+def submit_qai_hub_compile(onnx_path, name, extra_options="", calibration_data=None):
     raw_model = hub.upload_model(onnx_path)
     print(f"      qai_hub model_id={raw_model.model_id}")
     options = COMPILE_OPTIONS_BASE + (" " + extra_options if extra_options else "")
-    job = hub.submit_compile_job(
-        model=raw_model,
-        device=hub.Device(QAI_HUB_DEVICE),
-        name=name,
-        options=options,
-    )
+    kwargs = dict(model=raw_model, device=hub.Device(QAI_HUB_DEVICE),
+                  name=name, options=options)
+    if calibration_data is not None:
+        kwargs["calibration_data"] = calibration_data
+    job = hub.submit_compile_job(**kwargs)
     print(f"      job_id={job.job_id}")
     print(f"      https://app.aihub.qualcomm.com/jobs/{job.job_id}/")
     print(f"      Waiting for compile (~25-40 min per artifact) ...")
@@ -245,17 +252,25 @@ def verify_dsp_placement(job, label):
 
 # ── SKIP_EXPORT fast path ──────────────────────────────────────────────────────────
 if SKIP_EXPORT:
-    if not (JOB_ID_VISION or JOB_ID_PROJECTION or JOB_ID_DECODER):
-        sys.exit("[qwen3_5] SKIP_EXPORT=1 requires at least one JOB_ID_*")
+    any_found = False
     for job_id, out_path, label in [
         (JOB_ID_VISION, OUT_VISION, "vision"),
         (JOB_ID_PROJECTION, OUT_PROJECTION, "projection"),
-        (JOB_ID_DECODER, OUT_DECODER, "decoder"),
     ]:
         if job_id:
             print(f"[skip/{label}] Re-downloading from job {job_id} ...")
             job = hub.get_job(job_id)
             download_target_model(job, out_path)
+            any_found = True
+    for i in range(NUM_CHUNKS):
+        jid = os.environ.get(f"JOB_ID_DECODER_{i}", "").strip()
+        if jid:
+            print(f"[skip/decoder_chunk_{i}] Re-downloading from job {jid} ...")
+            job = hub.get_job(jid)
+            download_target_model(job, decoder_chunk_out(i))
+            any_found = True
+    if not any_found:
+        sys.exit("[qwen3_5] SKIP_EXPORT=1 requires at least one JOB_ID_*")
     sys.exit(0)
 
 
@@ -271,6 +286,7 @@ text_cfg = getattr(config, "text_config", config)
 LOAD_KW = dict(
     torch_dtype=torch.float16, device_map="cpu", low_cpu_mem_usage=True,
     token=HF_TOKEN, trust_remote_code=False,
+    attn_implementation="eager",
 )
 
 LOADER_PREFERENCE = ["AutoModelForMultimodalLM", "AutoModelForVision2Seq",
@@ -339,8 +355,8 @@ ROPE_SCALING = getattr(text_cfg, "rope_scaling", None)
 print(f"      arch={config.model_type}  layers={NUM_LAYERS}  heads={NUM_HEADS}  "
       f"kv={NUM_KV}  hidden={HIDDEN}  head_dim={HEAD_DIM}  theta={ROPE_THETA}")
 
-PARTITION_JSON = os.path.join(OUTPUT_DIR, "partition_override.json")
-write_partition_override(PARTITION_JSON)
+print(f"      compile_options: {COMPILE_OPTIONS_BASE}")
+print(f"      decoder chunks: {NUM_CHUNKS}")
 
 
 # ── Step 2: RoPE fold ──────────────────────────────────────────────────────────────
@@ -388,8 +404,8 @@ print("[3/11] Building static-shape wrappers ...")
 
 class VisionEncoderWrapper(torch.nn.Module):
     def __init__(self, m): super().__init__(); self.m = m
-    def forward(self, pixel_values):
-        out = self.m(pixel_values)
+    def forward(self, pixel_values, grid_thw):
+        out = self.m(pixel_values, grid_thw=grid_thw)
         if hasattr(out, "last_hidden_state"): return out.last_hidden_state
         return out[0] if isinstance(out, (tuple, list)) else out
 
@@ -399,38 +415,126 @@ class ProjectionWrapper(torch.nn.Module):
     def forward(self, vision_embeds): return self.m(vision_embeds)
 
 
-class HtpDecodeWrapper(torch.nn.Module):
-    """Stateless prefill — use_cache=False because Qwen3.5 hybrid attention
-    (MHA + LinearAttention) rejects DynamicCache (has_previous_state error)."""
-    def __init__(self, m): super().__init__(); self.m = m
-    def forward(self, input_ids, attention_mask, position_ids):
-        return self.m(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            use_cache=False,
-            return_dict=True,
-        ).logits
+# ── Locate decoder internals for chunking ─────────────────────────────────────────
+model_inner = getattr(decoder_module, "model", decoder_module)
+all_layers = None
+for attr in ["layers", "decoder.layers"]:
+    obj = model_inner
+    for part in attr.split("."):
+        obj = getattr(obj, part, None)
+        if obj is None:
+            break
+    if obj is not None:
+        all_layers = obj
+        break
+if all_layers is None:
+    sys.exit("[qwen3_5] Could not locate decoder layers for chunking")
+
+embed_tokens = getattr(model_inner, "embed_tokens", None)
+final_norm = getattr(model_inner, "norm", getattr(model_inner, "final_layernorm", None))
+lm_head = getattr(decoder_module, "lm_head", getattr(full, "lm_head", None))
+
+total_layers = len(all_layers)
+chunk_size = (total_layers + NUM_CHUNKS - 1) // NUM_CHUNKS
+print(f"      {total_layers} layers → {NUM_CHUNKS} chunks of ~{chunk_size} layers")
+print(f"      embed_tokens: {'found' if embed_tokens else 'NOT FOUND'}")
+print(f"      final_norm:   {'found' if final_norm else 'NOT FOUND'}")
+print(f"      lm_head:      {'found' if lm_head else 'NOT FOUND'}")
+
+if embed_tokens is None or lm_head is None:
+    sys.exit("[qwen3_5] Missing embed_tokens or lm_head — cannot chunk decoder")
+
+# Find rotary_emb anywhere in the decoder module tree. Qwen3.5 stores a single
+# shared Qwen3_5TextRotaryEmbedding at model level, not per-layer.
+_global_rotary_emb = None
+_search_roots = [
+    ("model_inner", model_inner),
+    ("decoder_module", decoder_module),
+    ("full_model", full),
+]
+for _label, _root in _search_roots:
+    for _name, _sub in _root.named_modules():
+        if "rotary" in _name.lower() or "rope" in _name.lower():
+            print(f"      [{_label}] candidate: {_name} → {type(_sub).__name__}")
+        _rot = getattr(_sub, "rotary_emb", None)
+        if _rot is not None and _global_rotary_emb is None:
+            _global_rotary_emb = _rot
+            print(f"      [{_label}] found rotary_emb on {_name} → {type(_rot).__name__}")
+    if _global_rotary_emb is not None:
+        break
+if _global_rotary_emb is None:
+    print("      [DIAGNOSTIC] named children of model_inner:")
+    for n, _ in model_inner.named_children():
+        print(f"        {n}")
+    print("      [DIAGNOSTIC] named children of decoder_module:")
+    for n, _ in decoder_module.named_children():
+        print(f"        {n}")
+    sys.exit("[qwen3_5] No rotary_emb found in decoder module tree — cannot export")
+print(f"      global rotary_emb: {type(_global_rotary_emb).__name__}")
+
+
+class DecoderChunkWrapper(torch.nn.Module):
+    def __init__(self, layer_list, chunk_idx, num_chunks, rotary_emb,
+                 embed_tokens=None, final_norm=None, lm_head=None):
+        super().__init__()
+        self.chunk_idx = chunk_idx
+        self.is_first = (chunk_idx == 0)
+        self.is_last = (chunk_idx == num_chunks - 1)
+        self.layers = torch.nn.ModuleList(layer_list)
+        if self.is_first and embed_tokens is not None:
+            self.embed_tokens = embed_tokens
+        if self.is_last:
+            if final_norm is not None:
+                self.final_norm = final_norm
+            if lm_head is not None:
+                self.lm_head = lm_head
+        self._rotary_emb = rotary_emb
+
+    def forward(self, x, attention_mask, position_ids):
+        if self.is_first:
+            x = self.embed_tokens(x)
+        pos_emb = self._rotary_emb(x, position_ids)
+        for layer in self.layers:
+            out = layer(x, pos_emb,
+                        attention_mask=attention_mask,
+                        position_ids=position_ids,
+                        use_cache=False)
+            x = out[0] if isinstance(out, tuple) else out
+        if self.is_last:
+            if hasattr(self, "final_norm"):
+                x = self.final_norm(x)
+            if hasattr(self, "lm_head"):
+                x = self.lm_head(x)
+        return x
 
 
 # ── Steps 4-5: ONNX export — vision + projection ───────────────────────────────────
 ONNX_VISION     = os.path.join(OUTPUT_DIR, "qwen3_5_9b_vision_encoder.onnx")
 ONNX_PROJECTION = os.path.join(OUTPUT_DIR, "qwen3_5_9b_projection.onnx")
-ONNX_DECODER    = os.path.join(OUTPUT_DIR, "qwen3_5_9b_language_decoder.onnx")
 
 if not SKIP_VISION:
     print(f"[4/11] Exporting vision encoder → {ONNX_VISION} ...")
-    vision_input   = torch.zeros((1, 3, 448, 448), dtype=torch.float16)
+    vis_cfg = getattr(config, "vision_config", None)
+    patch_size = getattr(vis_cfg, "patch_size", 14) if vis_cfg else 14
+    temporal_patch = getattr(vis_cfg, "temporal_patch_size", 2) if vis_cfg else 2
+    spatial_merge = getattr(vis_cfg, "spatial_merge_size", 2) if vis_cfg else 2
+    in_channels = getattr(vis_cfg, "in_channels", 3) if vis_cfg else 3
+    num_t, num_h, num_w = 1, 16, 16
+    num_patches = num_t * num_h * num_w
+    channel_dim = in_channels * temporal_patch * patch_size * patch_size
+    vision_input = torch.zeros((num_patches, channel_dim), dtype=torch.float16)
+    grid_thw = torch.tensor([[num_t, num_h, num_w]], dtype=torch.int64)
+    print(f"      vision input: patches={num_patches}, channel_dim={channel_dim}, grid_thw={grid_thw.tolist()}")
     vision_wrapped = VisionEncoderWrapper(vision_module).eval()
     with torch.no_grad():
-        torch.onnx.export(vision_wrapped, (vision_input,), ONNX_VISION,
-            input_names=["pixel_values"], output_names=["vision_embeds"],
+        torch.onnx.export(vision_wrapped, (vision_input, grid_thw), ONNX_VISION,
+            input_names=["pixel_values", "grid_thw"], output_names=["vision_embeds"],
             opset_version=17, do_constant_folding=True, dynamo=False)
     print(f"      {os.path.getsize(ONNX_VISION)//1024//1024} MB")
 
     print(f"[5/11] Exporting projection → {ONNX_PROJECTION} ...")
     with torch.no_grad():
-        sample = vision_wrapped(torch.zeros((1,3,448,448), dtype=torch.float16))
+        sample = vision_wrapped(vision_input, grid_thw)
     proj_wrapped = ProjectionWrapper(projection_module).eval()
     with torch.no_grad():
         torch.onnx.export(proj_wrapped, (torch.zeros_like(sample),), ONNX_PROJECTION,
@@ -439,23 +543,61 @@ if not SKIP_VISION:
     print(f"      {os.path.getsize(ONNX_PROJECTION)//1024//1024} MB")
 
 
-# ── Step 6: ONNX export — language decoder ─────────────────────────────────────────
-print(f"[6/11] Exporting language decoder → {ONNX_DECODER} ...")
-ids   = torch.zeros((1, MAX_SEQ_LEN), dtype=torch.int64)
+# ── Step 6: ONNX export — chunked language decoder ───────────────────────────────
+print(f"[6/11] Exporting language decoder in {NUM_CHUNKS} chunks ...")
+import numpy as np
+
 amask = torch.ones((1, MAX_SEQ_LEN), dtype=torch.int64)
 pos   = torch.arange(MAX_SEQ_LEN, dtype=torch.int64).unsqueeze(0)
-decode_wrapped = HtpDecodeWrapper(decoder_module).eval()
-with torch.no_grad():
-    torch.onnx.export(decode_wrapped, (ids, amask, pos), ONNX_DECODER,
-        input_names=["input_ids","attention_mask","position_ids"],
-        output_names=["logits"], opset_version=17, do_constant_folding=True,
-        dynamic_axes=None, dynamo=False)
-assert_no_trig(ONNX_DECODER, "decoder")
+
+onnx_decoder_chunks = []
+for ci in range(NUM_CHUNKS):
+    start = ci * chunk_size
+    end = min(start + chunk_size, total_layers)
+    layer_list = [all_layers[j] for j in range(start, end)]
+
+    wrapper = DecoderChunkWrapper(
+        layer_list, ci, NUM_CHUNKS,
+        rotary_emb=_global_rotary_emb,
+        embed_tokens=embed_tokens if ci == 0 else None,
+        final_norm=final_norm if ci == NUM_CHUNKS - 1 else None,
+        lm_head=lm_head if ci == NUM_CHUNKS - 1 else None,
+    ).eval()
+
+    onnx_path = os.path.join(OUTPUT_DIR, f"qwen3_5_9b_decoder_chunk_{ci}.onnx")
+
+    if ci == 0:
+        dummy_in = torch.zeros((1, MAX_SEQ_LEN), dtype=torch.int64)
+        in_names = ["input_ids", "attention_mask", "position_ids"]
+    else:
+        dummy_in = torch.zeros((1, MAX_SEQ_LEN, HIDDEN), dtype=torch.float16)
+        in_names = ["hidden_states", "attention_mask", "position_ids"]
+
+    if ci == NUM_CHUNKS - 1:
+        out_names = ["logits"]
+    else:
+        out_names = ["hidden_states"]
+
+    print(f"      chunk {ci}/{NUM_CHUNKS}: layers {start}-{end-1}  "
+          f"({'embed→' if ci == 0 else ''}{end-start} layers"
+          f"{'→norm→lm_head' if ci == NUM_CHUNKS - 1 else ''})")
+
+    with torch.no_grad():
+        torch.onnx.export(wrapper, (dummy_in, amask, pos), onnx_path,
+            input_names=in_names, output_names=out_names,
+            opset_version=17, do_constant_folding=True,
+            dynamic_axes=None, dynamo=False)
+    sz = os.path.getsize(onnx_path) // 1024 // 1024
+    print(f"      → {onnx_path} ({sz} MB)")
+
+    if ci == 0:
+        assert_no_trig(onnx_path, f"decoder_chunk_{ci}")
+
+    onnx_decoder_chunks.append(onnx_path)
 
 
 # ── Step 7: PTQ calibration data ──────────────────────────────────────────────────
 print(f"[7/11] Building calibration set ({CALIB_TOKENS} tokens) ...")
-import numpy as np
 CALIB_CHUNK = min(MAX_SEQ_LEN, 1024)
 calib_ids = []
 try:
@@ -475,30 +617,39 @@ except Exception as e:
     for _ in range(max(1, CALIB_TOKENS // CALIB_CHUNK)):
         calib_ids.append(rng.integers(0, VOCAB, size=CALIB_CHUNK).tolist())
 
-calib_padded = []
-for ids in calib_ids[:32]:
-    padded = ids + [0] * (MAX_SEQ_LEN - len(ids))
-    calib_padded.append(padded[:MAX_SEQ_LEN])
-CALIB_NPZ = os.path.join(OUTPUT_DIR, "calib_qwen3_5_9b.npz")
-np.savez(CALIB_NPZ, input_ids=np.array(calib_padded, dtype=np.int64))
-print(f"      {len(calib_padded)} rows × {MAX_SEQ_LEN} tokens")
+calib_input_ids = []
+calib_attention_mask = []
+calib_position_ids = []
+for ids_row in calib_ids[:32]:
+    sl = min(len(ids_row), MAX_SEQ_LEN)
+    calib_input_ids.append((ids_row[:MAX_SEQ_LEN] + [0] * (MAX_SEQ_LEN - sl))[:MAX_SEQ_LEN])
+    calib_attention_mask.append([1] * sl + [0] * (MAX_SEQ_LEN - sl))
+    calib_position_ids.append(list(range(MAX_SEQ_LEN)))
+chunk0_calib = dict(
+    input_ids=np.array(calib_input_ids, dtype=np.int64),
+    attention_mask=np.array(calib_attention_mask, dtype=np.int64),
+    position_ids=np.array(calib_position_ids, dtype=np.int64),
+)
+print(f"      {len(calib_input_ids)} rows × {MAX_SEQ_LEN} tokens (chunk 0 calibration)")
 
 
 # ── Step 8: QAI Hub compile ────────────────────────────────────────────────────────
-print("[8/11] Submitting QAI Hub compile jobs ...")
+print(f"[8/11] Submitting QAI Hub compile jobs ({2 + NUM_CHUNKS} total) ...")
 jobs = {}
 
 if not SKIP_VISION:
     print("      → vision encoder ...")
-    jobs["vision"] = submit_qai_hub_compile(ONNX_VISION, "qwen3_5_9b_vision_compile",
-        extra_options=f"--partition_overrides {PARTITION_JSON}")
+    jobs["vision"] = submit_qai_hub_compile(ONNX_VISION, "qwen3_5_9b_vision_compile")
     print("      → projection ...")
-    jobs["projection"] = submit_qai_hub_compile(ONNX_PROJECTION, "qwen3_5_9b_projection_compile",
-        extra_options=f"--partition_overrides {PARTITION_JSON}")
+    jobs["projection"] = submit_qai_hub_compile(ONNX_PROJECTION, "qwen3_5_9b_projection_compile")
 
-print("      → language decoder ...")
-jobs["decoder"] = submit_qai_hub_compile(ONNX_DECODER, "qwen3_5_9b_decoder_compile",
-    extra_options=f"--max_seq_len {MAX_SEQ_LEN} --partition_overrides {PARTITION_JSON}")
+for ci in range(NUM_CHUNKS):
+    label = f"decoder_chunk_{ci}"
+    print(f"      → {label} ...")
+    calib = chunk0_calib if ci == 0 else None
+    jobs[label] = submit_qai_hub_compile(
+        onnx_decoder_chunks[ci], f"qwen3_5_9b_{label}_compile",
+        calibration_data=calib)
 
 
 # ── Steps 9-10: download + publish ────────────────────────────────────────────────
@@ -508,14 +659,18 @@ if not SKIP_VISION:
     verify_dsp_placement(jobs["vision"], "vision")
     download_target_model(jobs["projection"], OUT_PROJECTION)
     verify_dsp_placement(jobs["projection"], "projection")
-download_target_model(jobs["decoder"], OUT_DECODER)
-verify_dsp_placement(jobs["decoder"], "decoder")
+for ci in range(NUM_CHUNKS):
+    label = f"decoder_chunk_{ci}"
+    download_target_model(jobs[label], decoder_chunk_out(ci))
+    verify_dsp_placement(jobs[label], label)
 
 if PUBLISH_HF:
     print(f"[10/11] Publishing → {HF_OUTPUT_REPO} ...")
     api = HfApi(token=HF_TOKEN)
     api.create_repo(HF_OUTPUT_REPO, repo_type="model", exist_ok=True, private=True)
-    to_upload = [(OUT_DECODER, "qwen3_5_9b_language_decoder.bin")]
+    to_upload = []
+    for ci in range(NUM_CHUNKS):
+        to_upload.append((decoder_chunk_out(ci), f"qwen3_5_9b_decoder_chunk_{ci}.bin"))
     if not SKIP_VISION:
         to_upload += [(OUT_VISION, "qwen3_5_9b_vision_encoder.bin"),
                       (OUT_PROJECTION, "qwen3_5_9b_projection.bin")]
@@ -536,7 +691,8 @@ print("Artifacts ready:")
 if not SKIP_VISION:
     print(f"  {OUT_VISION}")
     print(f"  {OUT_PROJECTION}")
-print(f"  {OUT_DECODER}")
+for ci in range(NUM_CHUNKS):
+    print(f"  {decoder_chunk_out(ci)}")
 if PUBLISH_HF:
     print(f"\nhf download {HF_OUTPUT_REPO} --local-dir ~/Downloads")
     print(f"adb push ~/Downloads/*.bin /storage/emulated/0/Download/")
@@ -546,5 +702,7 @@ print(f"  SKIP_EXPORT=1 \\")
 if not SKIP_VISION:
     print(f"  JOB_ID_VISION={jobs.get('vision', type('', (), {'job_id': 'N/A'})()).job_id} \\")
     print(f"  JOB_ID_PROJECTION={jobs.get('projection', type('', (), {'job_id': 'N/A'})()).job_id} \\")
-print(f"  JOB_ID_DECODER={jobs['decoder'].job_id} \\")
+for ci in range(NUM_CHUNKS):
+    label = f"decoder_chunk_{ci}"
+    print(f"  JOB_ID_DECODER_{ci}={jobs[label].job_id} \\")
 print(f"  hf jobs uv run --flavor cpu-xl ... compile_qwen3_5_9b.py")
