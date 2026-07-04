@@ -91,3 +91,21 @@ On this branch, implement the GGUF/llama-server runtime family:
 - GitHub App token lacks `actions:write` — trigger workflows by push, not
   dispatch. HF egress OPEN this container; app.aihub.qualcomm.com BLOCKED.
 - Emulator processes on this container: emulator-5554 still running.
+
+## SESSION-END STATE (context exhausted mid-verification)
+- Code for steps 1–6 of the in-flight list is DONE, compiles green,
+  committed+pushed as `4f8dbe7` on this branch (PR #13).
+- Step 7 (emulator re-verification of the hardened build) was IN FLIGHT:
+  the container's emulator died and was restarted (`-read-only` flag added;
+  AVD `horizons`). Re-run yourself:
+  1. `pgrep -f emulator` — if dead:
+     `/opt/android-sdk/emulator/emulator -avd horizons -no-window -no-accel -gpu swiftshader_indirect -no-audio -no-boot-anim -no-snapshot -memory 3072 -cores 4 &`
+  2. wait for `adb shell getprop sys.boot_completed` = 1 (5–15 min, no KVM)
+  3. `adb install -r horizons/build/outputs/apk/debug/horizons-debug.apk`
+     (rebuild with `-PemuAbi=x86_64` if absent)
+  4. launch com.horizons, wait 75s, then check
+     `adb shell "ps -A | grep horizons"` shows BOTH processes and
+     `adb logcat -d | grep -cE "Killing.*clifford|ANR"` is 0. Screenshot.
+- PASS = :clifford survives (old builds died at ~12s). FAIL = pull logcat,
+  diagnose, iterate — foreground-first is in CliffordService.onCreate now.
+- Operator: "Next session we will just finish what you're doing."
