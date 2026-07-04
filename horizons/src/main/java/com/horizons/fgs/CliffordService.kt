@@ -171,8 +171,12 @@ class CliffordService : Service() {
                 "-m", modelPath,
                 "--host", "127.0.0.1",
                 "--port", DaemonLauncher.ENGINE_PORT.toString(),
+                // 4096 ctx keeps the KV cache small — mobile inference is
+                // bandwidth-bound and a runaway KV cache OOMs the device.
                 "-c", "4096",
                 "-ngl", "999",
+                // Flash attention: big memory-bandwidth win on mobile.
+                "-fa",
             )
         } else {
             binaryName = NativeBinaryInstaller.installedBinaryName(this)
