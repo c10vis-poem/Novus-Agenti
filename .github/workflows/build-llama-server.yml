@@ -28,7 +28,15 @@ jobs:
         run: |
           cp docs/backend/snapdragon/CMakeUserPresets.json .
           cmake --preset arm64-android-snapdragon-release -B build-snapdragon
-          cmake --build build-snapdragon -j$(nproc) --target llama-server llama-quantize llama-cli
+          # htp-v{73,75,79,81} are separate ExternalProject_Add targets (the DSP
+          # skels) with no dependency edge from llama-server/ggml-hexagon — they
+          # only ride along on the default "all" target. Naming them explicitly
+          # is what actually triggers their build; omitting them (as the first
+          # cut of this workflow did) builds llama-server fine but leaves
+          # `cmake --install`'s install(FILES ${HTP_SKELS}) rule pointing at
+          # files that were never produced, failing install with "file INSTALL
+          # cannot find ... libggml-htp-v73.so".
+          cmake --build build-snapdragon -j$(nproc) --target llama-server llama-quantize llama-cli htp-v73 htp-v75 htp-v79 htp-v81
 
       - name: Install (collects the Hexagon DSP skels)
         # ggml/src/ggml-hexagon/CMakeLists.txt builds libggml-htp-v{73,75,79,81}.so
