@@ -1,5 +1,11 @@
 # AAR decompile — hard rule
 
+> **ARCHIVED — Nexa-specific, not applicable to the current QNN/Hexagon HTP
+> architecture.** Kept because the general AAR-decompile technique
+> (javap-based bytecode inspection when an SDK lacks docs) may be reusable
+> for a future undocumented SDK. Do NOT follow this as an active procedure
+> for the current stack — there is no Nexa AAR in this project anymore.
+
 The Nexa Android SDK does not ship Javadoc/KDoc. Public docs are a
 quickstart + a GitHub README. Production apps using the SDK only exercise
 the default code path, so scraping examples misses every optional

@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * System speech recognizer backed by Gemma 4 12B (audio-direct via LiteRT-LM).
+ * System speech recognizer backed by Qwen3.5-9B (via ort_engine daemon).
  *
  * When Horizons is selected as the device's default assistant / recognizer,
  * ANY app that calls SpeechRecognizer routes its mic capture through here

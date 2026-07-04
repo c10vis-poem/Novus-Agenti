@@ -1,4 +1,5 @@
-# Horizons sub-agent — high-performance review/builder template.
+# Novus Agenti / Omni Claw sub-agent — high-performance review/builder
+# template.
 #
 # Apply with:
 #
@@ -15,14 +16,20 @@
 #   CURRENT=$(ant beta:agents retrieve --agent-id $AGENT_ID --transform version --format raw)
 #   ant beta:agents update --agent-id $AGENT_ID --version $CURRENT --format raw --transform version < sub-agent.agent.yaml
 
-name: Horizons Sub-Agent Booster
+name: Novus Agenti Sub-Agent Booster
 description: |
-  Reusable sub-agent template for Horizons build/review work. Inherits
-  the same NPU/Nexa/voice/cloud scope as the parent NeuralMash Builder
-  (agent_01RaU3nbhVGcFi9ZRcCinT9r) via the shared horizons-wiki skill,
-  but is sized for short-lived at-bat tasks: implement a layer, then
-  archive. Use a fresh session per at-bat to avoid the "polish own
-  turd" failure loop.
+  Reusable sub-agent template for Novus Agenti / Omni Claw build/review
+  work: compiling Mer0vin8ian/Qwen3.5-9B to a qnn_context_binary via QAI
+  Hub, and the on-device Android app (com.horizons) that serves it
+  through the ort_engine daemon on Hexagon HTP v75. Inherits the same
+  scope as the parent Builder (agents/neuralmash-builder.system.md) via
+  the shared horizons-wiki skill, but is sized for short-lived at-bat
+  tasks: implement a layer, then archive. Use a fresh session per at-bat
+  to avoid the "polish own turd" failure loop.
+  NOTE: `parent_agent_id` below is not tracked anywhere in this repo —
+  if you deploy this template under a live managed-agent identity,
+  replace it with that agent's real ID rather than trusting the
+  placeholder that shipped with this file historically.
 
 # claude-sonnet-4-6 is the current default per Anthropic's model lineup
 # (Sonnet 4.6 = fast tier, ~$3/$15 per Mtok). For deeper review or
@@ -58,18 +65,23 @@ mcp_servers: []
 
 # Skills are referenced by short name; the host environment resolves
 # them. The horizons-wiki skill (skills/horizons-wiki/SKILL.md) bundles
-# CLAUDE_AT_HORIZONS.md + PROMPT_PREFIX.md as a single cacheable prefix.
+# CLAUDE.md + wiki/GPT-DAEMON-REFERENCE.md + wiki/NPU-RUNTIME-PATHS.md +
+# the latest wiki/SESSION{N}-HANDOFF.md as a single cacheable prefix —
+# these are the real, current source-of-truth docs in this repo.
 # NOTE: skill upload is a separate flow (ant beta:skills create);
-# this list will be empty until that happens. The wiki content is
-# inlined into the system prompt as a fallback.
+# this list will be empty until that happens. The system prompt file
+# above already restates the required-reading order as a fallback.
 skills: []
 
 # Metadata pairs are upserts on update. Used to track origin so we
 # can correlate sessions back to the source-of-truth in git.
+# There are two active tracks/branches for this repo (see CLAUDE.md's
+# resume prompt) — set working_branch to whichever one this deployment
+# is scoped to before applying.
 metadata:
-  wiki_stable: CLAUDE_AT_HORIZONS.md
-  wiki_prefix: PROMPT_PREFIX.md
-  working_branch: main
+  wiki_stable: CLAUDE.md
+  wiki_reference: wiki/GPT-DAEMON-REFERENCE.md,wiki/NPU-RUNTIME-PATHS.md
+  working_branch: claude/horizons-closeout-hf-review-ycjkm3
   cache_ttl_default: 1h
-  parent_agent_id: agent_01RaU3nbhVGcFi9ZRcCinT9r
+  parent_agent_id: UNSET-see-description-note-above
   role: at-bat-subagent

@@ -1,5 +1,9 @@
 # OmniClaw Compile Manifest — Single Source of Truth
-# Read by scripts/compile_*.py and notebooks/compile_*.ipynb
+# Read by scripts/compile_*.py
+# (No notebooks/ directory exists in this repo — an earlier comment here
+#  referenced notebooks/compile_*.ipynb, which was never actually created.
+#  .github/workflows/stage-colab.yml also assumed a notebook that doesn't
+#  exist; disabled pending one actually being scaffolded.)
 # Models referenced here NEVER live in the repo — they live on HuggingFace.
 # Compiled outputs go BACK to HuggingFace under Mer0vin8ian/.
 
@@ -8,10 +12,10 @@ target:
   soc: SM8750                              # Snapdragon 8 Elite
   npu: Hexagon HTP v75                     # SD8 Elite NPU
   qai_hub_device_qwen35:  "Snapdragon 8 Elite"      # Qwen3.5-9B (ONNX path)
-  qai_hub_device_qwenvl:  "Snapdragon 8 Elite QRD"  # Qwen3-VL (Genie SDK path)
-  qai_hub_device_gemma:   "Snapdragon 8 Elite"      # Gemma 4 12B (DLC path)
+  qai_hub_device_qwenvl:  "Snapdragon 8 Elite QRD"  # Qwen3-VL backup
+  qai_hub_device_gemma:   "Snapdragon 8 Elite"      # Gemma 4 12B backup
 
-# Hard caps from wiki/GPT-OSS-Reference.md
+# Hard caps from wiki/GPT-DAEMON-REFERENCE.md
 # Hexagon v69/v75 require static shapes; max_seq_len cannot change at runtime.
 hexagon_constraints:
   rope_fold: true                          # bake Q/K rotations into weights at export
@@ -31,11 +35,11 @@ models:
   # Novel first-ever compile: no qai_hub_models scaffold for qwen3_5 architecture.
   # Script builds PyTorch export from scratch: RoPE fold, static shapes, PTQ W4A16.
   qwen3_5_9b:
-    hf_repo: Qwen/Qwen3.5-9B
+    hf_repo: Mer0vin8ian/Qwen3.5-9B
     hf_revision: main
     architecture: qwen3_5                  # brand new Feb 2026, no existing scaffold
-    params: 9000000000
-    max_seq_len: 4096
+    params: 9650000000
+    max_seq_len: 2048                      # reduced from 4096 for memory/cost
     quantization:
       strategy: ptq                        # no QAT variant exists for Qwen3.5
       type: w4a16                          # weight-only INT4, activations FP16
@@ -43,11 +47,11 @@ models:
       calibration_dataset: wikitext-2-raw-v1
     output_repo: Mer0vin8ian/qwen3-5-9b-npu-sm8750
     output_artifacts:
-      - qwen3_5_9b_htp.bin
+      - qwen3_5_9b_unified.bin             # single graph: vision + language
     expected_compile_minutes: 35
     qai_hub_device: "Snapdragon 8 Elite"
-    runtime: genie_engine
-    script: scripts/compile_qwen3_5_9b.py  # NOT YET WRITTEN — session 5 P0
+    runtime: ort_engine                    # ORT + QNN EP loads qnn_context_binary
+    script: scripts/compile_qwen3_5_9b.py
 
   # BACKUP 1 — vision + reasoning (harder scaffold path)
   # Higher MMMU reasoning (69.6%) vs Instruct; generates hidden thinking tokens.
@@ -105,11 +109,8 @@ build_order:
 
 # ─── Daemon binaries (built separately, NOT compiled here) ───────────────────────
 daemon_binaries:
-  genie_engine:
-    use_for: [qwen3_5_9b, qwen3_vl_8b_thinking]
-    source: built_from_qai_genie_sdk_cpp
-    status: not_yet_built
   ort_engine:
-    use_for: [gemma4_12b_qat]
+    use_for: [qwen3_5_9b, qwen3_vl_8b_thinking, gemma4_12b_qat]
     source: onnxruntime_qnn_ep_aarch64_android
-    status: not_yet_built
+    scaffold: daemon/
+    status: scaffolded

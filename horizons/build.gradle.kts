@@ -25,8 +25,8 @@ android {
         applicationId = "com.horizons"
         minSdk = 31
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.0-phase1"
+        versionCode = 3
+        versionName = "0.1.1-phase1"
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
         // Razr Ultra is arm64-v8a only.
         ndk { abiFilters += "arm64-v8a" }
@@ -44,8 +44,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-        // litertlm-android:0.13.1 ships Kotlin 2.3 metadata; our compiler is 2.1.
-        // Flag suppresses the metadata version check so the classes are still usable.
         freeCompilerArgs += "-Xskip-metadata-version-check"
     }
 
@@ -90,8 +88,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":shared"))
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.service)
@@ -117,10 +113,6 @@ dependencies {
 
     // Silero VAD — lightweight ONNX signal-processing model, not STT/TTS.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
-
-    // Google LiteRT-LM — on-device LLM inference via Backend.GPU → Adreno 830.
-    // Pinned: latest.release jumped ahead of the June-2026 model's flatbuffer schema.
-    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
 
     // Sherpa-ONNX — on-device TTS runtime for Kokoro multi-lang v1.0 (28 English voices).
     // AAR downloaded by CI (see build-apk.yml); excluded from git via horizons/libs/.gitignore.

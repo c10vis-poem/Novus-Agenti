@@ -46,6 +46,11 @@
     <!-- Agent: Do Not Disturb policy -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
+    <!-- NPU performance: Game SDK scheduler boost -->
+    <uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
+
+    <uses-feature android:name="android.hardware.game" android:required="true" />
+
     <queries>
         <package android:name="com.termux" />
     </queries>
@@ -69,21 +74,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- Open .litertlm model files from file managers (file:// path) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file"
-                      android:host="*"
-                      android:pathPattern=".*\\.litertlm" />
-            </intent-filter>
-            <!-- Open .litertlm model files from Downloads / modern file managers (content://) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="content"
-                      android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
 
@@ -169,17 +159,85 @@
                 android:value="NPU daemon guardian" />
         </service>
 
-        <!-- G14: Mode B — Live Chat FGS (audio loop + Gemma stream, no screen) -->
+        <!-- Restart CLIFFORD after device boot (deferred 30s for Android 15+ FGS restriction) -->
+        <receiver
+            android:name=".fgs.CliffordBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- G14: Mode B — Live Chat FGS (audio loop + LLM stream, no screen) -->
         <service
             android:name=".fgs.LiveChatService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
 
-        <!-- G14: Mode A — Live Screen Share FGS (MediaProjection + audio loop + Gemma stream) -->
+        <!-- G14: Mode A — Live Screen Share FGS (MediaProjection + audio loop + LLM stream) -->
         <service
             android:name=".fgs.ScreenShareService"
             android:foregroundServiceType="mediaProjection|microphone"
             android:exported="false" />
+
+        <!-- System TTS engine — Kokoro on-device via Sherpa-ONNX.
+             Settings → Accessibility → Text-to-speech → Preferred engine → Horizons.
+             Any app calling TextToSpeech.speak() routes through here. -->
+        <service
+            android:name=".core.voice.HorizonsTtsService"
+            android:label="Horizons TTS (Kokoro)"
+            android:permission="android.permission.BIND_TEXT_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.TTS_SERVICE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech.tts"
+                android:resource="@xml/tts_engine" />
+        </service>
+
+        <!-- Model file handler — "Open with Horizons" from browser/file manager.
+             Covers .bin/.serialized.bin (QNN context binary), .onnx, .gguf (llama.cpp),
+             .tflite, .dlc (SNPE), .pte (ExecuTorch), .qnn downloads. -->
+        <activity
+            android:name=".ModelImportActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Horizons"
+            android:label="Import to Horizons">
+
+            <!-- Handle file:// and content:// URIs with model extensions -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- Handle file open from file managers -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.bin" />
+                <data android:pathPattern=".*\\.onnx" />
+                <data android:pathPattern=".*\\.gguf" />
+                <data android:pathPattern=".*\\.tflite" />
+                <data android:pathPattern=".*\\.dlc" />
+                <data android:pathPattern=".*\\.pte" />
+                <data android:pathPattern=".*\\.qnn" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- Handle SEND intents (share model file to Horizons) -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
 
     </application>
 </manifest>

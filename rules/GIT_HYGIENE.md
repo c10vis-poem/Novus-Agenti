@@ -12,11 +12,14 @@
    - Operator action item: uncheck Settings → General → "Automatically
      delete head branches" in GitHub.
 5. **One commit per logical change.** Don't squash multi-agent edits to
-   `EXECUTION_BOARD.md` — the commit log is the coordination layer.
+   shared coordination docs (e.g. `wiki/SESSION{N}-HANDOFF.md`, or
+   CLAUDE.md's `## State of the Union` section) — the commit log is the
+   coordination layer. (There is no `EXECUTION_BOARD.md` in this repo;
+   that name is a leftover from an earlier project structure.)
 6. **Commit message style:** lowercase scope, imperative mood, line ≤72c.
    Examples:
-   - `chore(board): G2 claimed by main`
-   - `core(nexa): wire VlmWrapper into NexaModelLoader`
+   - `chore(handoff): G2 claimed by main`
+   - `core(npu): wire HtpDecodeWrapper output into NpuClient`
    - `wiki: refresh CACHE_PROMPTING.md with 1h TTL break-even math`
 7. **`git status` clean at end of every at-bat.** Untracked files either
    get committed or `.gitignore`'d. Stop-hook enforces this.
