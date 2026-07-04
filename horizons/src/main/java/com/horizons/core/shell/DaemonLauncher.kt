@@ -35,7 +35,9 @@ class DaemonLauncher(
      * on Android 10+. The filesDir fallback is kept only for rooted/legacy sideloads.
      */
     private fun resolveEngineFile(): File {
-        val packaged = File(context.applicationInfo.nativeLibraryDir, PACKAGED_ENGINE_LIB)
+        val packagedName =
+            if (binaryName == LLAMA_BINARY) PACKAGED_LLAMA_LIB else PACKAGED_ENGINE_LIB
+        val packaged = File(context.applicationInfo.nativeLibraryDir, packagedName)
         if (packaged.exists()) return packaged
         return File(context.filesDir, binaryName)
     }
@@ -65,8 +67,12 @@ class DaemonLauncher(
 
             // mksh -T- detaches the child from the controlling tty, reparenting it
             // to init so it survives shell exit. Equivalent to nohup + setsid.
+            // llama-server's ggml-hexagon backend reads the NPU session count and
+            // DSP skel search path from its environment (wiki/NPU-RUNTIME-PATHS.md Path 2).
+            val envPrefix = if (binaryName == LLAMA_BINARY)
+                "GGML_HEXAGON_NDEV=2 DSP_LIBRARY_PATH=${context.filesDir.absolutePath} " else ""
             val args = engineArgs.joinToString(" ")
-            val shellCmd = "LD_LIBRARY_PATH=$libDir ${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
+            val shellCmd = "${envPrefix}LD_LIBRARY_PATH=$libDir ${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
 
             return@withContext try {
                 val proc = ProcessBuilder("/system/bin/sh", "-T-", "-c", shellCmd)
@@ -123,6 +129,14 @@ class DaemonLauncher(
         const val ENGINE_BINARY  = "ort_engine"
         /** APK-packaged daemon: jniLibs/arm64-v8a/libort_engine.so (CI copies it in). */
         const val PACKAGED_ENGINE_LIB = "libort_engine.so"
+        /** GGUF runtime family: llama.cpp llama-server (+ ggml-hexagon NPU backend). */
+        const val LLAMA_BINARY = "llama-server"
+        /** jniLibs name for the llama daemon when CI packages it (same exec rule as ort_engine). */
+        const val PACKAGED_LLAMA_LIB = "libllama_server.so"
         const val ENGINE_PORT    = 8080
+
+        /** Runtime-family dispatch: GGUF models run on llama-server, everything else on ort_engine. */
+        fun familyFor(modelPath: String): String =
+            if (modelPath.lowercase().endsWith(".gguf")) LLAMA_BINARY else ENGINE_BINARY
     }
 }

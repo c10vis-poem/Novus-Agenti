@@ -283,6 +283,25 @@ class HorizonsApplication : Application() {
             appState.get("boot.probe") // force EncryptedSharedPreferences init inside this try
             com.horizons.core.diag.Breadcrumb.drop("appstate_loaded")
 
+            // :clifford runs in another process — its direct activateNpuRuntime()
+            // call only reaches its own Application instance. This receiver is how
+            // the MAIN process learns the daemon is healthy.
+            try {
+                androidx.core.content.ContextCompat.registerReceiver(
+                    this,
+                    object : android.content.BroadcastReceiver() {
+                        override fun onReceive(c: android.content.Context, i: android.content.Intent) {
+                            activateNpuRuntime()
+                        }
+                    },
+                    android.content.IntentFilter(com.horizons.fgs.CliffordService.ACTION_NPU_READY),
+                    androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
+                com.horizons.core.diag.Breadcrumb.drop("npu_ready_receiver_registered")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("npu_ready_receiver_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
+
             // CLIFFORD FGS -- separate process. Failure here shouldn't kill main.
             try {
                 com.horizons.fgs.CliffordService.start(this)
@@ -332,7 +351,12 @@ class HorizonsApplication : Application() {
     }
 
     fun activateNpuRuntime() {
-        if (_npuClient == null) _npuClient = NpuClient()
+        if (_npuClient == null) {
+            // GGUF models are served by llama-server (OpenAI-compatible SSE);
+            // everything else by ort_engine's legacy protocol.
+            val gguf = resolveNpuModelPath()?.lowercase()?.endsWith(".gguf") == true
+            _npuClient = NpuClient(openAiProtocol = gguf)
+        }
     }
 
     fun resolveNpuModelPath(): String? {

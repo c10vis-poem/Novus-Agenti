@@ -226,6 +226,18 @@ class ModelImportActivity : ComponentActivity() {
             "libQnnHtp.so",
             "libQnnSystem.so",
             "libQnnHtpV75Skel.so",
+            "libQnnHtpV79Skel.so", // SM8750 / 8 Elite is Hexagon v79 (v75 kept for older SoCs)
+            // GGUF runtime family: llama.cpp llama-server + ggml-hexagon NPU backend
+            com.horizons.core.shell.DaemonLauncher.LLAMA_BINARY, // "llama-server"
+            "libllama.so",
+            "libllama-common.so",
+            "libllama-server-impl.so",
+            "libggml.so",
+            "libggml-base.so",
+            "libggml-cpu.so",
+            "libggml-hexagon.so",
+            "libggml-opencl.so",
+            "libmtmd.so",
         )
     }
 }
