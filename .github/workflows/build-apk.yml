@@ -39,8 +39,11 @@ jobs:
       - name: Download sherpa-onnx AAR
         run: |
           mkdir -p horizons/libs
-          curl -fL -o horizons/libs/sherpa-onnx-1.13.2.aar \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar
+          curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar \
+          || curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
+            https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-1.13.2.aar
+          unzip -l horizons/libs/sherpa-onnx-1.13.2.aar | grep -q classes.jar
 
       - name: Cache NDK + ORT
         uses: actions/cache@v4
