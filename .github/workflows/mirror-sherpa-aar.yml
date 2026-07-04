@@ -1,0 +1,32 @@
+# Mirrors the sherpa-onnx AAR (a build dependency of horizons/ that lives
+# only in k2-fsa's GitHub release) into this repo's own latest-debug release.
+#
+# Why: remote dev containers can reach this repo's releases but not
+# arbitrary third-party GitHub release assets (egress policy), so a local
+# `gradle assembleDebug` in such a session has no way to fetch the AAR that
+# build-apk.yml downloads on every CI run. Mirroring it once into
+# latest-debug makes local builds reproducible from in-scope hosts only.
+name: Mirror sherpa-onnx AAR
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download AAR from upstream release
+        run: |
+          curl -fL -o sherpa-onnx-1.13.2.aar \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar
+          sha256sum sherpa-onnx-1.13.2.aar
+
+      - name: Upload to latest-debug release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload latest-debug sherpa-onnx-1.13.2.aar \
+            --repo "${{ github.repository }}" --clobber

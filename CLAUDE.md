@@ -340,25 +340,71 @@ ExecuTorch / SNPE / TFLite / Jetson Tensor targets). Adding a new runtime is
 
 ## Android App / Battery Rules
 
-### NpuManager Performance Lock (PENDING — NOT YET WIRED)
-```kotlin
-val npuManager = getSystemService(NpuManager::class.java)
-val lock = npuManager.acquirePerformanceLock(NpuManager.PERF_MODE_HIGH)
-```
+All three items previously listed here as PENDING are **done** (verified
+against source 2026-07-04, session 16 — see `wiki/HORIZONS-APP-DEBUG-PLAN.md`
+for the audit):
 
-### Game SDK Performance Mode (PENDING — NOT YET WIRED)
-```kotlin
-GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
-```
+- **NpuManager performance lock** — wired in
+  `horizons/src/main/java/com/horizons/fgs/CliffordService.kt`
+  (`acquireNpuPerfLock()` / `releaseNpuPerfLock()`): reflection against the
+  `@hide` `npu` system service, `PERF_MODE_HIGH`, safe no-op fallback when
+  the service is unavailable.
+- **Game-mode performance boost** — implemented as
+  `horizons/src/main/java/com/horizons/core/perf/GameModeBoost.kt` (+
+  `PerfHintSession.kt`), using ADPF `GameState(false,
+  MODE_GAMEPLAY_UNINTERRUPTIBLE)` scoped to inference hot-loops (reentrant
+  enter/exit), called from `HorizonsApplication.kt` and `AgentLoop.kt`. This
+  deliberately replaces the older app-lifetime
+  `GameManager.setGameMode(PERFORMANCE)` plan — do not "finish" that snippet.
+- **Manifest** — `android.permission.HIGH_PERFORMANCE` and
+  `uses-feature android.hardware.game` are present in
+  `horizons/src/main/AndroidManifest.xml`; `CliffordService` is declared
+  with `foregroundServiceType="specialUse"`.
 
-### Manifest (PENDING)
-```xml
-<uses-feature android:name="android.hardware.game" android:required="true" />
-<uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
-<service android:name=".CliffordService" android:foregroundServiceType="specialUse" />
-```
+**Both the NpuManager lock + game-mode boost are required together.** The
+game-mode/ADPF path boosts CPU-side scheduling only; the NpuManager lock is
+what gives the NPU daemon full performance.
 
-**Both NpuManager + GameManager are required together.** Game SDK boosts UI scheduler only; NpuManager lock is what gives the NPU daemon full performance.
+---
+
+## State of the Union — 2026-07-04 (session 16, app track)
+
+### Done — session 16 (app-track debug session planned by session 15)
+Executed `wiki/HORIZONS-APP-DEBUG-PLAN.md` (written on branch
+`claude/novus-job-8-verify-r96601`, PR #11). Full detail in
+`wiki/SESSION16-HANDOFF.md`. Summary:
+- **Corrected this file's stale "PENDING — NOT YET WIRED" Android
+  App / Battery Rules section** — NpuManager lock, game-mode boost, and
+  manifest entries were all already implemented (re-verified directly
+  against source this session, not just trusted from the plan). Pending
+  list renumbered accordingly.
+- **Tokenizer audit (`daemon/src/tokenizer.cpp`)** — NOT the
+  hash-tokenization bug (real vocab load + real map lookups), but three
+  real gaps that would garble on-device output in a way that mimics a
+  bad compile: (1) no GPT-2 byte-to-unicode mapping (`Ġ`/`Ċ`), so
+  spaces/newlines never match the vocab and are **silently dropped** in
+  `encode()` and emitted literally in `decode()`; (2) `merges` parsed
+  but never used — greedy longest-match instead of a BPE merge loop;
+  (3) JSON escapes (`\"`, `\uXXXX`) never unescaped when building the
+  vocab maps. Must be fixed before any on-device model verification is
+  trusted. See Pending list.
+- **RouterPane / SettingsPane claims re-verified against source** —
+  both still true: no routing rule engine anywhere in `RouterPane.kt`
+  (773 lines: NPU Runtime / Performance / Cloud Model Selector /
+  OpenRouter Catalog / Cloud APIs sections only), and `HorizonsColors`
+  is still a flat hardcoded object with no theme picker in
+  `SettingsPane.kt`.
+- **Three orphaned classes re-confirmed still unwired** (each matches
+  only its own definition file). Question posed to operator; do not
+  delete without an answer.
+- **Job 8 status observed (read-only, for the compile track — NOT
+  worked on here)**: job `6a488c52d235f6e43ae5a5a3` ERROR after 39m53s.
+  ONNX export fully succeeded (grid_thw fix confirmed working); failure
+  is QAI Hub vision-encoder compile `jpeler3og` — **exit code 14,
+  "Conversion to context binary failed"** — the original HTP issue, now
+  at the compile stage. Also: calibration dataset load failed (invalid
+  `wikitext` HF URI) → synthetic-token fallback. Both are compile-track
+  items; `ort_engine` on-device verification stays blocked.
 
 ---
 
@@ -488,21 +534,24 @@ as fact that are actually false. Findings, ranked, and fixes applied:
    packaged by CI; what's still open is verifying it actually loads and
    serves a real compiled model on a physical Hexagon HTP v75 device,
    which needs Job 8's output first.
-3. **NpuManager lock** — wire into `CliffordService.kt`
-4. **GameManager** — wire into `HorizonsApplication.kt`
-5. **Manifest** — `uses-feature` + `HIGH_PERFORMANCE`
-6. **RouterPane "routing rules"** — use-cloud-when-NPU-unavailable etc.
+3. **`daemon/src/tokenizer.cpp` byte-level BPE fixes** (session 16 audit)
+   — add GPT-2 byte-to-unicode mapping on encode/decode (spaces and
+   newlines are currently silently dropped/garbled), implement the BPE
+   merge loop (merges are parsed but unused), unescape JSON strings when
+   building the vocab maps. Blocks trustworthy on-device verification:
+   without this, a good compiled model will look broken.
+4. **RouterPane "routing rules"** — use-cloud-when-NPU-unavailable etc.
    Deliberately not built yet; needs a real rule engine, not UI toggles
    that don't affect behavior
-7. **SettingsPane "Themes"** — deliberately not built; needs a switchable
+5. **SettingsPane "Themes"** — deliberately not built; needs a switchable
    palette system, `HorizonsColors` is currently a flat hardcoded object
-8. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
+6. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
    `core/shell/SecureResourceRelay.kt`, `core/screen/ScreenshotCapture.kt`
    — fully implemented, never wired to any caller. Likely mid-flight
    features (screenshot capture for Vision-Agent tile, secure shell
    token relay, structured interaction logging), not accidental cruft —
    confirm with operator before deleting.
-9. **CI publish-target TODO below** — could not find evidence it's still
+7. **CI publish-target TODO below** — could not find evidence it's still
    real (checked `build-apk.yml`'s full history, no foreign repo ever
    hardcoded, `softprops/action-gh-release@v2` has no `repository:` field
    so it already defaults to this repo). Verify against a live release
