@@ -31,12 +31,16 @@ object NativeBinaryInstaller {
     }
 
     fun isInstalled(context: Context): Boolean =
-        File(context.filesDir, DaemonLauncher.ENGINE_BINARY).canExecute()
+        File(context.applicationInfo.nativeLibraryDir, DaemonLauncher.PACKAGED_ENGINE_LIB).exists() ||
+            File(context.filesDir, DaemonLauncher.ENGINE_BINARY).canExecute()
 
-    fun installedBinaryName(context: Context): String? =
-        if (File(context.filesDir, DaemonLauncher.ENGINE_BINARY).canExecute())
+    fun installedBinaryName(context: Context): String? = when {
+        File(context.applicationInfo.nativeLibraryDir, DaemonLauncher.PACKAGED_ENGINE_LIB).exists() ->
+            DaemonLauncher.PACKAGED_ENGINE_LIB
+        File(context.filesDir, DaemonLauncher.ENGINE_BINARY).canExecute() ->
             DaemonLauncher.ENGINE_BINARY
-        else null
+        else -> null
+    }
 
     private fun extractAsset(
         context: Context,

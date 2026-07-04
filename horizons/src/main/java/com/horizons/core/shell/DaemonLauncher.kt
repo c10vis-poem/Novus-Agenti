@@ -27,25 +27,41 @@ class DaemonLauncher(
 
     data class DaemonHandle(val pid: Int, val logPath: String)
 
+    /**
+     * Preferred: the daemon packaged inside the APK as jniLibs/arm64-v8a/libort_engine.so.
+     * useLegacyPackaging=true extracts it to nativeLibraryDir at install time, which is
+     * the only location a targetSdk 29+ app may exec() from — SELinux denies exec on
+     * app-writable storage (filesDir), so the old adb-push path can never actually run
+     * on Android 10+. The filesDir fallback is kept only for rooted/legacy sideloads.
+     */
+    private fun resolveEngineFile(): File {
+        val packaged = File(context.applicationInfo.nativeLibraryDir, PACKAGED_ENGINE_LIB)
+        if (packaged.exists()) return packaged
+        return File(context.filesDir, binaryName)
+    }
+
     suspend fun launch(engineArgs: List<String> = emptyList()): Result<DaemonHandle> =
         withContext(Dispatchers.IO) {
-            val engine = File(context.filesDir, binaryName)
+            val engine = resolveEngineFile()
             if (!engine.exists()) {
                 return@withContext Result.failure(
                     IllegalStateException(
-                        "Engine binary not found: ${engine.absolutePath}\n" +
-                        "Deploy: adb push $binaryName ${engine.absolutePath} && " +
-                        "adb shell chmod +x ${engine.absolutePath}"
+                        "Engine binary not found. Looked in:\n" +
+                        "  ${context.applicationInfo.nativeLibraryDir}/$PACKAGED_ENGINE_LIB (APK-packaged)\n" +
+                        "  ${File(context.filesDir, binaryName).absolutePath} (legacy)"
                     )
                 )
             }
-            if (!engine.canExecute()) engine.setExecutable(true)
+            // nativeLibraryDir is a read-only fs — only chmod the legacy filesDir copy.
+            if (!engine.canExecute() && engine.parentFile == context.filesDir) {
+                engine.setExecutable(true)
+            }
 
             val logFile = File(context.getExternalFilesDir(null), "$binaryName.log")
 
-            // libonnxruntime.so is installed alongside the engine binary in filesDir
-            // (via ModelImportActivity's runtime-file import), not under a system lib path.
-            val libDir = context.filesDir.absolutePath
+            // libonnxruntime.so ships in the APK's native lib dir (ORT maven dep);
+            // filesDir is the legacy location for manually imported runtime files.
+            val libDir = "${context.applicationInfo.nativeLibraryDir}:${context.filesDir.absolutePath}"
 
             // mksh -T- detaches the child from the controlling tty, reparenting it
             // to init so it survives shell exit. Equivalent to nohup + setsid.
@@ -58,7 +74,7 @@ class DaemonLauncher(
                     .start()
                 proc.waitFor() // shell exits immediately; daemon lives on under init
 
-                val pid = resolveEnginePid(binaryName)
+                val pid = resolveEnginePid(engine.name)
                 if (pid > 0) {
                     applyOomImmunity(pid)
                     Log.i(TAG, "Engine daemon PID=$pid log=${logFile.absolutePath}")
@@ -71,10 +87,10 @@ class DaemonLauncher(
             }
         }
 
-    fun isRunning(): Boolean = resolveEnginePid(binaryName) > 0
+    fun isRunning(): Boolean = resolveEnginePid(resolveEngineFile().name) > 0
 
     fun stop() {
-        val pid = resolveEnginePid(binaryName)
+        val pid = resolveEnginePid(resolveEngineFile().name)
         if (pid > 0) {
             try { Runtime.getRuntime().exec(arrayOf("kill", "-15", pid.toString())).waitFor() }
             catch (_: Exception) {}
@@ -105,6 +121,8 @@ class DaemonLauncher(
     companion object {
         private const val TAG    = "DaemonLauncher"
         const val ENGINE_BINARY  = "ort_engine"
+        /** APK-packaged daemon: jniLibs/arm64-v8a/libort_engine.so (CI copies it in). */
+        const val PACKAGED_ENGINE_LIB = "libort_engine.so"
         const val ENGINE_PORT    = 8080
     }
 }
