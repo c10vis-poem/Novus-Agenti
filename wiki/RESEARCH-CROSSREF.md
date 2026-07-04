@@ -11,16 +11,92 @@
 ## The actual research paper behind the Hexagon-HTP-for-LLMs idea
 
 **Scaling LLM Test-Time Compute with Mobile NPU on Smartphones**
-arXiv:2509.23324 (2025)
-Authors: Zixu Hao, Jianyu Wei, Tuowei Wang, Minxing Huang, Huiqiang Jiang,
-Shiqi Jiang, Ting Cao, Ju Ren — several MSRA (Microsoft Research Asia)
-affiliated, plus Tsinghua University.
+arXiv:2509.23324v1, EUROSYS '26 (April 27-30, 2026, Edinburgh)
+Authors: Zixu Hao (Tsinghua), Jianyu Wei (Univ. of Science and Technology of
+China), Tuowei Wang (Tsinghua), Minxing Huang (Tsinghua), Huiqiang Jiang
+(Microsoft Research), Shiqi Jiang (Microsoft Research), Ting Cao (Institute
+for AI Industry Research (AIR), Tsinghua University), Ju Ren (Tsinghua).
+Licensed CC BY 4.0 — redistribution with attribution is explicitly permitted.
 
-This is the paper behind `haozixu/llama.cpp-npu` (forked into this session as
-`c10vis-poem/llama.cpp-npu`). It was never attached to this repo directly —
-only cited in that fork's README bibtex. If you're looking for "the canonical
-research doc," this is it. No PDF or paper file lives in this repo; only the
-citation does, here and in the fork's README.
+**Full PDF now stored in this repo**: `wiki/papers/2509.23324-scaling-llm-test-time-compute-mobile-npu.pdf`
+(uploaded by the operator 2026-07-04, added this session). This is the paper
+behind `haozixu/llama.cpp-npu` (forked into this session as
+`c10vis-poem/llama.cpp-npu`) — it was cited in that fork's README bibtex but
+never attached anywhere until now. This is "the canonical research doc" the
+operator remembered.
+
+### What it actually says
+
+**Core idea**: mobile NPUs (Qualcomm Hexagon in particular) have a matrix
+unit (HMX) that sits mostly idle during normal LLM decoding, because
+autoregressive generation degenerates GEMM into GEMV (batch size 1) — the
+32×32-tile matrix unit is wasted on 1-row inputs. The paper's proposal:
+spend that idle matrix-unit capacity on **test-time scaling** (Best-of-N,
+beam search — running several candidate generations in parallel, batch >1,
+then picking the best) instead of leaving it idle. Result: a small on-device
+model with test-time scaling can match or beat a larger model run without
+scaling, at comparable or lower latency.
+
+**Two technical contributions that solve real Hexagon HTP hardware gaps**:
+1. **Hardware-aware tile quantization** — HMX's native tile is 32×32 FP16
+   (2048 bytes), permuted so every two rows share the transposed 2×32
+   sub-matrix layout. Conventional group quantization (contiguous column-major
+   groups of 32) is misaligned with this tile layout, forcing scattered
+   memory access. Their fix: quantize in the matrix unit's native tile
+   order (2×16 sub-tiles), then coalesce 8 quantization groups into one
+   256-element super-group so a single HVX vector register (128 bytes) loads
+   a full group instead of needing scatter/gather across multiple registers.
+2. **LUT-based Softmax and dequantization** — Hexagon's vector unit (HVX)
+   has no dedicated transcendental math hardware, so `exp()` in Softmax is
+   the actual latency bottleneck in Attention (up to 84.6% of FlashAttention
+   latency at batch=32, per their Figure 8) — not the matmuls. They replace
+   `exp()` and INT4→FP16 dequantization with `vlut16` table-lookup
+   instructions using a 64 KiB precomputed table (safe-softmax trick: only
+   non-positive inputs to `exp` need to be tabulated, ±1 sign-bit trick to
+   fit 32768 entries in 64 KiB instead of the full 65536).
+
+**Measured results** (Table 2, Figure 15, Figure 14): FP16 HMX matmul is
+~365× the throughput of a single HVX vector thread (12032 GFLOPS vs 32.93
+GFLOPS) — confirms the matrix unit really is the underutilized resource.
+Their tile-quantization + LUT approach: up to **19.0× speedup on
+mixed-precision GEMM** and **2.2× on Softmax** vs. baseline dequantization.
+Accuracy cost of their tile-quantization layout vs. conventional grouping is
+small (Table 4: WinoGrande/MMLU/Wiki-PPL all within ~1% of each other).
+
+**Hardware note directly relevant to this repo (Table 3)** — their three
+test devices and confirmed Hexagon arch versions:
+| Device | SoC | NPU Arch |
+|---|---|---|
+| OnePlus Ace3 | Snapdragon 8 Gen 2 | V73 |
+| OnePlus 12 | Snapdragon 8 Gen 3 | V75 |
+| OnePlus Ace5 Pro | Snapdragon 8 Elite | **V79** |
+
+This is a fourth independent source (paper Table 3) confirming the
+SM8750/Snapdragon-8-Elite = V79 fix already applied to this repo's docs —
+matches ExecuTorch's `get_soc_to_htp_arch_map()`, `EdgeAIApp-ExecuTorch`'s
+README, and `snapdragon-npu-llm`'s device matrix, all independently.
+
+**Real constraint also confirmed here** (§7.2.2): the Hexagon NPU has only a
+**32-bit virtual address space**, which is why they "conservatively place
+the weights of `lm_head`... on the CPU instead of the NPU" — the vocabulary
+projection matrix is too large to fit in the NPU's addressable space
+alongside everything else. At batch size 16, CPU-side logits computation
+was ≥50% of total decode time in their measurements. This is the same
+32-bit-cDSP constraint `llama.cpp-npu`'s own README calls out as the reason
+their single-NPU-session design caps out below ~4B params — directly
+relevant if Job 8's QAI Hub compile for the 9B model hits address-space
+errors at the QNN compile stage (as opposed to the ONNX-export-stage
+`grid_thw` bug already diagnosed and fixed this session).
+
+**Practical takeaway for this project**: this paper is about a different
+technique (test-time scaling to use idle matmul capacity) than what
+`compile_qwen3_5_9b.py` is doing (single-pass W4A16 inference via QAI Hub) —
+it's not a drop-in replacement for the compile pipeline. But its LUT-based
+Softmax/dequantization technique and its documented 32-bit address-space
+constraint are both directly actionable: the address-space ceiling is a
+real risk for a 9B model on the same hardware family, and worth checking
+against QAI Hub's actual compile logs if/when Job 8 fails at the QNN
+compile stage rather than ONNX export.
 
 ---
 
