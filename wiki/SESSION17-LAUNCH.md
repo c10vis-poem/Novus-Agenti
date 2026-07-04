@@ -109,3 +109,4 @@ On this branch, implement the GGUF/llama-server runtime family:
 - PASS = :clifford survives (old builds died at ~12s). FAIL = pull logcat,
   diagnose, iterate — foreground-first is in CliffordService.onCreate now.
 - Operator: "Next session we will just finish what you're doing."
+- If this container survives: check /tmp/claude-0/-home-user/284eb680-5036-587f-9167-80a4fe93b6f9/tasks/bo1uxl0rk.output — a background job may have already completed step 7 (install+75s watch+screenshot at scratchpad/horizons-final.png).
