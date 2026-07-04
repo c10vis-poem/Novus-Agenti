@@ -4,7 +4,7 @@
 >
 > ```
 > Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
-> → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
+> → Hexagon HTP v79 (SM8750) qnn_context_binary via QAI Hub.
 > Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS, TWO BRANCHES —
 > pick the one matching your actual task, don't assume there's only one:
 >   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
@@ -110,7 +110,7 @@ Do NOT commit to main. Do NOT push to any branch other than the one above.
 
 ## What This Is
 
-**Novus Agenti** — "the unprecedented driving force" — fully on-device agentic AI assistant for the Motorola Razr Ultra 2025 (Snapdragon 8 Elite SM8750, Adreno 830, Hexagon HTP v75). Inference runs on the NPU via a detached native daemon. No cloud LLM in the main app runtime. No CPU fallback.
+**Novus Agenti** — "the unprecedented driving force" — fully on-device agentic AI assistant for the Motorola Razr Ultra 2025 (Snapdragon 8 Elite SM8750, Adreno 830, Hexagon HTP v79). Inference runs on the NPU via a detached native daemon. No cloud LLM in the main app runtime. No CPU fallback.
 
 App package: `com.horizons`. Codebase: **Omni Claw** banner.
 
@@ -340,29 +340,66 @@ ExecuTorch / SNPE / TFLite / Jetson Tensor targets). Adding a new runtime is
 
 ## Android App / Battery Rules
 
-### NpuManager Performance Lock (PENDING — NOT YET WIRED)
-```kotlin
-val npuManager = getSystemService(NpuManager::class.java)
-val lock = npuManager.acquirePerformanceLock(NpuManager.PERF_MODE_HIGH)
-```
+### NpuManager Performance Lock — DONE
+Wired in `CliffordService.kt` (`acquireNpuPerfLock()` / `releaseNpuPerfLock()`),
+via reflection against the `@hide` `npu` system service (`PERF_MODE_HIGH`,
+`acquirePerformanceLock`), with a safe no-op fallback if unavailable on the
+device. Verified session 15 (2026-07-04) — this was stale as "PENDING" for
+at least one prior session; don't re-check it again without a reason.
 
-### Game SDK Performance Mode (PENDING — NOT YET WIRED)
-```kotlin
-GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
-```
+### Game SDK Performance Mode — DONE (different mechanism than originally planned)
+Not the flat `GameManager.setGameMode(GameMode.PERFORMANCE)` call originally
+sketched here. Instead, `core/perf/GameModeBoost.kt` uses ADPF's
+`GameState(false, GameState.MODE_GAMEPLAY_UNINTERRUPTIBLE)` scoped to
+inference hot-loops only (reentrant `enterHotLoop`/`exitHotLoop`, plus a
+`PerfHintSession` for per-thread scheduler hints) — more granular than an
+app-lifetime mode switch, per session 9's design note. Verified session 15.
 
-### Manifest (PENDING)
-```xml
-<uses-feature android:name="android.hardware.game" android:required="true" />
-<uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
-<service android:name=".CliffordService" android:foregroundServiceType="specialUse" />
-```
+### Manifest — DONE
+`android:name="android.hardware.game"` uses-feature and
+`android.permission.HIGH_PERFORMANCE` are both present in
+`horizons/src/main/AndroidManifest.xml`. Verified session 15.
 
-**Both NpuManager + GameManager are required together.** Game SDK boosts UI scheduler only; NpuManager lock is what gives the NPU daemon full performance.
+**Both NpuManager + GameModeBoost are wired and required together.**
+GameModeBoost boosts the scheduler only during active inference bursts;
+NpuManager lock is what gives the NPU daemon full performance.
 
 ---
 
-## State of the Union — 2026-07-04 (session 14)
+## State of the Union — 2026-07-04 (session 15)
+
+### Done — session 15
+- **External research sweep**: reviewed `off-grid-ai-mobile`, `llama.cpp-npu`,
+  `EdgeAIApp-ExecuTorch`, `mlc-llm`, `snapdragon-npu-llm` (cloned to
+  `/workspace/`), plus `qualcomm/GenieX` (web-fetch only). Full findings in
+  new file `wiki/RESEARCH-CROSSREF.md` — a durable, non-session-numbered doc
+  for tracking external research going forward. Identified the actual
+  arXiv paper behind this project's whole approach: arXiv:2509.23324
+  ("Scaling LLM Test-Time Compute with Mobile NPU on Smartphones," MSRA +
+  Tsinghua) — cited in the `llama.cpp-npu` fork, never previously attached
+  to this repo.
+- **Fixed SM8750 Hexagon HTP arch: v75 → v79** across this file,
+  `GPT-DAEMON-REFERENCE.md`, and `NPU-RUNTIME-PATHS.md`. Verified against
+  `pytorch/executorch`'s actual `get_soc_to_htp_arch_map()` source. Root
+  cause: a session-9 GPT-chat "correction" of an earlier wrong v68 claim
+  landed on v75 — itself wrong — and was never independently re-checked
+  before propagating into all three files. PR #11.
+- **Diagnosed and fixed the real Job 8 blocker**: not the exit-code-14
+  `quantize_io` issue assumed in the resume prompt, but a `grid_thw`
+  missing-argument error caused by a stale-script mid-fix commit, made
+  worse by raw.githubusercontent's branch-URL redirect caching silently
+  defeating a `?v=` cache-buster. Fixed by pinning the retrigger directly
+  to the commit SHA. New job `6a488c52d235f6e43ae5a5a3` — check outcome
+  next session before assuming either success or failure.
+- **Audited three "PENDING" Android app claims against actual source** —
+  found NpuManager Performance Lock, GameModeBoost (ADPF), and the Manifest
+  perms are all already done, just implemented differently than the
+  snippets this file had. Corrected in the Android App / Battery Rules
+  section above. This was stale for at least one prior session.
+- **Wrote `wiki/HORIZONS-APP-DEBUG-PLAN.md`** — pre-task plan for a
+  separate future session (operator's plan: run Fable 5 on it) to audit and
+  continue the Horizons app pathway, grounded in the verification above
+  rather than re-deriving it.
 
 ### Done — session 14
 - **PR #8 merged to `main`** (merge commit `6188398`) — all of session 12-13's
@@ -486,7 +523,7 @@ as fact that are actually false. Findings, ranked, and fixes applied:
    assuming either way)
 2. **`ort_engine` on-device verification** — the daemon builds and is
    packaged by CI; what's still open is verifying it actually loads and
-   serves a real compiled model on a physical Hexagon HTP v75 device,
+   serves a real compiled model on a physical Hexagon HTP v79 device,
    which needs Job 8's output first.
 3. **NpuManager lock** — wire into `CliffordService.kt`
 4. **GameManager** — wire into `HorizonsApplication.kt`
@@ -562,9 +599,11 @@ scripts/compile_qwen3_5_9b.py   PRIMARY
 wiki/
   GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
   NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
+  RESEARCH-CROSSREF.md            durable external-research tracker (not session-numbered)
+  HORIZONS-APP-DEBUG-PLAN.md      pre-task plan for the app-track pathway (session 15)
   FEATURE-SPEC.md                 UI tile spec
   FAILURE_LOG.md                  append-only strike/failure ledger
-  SESSION{5,6,8,9,10,11,12,13}-HANDOFF.md
+  SESSION{5,6,8,9,10,11,12,13,14,15}-HANDOFF.md
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
   core/llm/NpuClient.kt
@@ -618,7 +657,7 @@ assuming it needs work.
 
 ## Termux / Mobile Rules
 
-**Device:** Motorola Razr Ultra 2025 · SM8750 · 16GB · Hexagon HTP v75. **Phone only. No laptop.**
+**Device:** Motorola Razr Ultra 2025 · SM8750 · 16GB · Hexagon HTP v79. **Phone only. No laptop.**
 
 - No tokens or long URLs in paste-able commands
 - Shell variables: short alias then `$VAR`

@@ -1,6 +1,10 @@
 # GPT Daemon & Architecture Reference (Distilled)
 
-> **Source:** GPT-generated guides posted session 9 (2026-06-28).
+> **Source:** GPT-generated guides posted session 9 (2026-06-28). This is a
+> distillation of chat transcripts, not a research paper — there is no PDF,
+> arXiv citation, or external research doc behind this file. If you're
+> looking for the actual paper behind the Hexagon-NPU-for-LLMs approach, see
+> `wiki/RESEARCH-CROSSREF.md` (arXiv:2509.23324).
 > **Status:** Distilled — wrong specifics stripped, useful patterns kept.
 > Raw material was ~15K words across 5 documents covering compile pipeline,
 > daemon architecture, NPU governance, sampling, Game SDK, and deployment.
@@ -14,7 +18,7 @@
 | `transformers==4.40.2` | Qwen3.5 requires transformers 5.x+ |
 | `optimum-cli --rope-fuse` | No Qwen3.5 export config in optimum; our manual M-RoPE fold is required |
 | Output `.hex` / `.qpc` | QAI Hub produces `qnn_context_binary` (.bin) |
-| Hexagon v68 | SM8750 = Hexagon HTP v75 |
+| Hexagon v68, then v75 | SM8750 = Hexagon HTP v79 (confirmed against ExecuTorch's `get_soc_to_htp_arch_map()`: SM8650=v75/8 Gen 3, SM8750=v79/8 Elite, SM8850=v81/8 Elite Gen 5 — the v75 "correction" this session made was itself wrong) |
 | SNPE SDK / `snpe-profiler` | We use QNN EP (ORT or Genie SDK), not SNPE |
 | System UID daemon (`init.rc`, `android.uid.system`) | Requires root/custom ROM; we have neither |
 | `/dev/adsprpc` direct access | Requires root |

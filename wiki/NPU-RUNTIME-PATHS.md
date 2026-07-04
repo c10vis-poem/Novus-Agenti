@@ -1,7 +1,7 @@
 # NPU Runtime Paths — Novus Agenti / Omni Claw
 
 > Canonical reference for every path from source model → running on Hexagon
-> HTP v75 (SM8750), the Qualcomm SDK distribution model, and the Qualcomm
+> HTP v79 (SM8750), the Qualcomm SDK distribution model, and the Qualcomm
 > documentation glossary. Supersedes any prior "GPT-OSS-Reference" pointer —
 > that filename never existed in this repo; see `GPT-DAEMON-REFERENCE.md`
 > for the distilled daemon/architecture notes instead.
@@ -18,7 +18,7 @@
 |---|---|
 | Device | Motorola Razr Ultra 2025 |
 | SoC | Snapdragon 8 Elite (SM8750) |
-| NPU | Hexagon HTP v75 |
+| NPU | Hexagon HTP v79 |
 | RAM | 16 GB LPDDR5X |
 | Android | 15 (API 35) |
 
@@ -72,7 +72,7 @@ launches whatever binary is installed in `filesDir`.
 ```
 HF model → ONNX export (RoPE fold, static shapes) → QAI Hub compile
   (server-side, W4A16) → .bin (qnn_context_binary) → ort_engine daemon
-  (ORT + QNN EP) → Hexagon HTP v75
+  (ORT + QNN EP) → Hexagon HTP v79
 ```
 
 No local/CI SDK needed for the compile step — QAI Hub does it. `ort_engine`
@@ -106,6 +106,25 @@ SNPE SDK — same host-only distribution caveat as above.
 
 Meta's ExecuTorch with a QNN delegate. Actively changing API upstream.
 
+### Path 7: GenieX (`qualcomm/GenieX`) — evaluated, not built
+
+Qualcomm's own community on-device GenAI runtime. Dual backend (llama.cpp
+for broad compatibility, QNN/AI Engine Direct for max NPU perf), takes GGUF
+from HF or QAI Hub bundles. Ships C SDK, Python
+(`AutoModelForCausalLM`-style), Kotlin/Android SDK + demo app, CLI, and an
+OpenAI-compatible server — closer to turnkey than our current raw QAI Hub
+Python SDK script. See `wiki/RESEARCH-CROSSREF.md` for full notes; worth
+revisiting as a replacement for `ort_engine` if the QAI Hub compile pipeline
+keeps stalling.
+
+**Cross-referenced external research**: see `wiki/RESEARCH-CROSSREF.md` for
+the full evaluation of `llama.cpp-npu` (incl. the actual arXiv paper behind
+this whole approach and its documented 32-bit-cDSP addressing constraint),
+`EdgeAIApp-ExecuTorch` (tokenizer bug lesson), `mlc-llm` (Adreno GPU
+fallback, not Hexagon), and `snapdragon-npu-llm` (flagged for
+agent-directed content in its docs — read the caveat before trusting its
+specific benchmark numbers).
+
 ---
 
 ## Size Envelope
@@ -126,7 +145,7 @@ Meta's ExecuTorch with a QNN delegate. Actively changing API upstream.
 |---|---|
 | QNN Context Binary | Pre-compiled model graph for a specific HTP version. Fastest load, no runtime compile. |
 | QNN Execution Provider | ONNX Runtime backend routing ops to QNN/HTP. Supports pre-compiled binaries or runtime ONNX compile. |
-| HTP | Hexagon Tensor Processor — the ML accelerator cores in the Hexagon DSP. v75 in SM8750. |
+| HTP | Hexagon Tensor Processor — the ML accelerator cores in the Hexagon DSP. v79 in SM8750 (Snapdragon 8 Elite). |
 | VTCM | Vector Tightly Coupled Memory — on-chip scratch SRAM. `--scratch_size_mib` controls allocation. |
 | W4A16 | Weight 4-bit int, activation 16-bit float. Primary LLM quantization for HTP. |
 | Partition Override | JSON forcing specific ops to CPU/GPU when HTP lacks a kernel (e.g. FP16 Softmax). |
