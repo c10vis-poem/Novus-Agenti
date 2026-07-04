@@ -48,17 +48,40 @@
 >    builds are separate ExternalProject_Add targets with no dependency
 >    edge into llama-server — only ride the default "all" target, which
 >    the recovered build-llama-server.yml (from stale PR #5) never built.
-> 5. Fixed in .github/workflows/build-llama-server.yml across two real
->    CI iterations (each diagnosed from actual failed-job logs):
->    a. Added htp-v73/v75/v79/v81 explicitly to the --target list —
->       confirmed via log: all four skels built AND installed.
->    b. Unrelated bug surfaced right after: cmake --install walks the
->       whole build tree including llama.cpp's own unbuilt test
->       binaries. Fixed with -DLLAMA_TESTS_INSTALL=OFF.
->    Latest push: commit ffa36db. CHECK THIS RUN FIRST — may have
->    already succeeded, or hit a third distinct issue. If still
->    failing: pull real failed-job logs, diagnose the actual line, fix,
->    push. Do not re-guess causes already ruled out above.
+> 5. Fixed in .github/workflows/build-llama-server.yml across FOUR real
+>    CI iterations (each diagnosed from actual failed-job logs — do not
+>    repeat any of these, all confirmed dead ends or confirmed fixes):
+>    a. [run #5, a7a2c9a] First cut never ran `cmake --install` at all —
+>       skels never collected. FAILED (expected — this is what exposed
+>       the bug in the first place).
+>    b. [run #6, 466dccc] Added htp-v73/v75/v79/v81 explicitly to the
+>       --target list (they're separate ExternalProject_Add targets
+>       with no dependency edge into llama-server, so they were silently
+>       skipped). This part WORKED — log confirmed all four skels built
+>       AND installed. But cmake --install then failed on an UNRELATED
+>       bug: it walks install() rules for the WHOLE llama.cpp tree, and
+>       died on llama.cpp's own unbuilt test-tokenizer-0.
+>    c. [run #7, ffa36db] Tried -DLLAMA_TESTS_INSTALL=OFF to fix (b).
+>       That specific error was gone, but cmake --install hit YET
+>       ANOTHER unbuilt-target install() rule elsewhere in the tree
+>       (examples/batched/llama-batched this time). CONCLUSION: patching
+>       cmake --install one broken subdirectory at a time is a dead end
+>       — llama.cpp has many example/tool subdirs each with their own
+>       install() rule, disabling them one CMake option at a time doesn't
+>       scale. DO NOT go back to using cmake --install for this workflow.
+>    d. [run #8, 6d8cc0f — CURRENT APPROACH] Dropped cmake --install
+>       entirely. Every file actually needed has a fixed, confirmed path
+>       straight out of `cmake --build` (observed directly in 3 separate
+>       CI logs): bin/{llama-server,llama-quantize,llama-cli,*.so} and
+>       ggml/src/ggml-hexagon/libggml-htp-{v73,v75,v79,v81}.so (each
+>       skel's own ExternalProject install step drops it there
+>       automatically as part of the build itself — that part was never
+>       broken). Stage artifacts by cp-ing directly from these paths.
+>    CHECK RUN #8 (commit 6d8cc0f) FIRST — status as of this write-up
+>    was still in_progress. If it also failed, it is a NEW, fifth issue
+>    (the cmake --install family of bugs is fully ruled out by (d)'s
+>    design) — pull real failed-job logs, diagnose the actual new line,
+>    don't assume it's a repeat of (a)-(c).
 > 6. Toolchain fact, don't re-derive: ghcr.io/snapdragon-toolchain/
 >    arm64-android:v0.7 is confirmed the latest available tag (checked
 >    v0.1-v0.7 via GHCR's anonymous token endpoint) and anonymously
