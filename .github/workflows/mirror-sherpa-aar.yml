@@ -10,6 +10,9 @@ name: Mirror sherpa-onnx AAR
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/mirror-sherpa-aar.yml"
 
 permissions:
   contents: write
