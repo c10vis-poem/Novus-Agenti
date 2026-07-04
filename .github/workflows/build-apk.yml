@@ -36,13 +36,18 @@ jobs:
       - name: Generate gradle wrapper
         run: gradle wrapper --gradle-version 8.10.2 --distribution-type bin
 
-      - name: Download sherpa-onnx AAR
+      - name: Verify sherpa-onnx AAR
         run: |
-          mkdir -p horizons/libs
-          curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar \
-          || curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
-            https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-1.13.2.aar
+          if [ -f horizons/libs/sherpa-onnx-1.13.2.aar ]; then
+            echo "AAR committed in repo — skipping download"
+          else
+            echo "AAR missing — downloading"
+            mkdir -p horizons/libs
+            curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
+              https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar \
+            || curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
+              https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-1.13.2.aar
+          fi
           unzip -l horizons/libs/sherpa-onnx-1.13.2.aar | grep -q classes.jar
 
       - name: Cache NDK + ORT
