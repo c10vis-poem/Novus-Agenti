@@ -362,7 +362,49 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ---
 
-## State of the Union — 2026-07-03 (session 13, branch `horizons-closeout-hf-review-ycjkm3`)
+## State of the Union — 2026-07-04 (session 14)
+
+### Done — session 14
+- **PR #8 merged to `main`** (merge commit `6188398`) — all of session 12-13's
+  work (crash fixes, UI/perf metrics, security cleanup, full doc audit,
+  priority tree) is now on `main`, not just a feature branch.
+- **Fixed the actual reason the SessionStart hook kept not-committing**:
+  `.claude/` was entirely gitignored. Carved out `.claude/hooks/` and
+  `.claude/settings.json`; both are now really tracked on `main`
+  (verified directly via `git ls-tree origin/main`).
+- **`c10vis-poem/openwiki` fork**: merged a real feature to its `main`
+  (`openwiki/SKILL.md` project-customization convention, "memory as a
+  skill"), and started an `--audit` mode branch with an explicit
+  guardrail against a real failure mode: a doc/code mismatch is NOT
+  automatically "stale" — it's often a parallel session's newer,
+  unseen work. Audit reports chronological evidence, never auto-deletes.
+- **Three pathways identified for this project going forward** (see
+  below) — the next session should orient around these, not just the
+  flat Pending list.
+
+### Three Pathways — orient here first, every session
+
+1. **Compile pipeline (Qwen3.5-9B → Hexagon HTP)** — branch
+   `claude/project-scope-review-lf615p`, PR #4. Has its own clean merge
+   point and handoff already. Job 8 is the live blocker — check status
+   before assuming it's untriggered.
+2. **OpenWiki dual-role** — `c10vis-poem/openwiki` (separate repo). Two
+   jobs here, not one: (a) build out OpenWiki itself (audit mode next,
+   see `AUDIT_MODE_TODO.md` on branch `claude/audit-mode`), AND (b) **run
+   OpenWiki against Novus-Agenti's own docs** — the operator's explicit
+   observation this session: the discipline we've been hand-applying to
+   CLAUDE.md/wiki/ all session (quickstart entrypoint, section pages,
+   stale-claim detection, a SKILL.md-style memory layer) IS what OpenWiki
+   is built to automate. Whoever works this pathway is coordinating BOTH:
+   don't just develop the CLI, start actually using it here too.
+3. **Horizons Android app** — **most stale pathway.** The app should
+   already be a working assistant right now. Sessions have been
+   "shooting from the hip" — making changes without grounding them in
+   documented state, attached repos, or verified current progress. The
+   next session on this pathway's explicit mandate: **audit first, off
+   real sources** — this file, the wiki, the actual repo state, actual
+   CI results — not assumption or improvisation. No new feature work
+   until an honest audit confirms what's actually true.
 
 ### Done — session 12 (2026-07-02)
 - App-side crash fixes: multi-process crash loop, ChatHistoryStore, Monitor
