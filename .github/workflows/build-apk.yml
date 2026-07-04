@@ -36,11 +36,19 @@ jobs:
       - name: Generate gradle wrapper
         run: gradle wrapper --gradle-version 8.10.2 --distribution-type bin
 
-      - name: Download sherpa-onnx AAR
+      - name: Verify sherpa-onnx AAR
         run: |
-          mkdir -p horizons/libs
-          curl -fL -o horizons/libs/sherpa-onnx-1.13.2.aar \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar
+          if [ -f horizons/libs/sherpa-onnx-1.13.2.aar ]; then
+            echo "AAR committed in repo — skipping download"
+          else
+            echo "AAR missing — downloading"
+            mkdir -p horizons/libs
+            curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
+              https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar \
+            || curl -fL --retry 3 -o horizons/libs/sherpa-onnx-1.13.2.aar \
+              https://huggingface.co/csukuangfj2/sherpa-onnx-libs/resolve/main/android/aar/sherpa-onnx-1.13.2.aar
+          fi
+          unzip -l horizons/libs/sherpa-onnx-1.13.2.aar | grep -q classes.jar
 
       - name: Cache NDK + ORT
         uses: actions/cache@v4
@@ -82,6 +90,14 @@ jobs:
           cmake --build daemon/build --config Release -j$(nproc)
           file daemon/build/ort_engine
 
+      - name: Package daemon into APK native libs
+        # Ships ort_engine INSIDE the APK as a fake .so. useLegacyPackaging=true
+        # extracts it to nativeLibraryDir at install — the only exec()-allowed
+        # location for targetSdk 29+. No more manual adb push of daemon binaries.
+        run: |
+          mkdir -p horizons/src/main/jniLibs/arm64-v8a
+          cp daemon/build/ort_engine horizons/src/main/jniLibs/arm64-v8a/libort_engine.so
+
       - name: Build Horizons debug APK
         run: ./gradlew :horizons:assembleDebug -PnexaEnabled=false --no-daemon --stacktrace
 
@@ -107,7 +123,9 @@ jobs:
           name: latest-debug (auto)
           body: |
             Auto-built from ${{ github.sha }} on ${{ github.ref_name }}.
-            ort_engine + libonnxruntime.so go to /data/local/tmp/ on device.
+            horizons.apk is self-contained: ort_engine + libonnxruntime.so ride
+            inside it and install automatically — no manual push needed.
+            (Standalone ort_engine/libonnxruntime.so files kept for Termux workflows.)
           files: |
             out/horizons.apk
             out/ort_engine

@@ -32,16 +32,18 @@ secrets.properties
 *.nexa
 *.gguf
 
-# Local-only AAR drops (sherpa-onnx etc.) — greenfield drops sherpa; if a
-# local build still pulls in an AAR, keep it out of the tree.
-horizons/libs/
+# Local-only AAR drops — large native libs stay in the repo so builds
+# have zero external download dependencies.
+# horizons/libs/  ← UN-IGNORED: sherpa-onnx-1.13.2.aar is committed
 
 # OS
 .DS_Store
 Thumbs.db
 
-# sherpa-onnx AAR — fetched by the downloadSherpaAar gradle task, never committed
-horizons/libs/
+# sherpa-onnx AAR — now committed directly (35 MB, arm64-v8a only)
+
+# CI-generated: daemon binary copied into jniLibs by build-apk.yml, never committed
+horizons/src/main/jniLibs/
 
 # Logs / build artifacts
 *.log
