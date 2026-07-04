@@ -27,57 +27,41 @@ jobs:
         working-directory: /workspace/llama.cpp
         run: |
           cp docs/backend/snapdragon/CMakeUserPresets.json .
-          # LLAMA_TESTS_INSTALL defaults ON and generates an install() rule for
-          # llama.cpp's own test binaries regardless of whether they were
-          # actually built — we only build llama-server/-cli/-quantize + the
-          # htp skels, so `cmake --install` (needed to collect the skels) would
-          # otherwise die on a missing test-tokenizer-0 that was never compiled.
-          cmake --preset arm64-android-snapdragon-release -B build-snapdragon -DLLAMA_TESTS_INSTALL=OFF
+          cmake --preset arm64-android-snapdragon-release -B build-snapdragon
           # htp-v{73,75,79,81} are separate ExternalProject_Add targets (the DSP
           # skels) with no dependency edge from llama-server/ggml-hexagon — they
-          # only ride along on the default "all" target. Naming them explicitly
-          # is what actually triggers their build; omitting them (as the first
-          # cut of this workflow did) builds llama-server fine but leaves
-          # `cmake --install`'s install(FILES ${HTP_SKELS}) rule pointing at
-          # files that were never produced, failing install with "file INSTALL
-          # cannot find ... libggml-htp-v73.so".
+          # only ride along on the default "all" target, so they must be named
+          # explicitly or they're silently skipped. Each one's own internal
+          # install step (part of its ExternalProject build, not our concern)
+          # already drops its .so at ggml/src/ggml-hexagon/libggml-htp-<v>.so —
+          # confirmed directly in CI logs, no further action needed to collect it.
           cmake --build build-snapdragon -j$(nproc) --target llama-server llama-quantize llama-cli htp-v73 htp-v75 htp-v79 htp-v81
 
-      - name: Install (collects the Hexagon DSP skels)
-        # ggml/src/ggml-hexagon/CMakeLists.txt builds libggml-htp-v{73,75,79,81}.so
-        # as an ExternalProject side-build that lands inside the build tree
-        # (ggml/src/ggml-hexagon/) — NOT under build-snapdragon/bin or /lib. Only
-        # `cmake --install` triggers CMakeLists.txt's own
-        # `install(FILES ${HTP_SKELS} TYPE LIB)` rule that collects them. The
-        # first cut of this workflow skipped this step, which is why every prior
-        # publish had the ARM-side libggml-hexagon.so but no DSP-side skel — NPU
-        # offload was silently dead, decode fell back to CPU.
-        working-directory: /workspace/llama.cpp
-        run: |
-          cmake --install build-snapdragon --prefix install-snapdragon
-          echo "--- installed lib/ ---"
-          ls -la install-snapdragon/lib/
-          echo "--- installed bin/ ---"
-          ls -la install-snapdragon/bin/
-
       - name: Verify binaries and skels
+        # Deliberately NOT running `cmake --install`. It walks install() rules
+        # for the ENTIRE llama.cpp tree, not just what we built — it died twice
+        # in a row on unrelated, unbuilt targets (test-tokenizer-0, then
+        # llama-batched) with more such subdirectories almost certainly still
+        # lurking. Every path referenced below has been directly confirmed to
+        # exist post-`cmake --build` across three separate CI runs; copying
+        # straight from them sidesteps the whole install-rule minefield.
         working-directory: /workspace/llama.cpp
         run: |
-          ls -la install-snapdragon/bin/llama-server
-          ls -la install-snapdragon/bin/llama-quantize
-          ls -la install-snapdragon/bin/llama-cli
+          ls -la build-snapdragon/bin/llama-server
+          ls -la build-snapdragon/bin/llama-quantize
+          ls -la build-snapdragon/bin/llama-cli
           for v in v73 v75 v79 v81; do
-            f="install-snapdragon/lib/libggml-htp-${v}.so"
+            f="build-snapdragon/ggml/src/ggml-hexagon/libggml-htp-${v}.so"
             if [ ! -f "$f" ]; then echo "MISSING: $f"; exit 1; fi
           done
 
       - name: Stage artifacts
         run: |
           mkdir -p $GITHUB_WORKSPACE/out
-          cp /workspace/llama.cpp/install-snapdragon/bin/llama-server $GITHUB_WORKSPACE/out/
-          cp /workspace/llama.cpp/install-snapdragon/bin/llama-quantize $GITHUB_WORKSPACE/out/
-          cp /workspace/llama.cpp/install-snapdragon/bin/llama-cli $GITHUB_WORKSPACE/out/
-          cp /workspace/llama.cpp/install-snapdragon/lib/*.so $GITHUB_WORKSPACE/out/
+          cd /workspace/llama.cpp/build-snapdragon
+          cp bin/llama-server bin/llama-quantize bin/llama-cli $GITHUB_WORKSPACE/out/
+          cp bin/*.so $GITHUB_WORKSPACE/out/
+          cp ggml/src/ggml-hexagon/libggml-htp-v*.so $GITHUB_WORKSPACE/out/
           ls -la $GITHUB_WORKSPACE/out/
 
       - name: Upload artifacts (Actions tab)
