@@ -4,8 +4,13 @@ build/
 */build/
 !gradle/wrapper/gradle-wrapper.jar
 
-# Claude Code session state (agent worktrees, local settings)
-.claude/
+# Claude Code session state (agent worktrees, local settings) — but
+# hooks/settings ARE meant to be committed and shared across sessions,
+# so carve those out explicitly.
+.claude/*
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/settings.json
 
 # Android Studio / IntelliJ
 .idea/
