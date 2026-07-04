@@ -1,30 +1,89 @@
 # CLAUDE.md — Novus Agenti / Omni Claw
 
 > **RESUME PROMPT — COPY THIS BLOCK VERBATIM TO START ANY NEW SESSION**
+> **(supersedes any older resume prompt in git history — architecture pivoted)**
 >
 > ```
-> Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
-> → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
-> Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS, TWO BRANCHES —
-> pick the one matching your actual task, don't assume there's only one:
->   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
->     claude/project-scope-review-lf615p, PR #4
->   - APP track (Android app, daemon, UI): branch
->     claude/horizons-closeout-hf-review-ycjkm3, PR #8 — most recent work
->     (sessions 9-12) happened here
+> Project: Novus Agenti (Omni Claw) — Horizons Android app.
+> Canonical repo: c10vis-poem/Novus-Agenti.
+> ACTIVE BRANCH: claude/novus-agenti-setup-rr8jvz, PR #13 (draft, open).
+> This branch already has PR #12's commits merged in — PR #12
+> (branch claude/horizons-ui-apk-0i0adk) is SUPERSEDED, not a separate
+> track. Close it once #13 is confirmed stable; don't work on it.
 >
-> READ THESE IN ORDER BEFORE ANY ACTION:
->   1. CLAUDE.md (full read, all sections)
->   2. wiki/GPT-DAEMON-REFERENCE.md (full read)
->   3. wiki/NPU-RUNTIME-PATHS.md (full read)
->   4. wiki/SESSION{N}-HANDOFF.md (latest N)
->   5. models/manifest.yaml
->   6. scripts/compile_qwen3_5_9b.py
+> DO NOT touch the compile track (Job 8 / QAI Hub / ONNX / qnn_context_binary).
+> Explicitly out of scope — operator's own words: "not even sure we need
+> the decompile layer" now that the GGUF path works. Side deal only.
 >
-> Use /memory slash command to reload full project context.
-> After reading: state current SOTU, last job result, next action. Then wait.
-> HF_TOKEN / QAI_HUB_API_TOKEN come from the environment config (§Tokens
-> below) — already exported, no manual step needed. Never hardcode them.
+> CURRENT ARCHITECTURE (decided and largely built this session):
+> Model = GGUF (operator has Qwen3.5-9B Q4_0, ~5.7GB, ALREADY ON PHONE).
+> Runtime = llama-server + ggml-hexagon hybrid CPU/NPU scheduler.
+> NDEV=2 splits the model across 2 HTP sessions (~2.85GB each, under the
+> 4GB/session 32-bit cDSP ceiling) — viable on paper, first real run is
+> the actual experiment. Flash attention (-fa) and -c 4096 already wired.
+>
+> DONE, verified not assumed:
+> 1. Fixed the real on-device crash (app died in ~1s): :clifford process
+>    raced the main process to open EncryptedSharedPreferences/Keystore —
+>    crash-looped the watchdog until the OS killed everything. Fixed:
+>    appState now lazy + main-process-only; AppStateStore degrades to
+>    in-memory instead of crashing on Keystore failure. VERIFIED on
+>    emulator: 75s stability test PASS, zero clifford kills (old builds
+>    died ~12s).
+> 2. Daemon made fully self-contained in the APK (both ort_engine AND
+>    llama-server): packaged as jniLibs/*.so, extracted to
+>    nativeLibraryDir at install — the ONLY exec()-allowed location on
+>    targetSdk 29+. The old "adb push to filesDir" deploy path was dead
+>    on arrival (SELinux blocks exec from app-writable storage). No more
+>    manual binary pushes for ANY runtime.
+> 3. Confirmed via binary inspection (strings on the actual June-30
+>    libllama.so) that qwen35/qwen35moe IS in the arch registry — no
+>    llama.cpp rebuild needed for model compat.
+> 4. THE ACTUAL BLOCKER, found and fixed live: the Hexagon DSP-side
+>    skels (libggml-htp-v79.so etc.) were NEVER published by any prior
+>    CI run. ARM-side libggml-hexagon.so existed since 2026-06-30 but
+>    NPU offload was silently dead — decode fell back to CPU with zero
+>    error surfaced. Root cause (read directly from
+>    ggml/src/ggml-hexagon/CMakeLists.txt upstream): the four skel
+>    builds are separate ExternalProject_Add targets with no dependency
+>    edge into llama-server — only ride the default "all" target, which
+>    the recovered build-llama-server.yml (from stale PR #5) never built.
+> 5. Fixed in .github/workflows/build-llama-server.yml across two real
+>    CI iterations (each diagnosed from actual failed-job logs):
+>    a. Added htp-v73/v75/v79/v81 explicitly to the --target list —
+>       confirmed via log: all four skels built AND installed.
+>    b. Unrelated bug surfaced right after: cmake --install walks the
+>       whole build tree including llama.cpp's own unbuilt test
+>       binaries. Fixed with -DLLAMA_TESTS_INSTALL=OFF.
+>    Latest push: commit ffa36db. CHECK THIS RUN FIRST — may have
+>    already succeeded, or hit a third distinct issue. If still
+>    failing: pull real failed-job logs, diagnose the actual line, fix,
+>    push. Do not re-guess causes already ruled out above.
+> 6. Toolchain fact, don't re-derive: ghcr.io/snapdragon-toolchain/
+>    arm64-android:v0.7 is confirmed the latest available tag (checked
+>    v0.1-v0.7 via GHCR's anonymous token endpoint) and anonymously
+>    pullable — no auth needed for GitHub's hosted runners.
+> 7. A Hexagon SDK zip was manually uploaded to a private HF repo
+>    (Mer0vin8ian/hexagon-sdk) as a backup — turned out UNNECESSARY, the
+>    toolchain Docker image already bundles the SDK. Keep as fallback
+>    only, not part of the working pipeline.
+>
+> ACCEPTANCE BAR for "the skel fix is done" — not just "CI is green":
+> curl the latest-debug release assets and confirm libggml-htp-v79.so
+> AND libggml-htp-v75.so are present with nonzero size. Only then tell
+> the operator to test on-device.
+>
+> ON-DEVICE NEXT STEPS once skels are confirmed live: reinstall
+> horizons.apk from latest-debug (self-contained, no manual pushes
+> needed) → grant All Files access → GGUF already in Download/ → open/
+> import libggml-htp-v79.so with Horizons (already in RUNTIME_FILES) so
+> DSP_LIBRARY_PATH finds it → relaunch chat → watch CLIFFORD
+> notification + tokens/sec.
+>
+> Older sections below (compile track, ort_engine-only architecture,
+> Job 8 trigger command) predate this pivot — historical record only,
+> do not treat as current instructions where they conflict with this
+> resume prompt.
 > ```
 
 ---
