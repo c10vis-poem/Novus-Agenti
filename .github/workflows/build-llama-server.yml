@@ -27,7 +27,12 @@ jobs:
         working-directory: /workspace/llama.cpp
         run: |
           cp docs/backend/snapdragon/CMakeUserPresets.json .
-          cmake --preset arm64-android-snapdragon-release -B build-snapdragon
+          # LLAMA_TESTS_INSTALL defaults ON and generates an install() rule for
+          # llama.cpp's own test binaries regardless of whether they were
+          # actually built — we only build llama-server/-cli/-quantize + the
+          # htp skels, so `cmake --install` (needed to collect the skels) would
+          # otherwise die on a missing test-tokenizer-0 that was never compiled.
+          cmake --preset arm64-android-snapdragon-release -B build-snapdragon -DLLAMA_TESTS_INSTALL=OFF
           # htp-v{73,75,79,81} are separate ExternalProject_Add targets (the DSP
           # skels) with no dependency edge from llama-server/ggml-hexagon — they
           # only ride along on the default "all" target. Naming them explicitly
