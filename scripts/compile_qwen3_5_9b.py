@@ -191,6 +191,7 @@ def write_partition_override(path):
 COMPILE_OPTIONS_BASE = " ".join([
     "--target_runtime qnn_context_binary",
     "--quantize_full_type w4a16",
+    "--quantize_io",
     "--quantize_weight_bits 4",
     "--disable_fusion",
     "--bias_as_int32",
