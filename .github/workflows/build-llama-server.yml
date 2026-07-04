@@ -1,0 +1,93 @@
+name: build-llama-server
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - '.github/workflows/build-llama-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/snapdragon-toolchain/arm64-android:v0.7
+
+    steps:
+      - name: Clone llama.cpp
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /workspace/llama.cpp
+
+      - name: Build llama-server (arm64-v8a, Hexagon NPU + OpenCL)
+        working-directory: /workspace/llama.cpp
+        run: |
+          cp docs/backend/snapdragon/CMakeUserPresets.json .
+          cmake --preset arm64-android-snapdragon-release -B build-snapdragon
+          cmake --build build-snapdragon -j$(nproc) --target llama-server llama-quantize llama-cli
+
+      - name: Install (collects the Hexagon DSP skels)
+        # ggml/src/ggml-hexagon/CMakeLists.txt builds libggml-htp-v{73,75,79,81}.so
+        # as an ExternalProject side-build that lands inside the build tree
+        # (ggml/src/ggml-hexagon/) — NOT under build-snapdragon/bin or /lib. Only
+        # `cmake --install` triggers CMakeLists.txt's own
+        # `install(FILES ${HTP_SKELS} TYPE LIB)` rule that collects them. The
+        # first cut of this workflow skipped this step, which is why every prior
+        # publish had the ARM-side libggml-hexagon.so but no DSP-side skel — NPU
+        # offload was silently dead, decode fell back to CPU.
+        working-directory: /workspace/llama.cpp
+        run: |
+          cmake --install build-snapdragon --prefix install-snapdragon
+          echo "--- installed lib/ ---"
+          ls -la install-snapdragon/lib/
+          echo "--- installed bin/ ---"
+          ls -la install-snapdragon/bin/
+
+      - name: Verify binaries and skels
+        working-directory: /workspace/llama.cpp
+        run: |
+          ls -la install-snapdragon/bin/llama-server
+          ls -la install-snapdragon/bin/llama-quantize
+          ls -la install-snapdragon/bin/llama-cli
+          for v in v73 v75 v79 v81; do
+            f="install-snapdragon/lib/libggml-htp-${v}.so"
+            if [ ! -f "$f" ]; then echo "MISSING: $f"; exit 1; fi
+          done
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/out
+          cp /workspace/llama.cpp/install-snapdragon/bin/llama-server $GITHUB_WORKSPACE/out/
+          cp /workspace/llama.cpp/install-snapdragon/bin/llama-quantize $GITHUB_WORKSPACE/out/
+          cp /workspace/llama.cpp/install-snapdragon/bin/llama-cli $GITHUB_WORKSPACE/out/
+          cp /workspace/llama.cpp/install-snapdragon/lib/*.so $GITHUB_WORKSPACE/out/
+          ls -la $GITHUB_WORKSPACE/out/
+
+      - name: Upload artifacts (Actions tab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-server-arm64
+          path: ${{ github.workspace }}/out/*
+          if-no-files-found: error
+
+      - name: Publish to latest-debug release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-debug
+          name: latest-debug (auto)
+          body: |
+            Auto-built from ${{ github.sha }} on ${{ github.ref_name }}.
+
+            Includes the Hexagon DSP-side skels (libggml-htp-v73/v75/v79/v81.so)
+            needed for actual NPU offload — the earlier publish was missing
+            these, so decode silently ran CPU-only.
+
+            Install: horizons.apk ships all of this already (packaged into
+            the APK's native libs by build-apk.yml). No manual push needed.
+          files: ${{ github.workspace }}/out/*
+          prerelease: true
+          make_latest: false
