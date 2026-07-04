@@ -4,7 +4,7 @@
 >
 > ```
 > Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
-> → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
+> → Hexagon HTP v79 (SM8750) qnn_context_binary via QAI Hub.
 > Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS, TWO BRANCHES —
 > pick the one matching your actual task, don't assume there's only one:
 >   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
@@ -110,7 +110,7 @@ Do NOT commit to main. Do NOT push to any branch other than the one above.
 
 ## What This Is
 
-**Novus Agenti** — "the unprecedented driving force" — fully on-device agentic AI assistant for the Motorola Razr Ultra 2025 (Snapdragon 8 Elite SM8750, Adreno 830, Hexagon HTP v75). Inference runs on the NPU via a detached native daemon. No cloud LLM in the main app runtime. No CPU fallback.
+**Novus Agenti** — "the unprecedented driving force" — fully on-device agentic AI assistant for the Motorola Razr Ultra 2025 (Snapdragon 8 Elite SM8750, Adreno 830, Hexagon HTP v79). Inference runs on the NPU via a detached native daemon. No cloud LLM in the main app runtime. No CPU fallback.
 
 App package: `com.horizons`. Codebase: **Omni Claw** banner.
 
@@ -486,7 +486,7 @@ as fact that are actually false. Findings, ranked, and fixes applied:
    assuming either way)
 2. **`ort_engine` on-device verification** — the daemon builds and is
    packaged by CI; what's still open is verifying it actually loads and
-   serves a real compiled model on a physical Hexagon HTP v75 device,
+   serves a real compiled model on a physical Hexagon HTP v79 device,
    which needs Job 8's output first.
 3. **NpuManager lock** — wire into `CliffordService.kt`
 4. **GameManager** — wire into `HorizonsApplication.kt`
@@ -618,7 +618,7 @@ assuming it needs work.
 
 ## Termux / Mobile Rules
 
-**Device:** Motorola Razr Ultra 2025 · SM8750 · 16GB · Hexagon HTP v75. **Phone only. No laptop.**
+**Device:** Motorola Razr Ultra 2025 · SM8750 · 16GB · Hexagon HTP v79. **Phone only. No laptop.**
 
 - No tokens or long URLs in paste-able commands
 - Shell variables: short alias then `$VAR`
