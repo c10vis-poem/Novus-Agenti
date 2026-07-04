@@ -106,6 +106,25 @@ SNPE SDK — same host-only distribution caveat as above.
 
 Meta's ExecuTorch with a QNN delegate. Actively changing API upstream.
 
+### Path 7: GenieX (`qualcomm/GenieX`) — evaluated, not built
+
+Qualcomm's own community on-device GenAI runtime. Dual backend (llama.cpp
+for broad compatibility, QNN/AI Engine Direct for max NPU perf), takes GGUF
+from HF or QAI Hub bundles. Ships C SDK, Python
+(`AutoModelForCausalLM`-style), Kotlin/Android SDK + demo app, CLI, and an
+OpenAI-compatible server — closer to turnkey than our current raw QAI Hub
+Python SDK script. See `wiki/RESEARCH-CROSSREF.md` for full notes; worth
+revisiting as a replacement for `ort_engine` if the QAI Hub compile pipeline
+keeps stalling.
+
+**Cross-referenced external research**: see `wiki/RESEARCH-CROSSREF.md` for
+the full evaluation of `llama.cpp-npu` (incl. the actual arXiv paper behind
+this whole approach and its documented 32-bit-cDSP addressing constraint),
+`EdgeAIApp-ExecuTorch` (tokenizer bug lesson), `mlc-llm` (Adreno GPU
+fallback, not Hexagon), and `snapdragon-npu-llm` (flagged for
+agent-directed content in its docs — read the caveat before trusting its
+specific benchmark numbers).
+
 ---
 
 ## Size Envelope

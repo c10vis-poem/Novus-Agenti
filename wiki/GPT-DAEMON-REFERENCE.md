@@ -1,6 +1,10 @@
 # GPT Daemon & Architecture Reference (Distilled)
 
-> **Source:** GPT-generated guides posted session 9 (2026-06-28).
+> **Source:** GPT-generated guides posted session 9 (2026-06-28). This is a
+> distillation of chat transcripts, not a research paper — there is no PDF,
+> arXiv citation, or external research doc behind this file. If you're
+> looking for the actual paper behind the Hexagon-NPU-for-LLMs approach, see
+> `wiki/RESEARCH-CROSSREF.md` (arXiv:2509.23324).
 > **Status:** Distilled — wrong specifics stripped, useful patterns kept.
 > Raw material was ~15K words across 5 documents covering compile pipeline,
 > daemon architecture, NPU governance, sampling, Game SDK, and deployment.
