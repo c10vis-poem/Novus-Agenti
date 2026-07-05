@@ -28,8 +28,12 @@ android {
         versionCode = 3
         versionName = "0.1.1-phase1"
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
-        // Razr Ultra is arm64-v8a only.
-        ndk { abiFilters += "arm64-v8a" }
+        // Razr Ultra is arm64-v8a only. Pass -PemuAbi=x86_64 for a local
+        // emulator smoke-test build (never ship that variant).
+        ndk {
+            abiFilters += "arm64-v8a"
+            (project.findProperty("emuAbi") as? String)?.let { abiFilters += it }
+        }
     }
 
     buildFeatures {
@@ -75,9 +79,11 @@ android {
             useLegacyPackaging = true
             excludes += setOf(
                 "lib/armeabi-v7a/**", "lib/armeabi/**",
-                "lib/x86/**", "lib/x86_64/**",
-                "lib/mips/**", "lib/mips64/**"
+                "lib/x86/**", "lib/mips/**", "lib/mips64/**"
             )
+            if (project.findProperty("emuAbi") != "x86_64") {
+                excludes += "lib/x86_64/**"
+            }
             // ORT ships its own .so; deduplicate if Nexa AAR also pulls it in.
             pickFirst("**/libonnxruntime.so")
             pickFirst("**/libonnxruntime4j_jni.so")

@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.util.Log
 import android.view.Gravity
@@ -31,18 +32,21 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Floating side dock — visible on every screen while the accessibility service is enabled.
+ * Floating assistant bubble — a single clean icon on every screen while the
+ * accessibility service is enabled. Collapsed by default; tap to reveal exactly
+ * two options, tap again (or pick one) to collapse.
  *
- *  🎙 Mic    — tap to record, tap again to stop; transcribes via Qwen3.5-9B.
- *              If a screenshot is pending, sends it as a vision Q&A; otherwise pastes
- *              the transcript into the focused text field or opens Chat.
- *  👁 Vision — captures the current screen → stores JPEG in app.pendingScreenJpeg.
- *  ⏹ Stop   — cancels in-flight inference and stops TTS mid-sentence.
+ *  Tap icon      — expand / collapse the two options.
+ *  🎙 Talk       — tap to record, tap again to stop; transcribes via Qwen3.5-9B.
+ *                  If a screenshot is pending, sends it as a vision Q&A; otherwise
+ *                  pastes the transcript into the focused field or opens Chat.
+ *  👁 Look        — captures the current screen → stores JPEG in app.pendingScreenJpeg.
+ *  Long-press icon — Stop: cancels in-flight inference and stops TTS mid-sentence.
  *
  * Gesture controls:
- *  • Drag       — move dock anywhere on screen; a red ✕ appears at the bottom.
- *  • Drop on ✕  — removes the dock for this session.
- *  • Pinch      — resize the dock (0.5× – 2.0×).
+ *  • Drag       — move the bubble anywhere; a red ✕ appears at the bottom.
+ *  • Drop on ✕  — removes the bubble for this session.
+ *  • Pinch      — resize (0.5× – 2.0×).
  *  • Double-tap — cycle transparency: 85% → 55% → 30% → 10% → 85%.
  */
 class HorizonsAccessibilityService : AccessibilityService() {
@@ -55,6 +59,12 @@ class HorizonsAccessibilityService : AccessibilityService() {
     private var dismissTarget: TextView? = null
     private lateinit var dockParams: WindowManager.LayoutParams
 
+    // Collapsed-icon / expand state
+    private var iconBtn: Button? = null
+    private var micBtn: Button? = null
+    private var eyeBtn: Button? = null
+    private var expanded = false
+
     private var focusedEditNode: AccessibilityNodeInfo? = null
     @Volatile private var isRecording = false
 
@@ -65,6 +75,7 @@ class HorizonsAccessibilityService : AccessibilityService() {
     private var touchStartRawY = 0f
     private var isDragging = false
     private var lastTapMs = 0L
+    private var pressStartMs = 0L
 
     // Appearance
     private var dockAlpha = 0.85f
@@ -105,20 +116,25 @@ class HorizonsAccessibilityService : AccessibilityService() {
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xCC0F172A.toInt())
+            gravity = Gravity.CENTER_HORIZONTAL
+            // No slab background — collapsed state is just the clean round icon.
             alpha = dockAlpha
-            setPadding(
-                (8 * dp).toInt(), (16 * dp).toInt(),
-                (8 * dp).toInt(), (16 * dp).toInt(),
-            )
         }
 
-        val micBtn  = dockBtn("🎙", dp) { handleMic() }
-        val eyeBtn  = dockBtn("👁", dp) { handleVision() }
-        val stopBtn = dockBtn("⏹", dp) { handleStop() }
-        layout.addView(micBtn)
-        layout.addView(eyeBtn)
-        layout.addView(stopBtn)
+        // Two options, hidden until the icon is tapped. Picking one collapses.
+        val mic = dockBtn("🎙", dp) { handleMic(); collapse() }
+        val eye = dockBtn("👁", dp) { handleVision(); collapse() }
+        mic.visibility = View.GONE
+        eye.visibility = View.GONE
+        val icon = iconButton(dp)
+
+        // Options stacked above the icon; the icon stays the anchor.
+        layout.addView(mic)
+        layout.addView(eye)
+        layout.addView(icon)
+        iconBtn = icon
+        micBtn = mic
+        eyeBtn = eye
 
         // Pinch-to-scale
         val scaleDetector = ScaleGestureDetector(this,
@@ -142,8 +158,9 @@ class HorizonsAccessibilityService : AccessibilityService() {
                     touchStartRawX  = event.rawX
                     touchStartRawY  = event.rawY
                     isDragging = false
+                    pressStartMs = System.currentTimeMillis()
                     // Double-tap → cycle transparency
-                    val now = System.currentTimeMillis()
+                    val now = pressStartMs
                     if (now - lastTapMs < 300L) cycleAlpha(layout)
                     lastTapMs = now
                     true
@@ -172,12 +189,17 @@ class HorizonsAccessibilityService : AccessibilityService() {
                         hideDismissTarget()
                         if (overX) { removeDock(); return@setOnTouchListener true }
                     } else {
-                        // Single tap — hit-test children and dispatch click
+                        // Tap — hit-test the visible children and dispatch.
+                        // A long-press on the icon means Stop.
+                        val longPress = System.currentTimeMillis() - pressStartMs > 500L
                         for (i in 0 until layout.childCount) {
                             val child = layout.getChildAt(i)
+                            if (child.visibility != View.VISIBLE) continue
                             if (event.x >= child.left && event.x <= child.right &&
                                 event.y >= child.top  && event.y <= child.bottom) {
-                                child.performClick(); break
+                                if (child === iconBtn && longPress) handleStop()
+                                else child.performClick()
+                                break
                             }
                         }
                     }
@@ -218,6 +240,35 @@ class HorizonsAccessibilityService : AccessibilityService() {
             ).apply { bottomMargin = (6 * dp).toInt() }
             setOnClickListener { onClick() }
         }
+
+    /** The collapsed floating icon: a clean teal circle that toggles the options. */
+    private fun iconButton(dp: Float): Button =
+        Button(this).apply {
+            text = "✦"
+            textSize = 20f
+            setTextColor(0xFF050709.toInt())
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0xFF2DD4D9.toInt())
+            }
+            val size = (52 * dp).toInt()
+            layoutParams = LinearLayout.LayoutParams(size, size)
+            setOnClickListener { toggleExpanded() }
+        }
+
+    private fun toggleExpanded() {
+        expanded = !expanded
+        val v = if (expanded) View.VISIBLE else View.GONE
+        micBtn?.visibility = v
+        eyeBtn?.visibility = v
+    }
+
+    private fun collapse() {
+        if (!expanded) return
+        expanded = false
+        micBtn?.visibility = View.GONE
+        eyeBtn?.visibility = View.GONE
+    }
 
     private fun cycleAlpha(view: View) {
         dockAlpha = when {
@@ -267,6 +318,10 @@ class HorizonsAccessibilityService : AccessibilityService() {
         hideDismissTarget()
         dockView?.let { runCatching { windowManager?.removeView(it) } }
         dockView = null
+        iconBtn = null
+        micBtn = null
+        eyeBtn = null
+        expanded = false
     }
 
     // ── Mic ───────────────────────────────────────────────────────────────────
