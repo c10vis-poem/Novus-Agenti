@@ -114,6 +114,11 @@ jobs:
           done
           # thin exe, renamed to match DaemonLauncher.PACKAGED_LLAMA_LIB
           curl -fL --retry 3 -o libllama_server.so "$base/llama-server"
+          # DSP-side skels: ggml-hexagon loads these via FastRPC — they're DATA
+          # read by the DSP driver, not exec'd, so nativeLibraryDir works fine.
+          for skel in libggml-htp-v79.so libggml-htp-v75.so; do
+            curl -fL --retry 3 -o "$skel" "$base/$skel"
+          done
           ls -la
 
       - name: Build Horizons debug APK

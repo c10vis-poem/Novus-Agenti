@@ -70,7 +70,7 @@ class DaemonLauncher(
             // llama-server's ggml-hexagon backend reads the NPU session count and
             // DSP skel search path from its environment (wiki/NPU-RUNTIME-PATHS.md Path 2).
             val envPrefix = if (binaryName == LLAMA_BINARY)
-                "GGML_HEXAGON_NDEV=2 DSP_LIBRARY_PATH=${context.filesDir.absolutePath} " else ""
+                "GGML_HEXAGON_NDEV=2 DSP_LIBRARY_PATH=${context.applicationInfo.nativeLibraryDir}:${context.filesDir.absolutePath} " else ""
             val args = engineArgs.joinToString(" ")
             val shellCmd = "${envPrefix}LD_LIBRARY_PATH=$libDir ${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
 
