@@ -6,10 +6,11 @@
 > ```
 > Project: Novus Agenti (Omni Claw) — Horizons Android app.
 > Canonical repo: c10vis-poem/Novus-Agenti.
-> ACTIVE BRANCH: claude/novus-agenti-setup-rr8jvz, PR #13 (draft, open).
-> This branch already has PR #12's commits merged in — PR #12
-> (branch claude/horizons-ui-apk-0i0adk) is SUPERSEDED, not a separate
-> track. Close it once #13 is confirmed stable; don't work on it.
+> ACTIVE BRANCH: claude/horizons-ui-apk-0i0adk, PR #12 (draft, open).
+> This branch has PR #13's commits fast-forward-merged into it — the two
+> tracks CONVERGED. #12 is the LIVE PR; work here. (Older resume prompts
+> said #12 was "superseded by #13" — that is stale and inverted, ignore
+> it.) Full detail: wiki/SESSION18-HANDOFF.md.
 >
 > DO NOT touch the compile track (Job 8 / QAI Hub / ONNX / qnn_context_binary).
 > Explicitly out of scope — operator's own words: "not even sure we need
@@ -77,11 +78,19 @@
 >       skel's own ExternalProject install step drops it there
 >       automatically as part of the build itself — that part was never
 >       broken). Stage artifacts by cp-ing directly from these paths.
->    CHECK RUN #8 (commit 6d8cc0f) FIRST — status as of this write-up
->    was still in_progress. If it also failed, it is a NEW, fifth issue
->    (the cmake --install family of bugs is fully ruled out by (d)'s
->    design) — pull real failed-job logs, diagnose the actual new line,
->    don't assume it's a repeat of (a)-(c).
+>    RUN #8 (6d8cc0f) CONFIRMED GREEN — all four skels built and
+>    published to latest-debug. build-llama-server.yml is DONE; do not
+>    reopen it.
+> 5b. [SESSION 18, commit 4c410f4] Two more silent-CPU-fallback bugs
+>    fixed in the APK build, both now on this branch:
+>    (i) build-apk.yml never downloaded the skels into jniLibs — the APK
+>        shipped without them even though the release had them. Added the
+>        libggml-htp-v79/v75.so download to the "Package llama.cpp
+>        runtime" step.
+>    (ii) DaemonLauncher.kt set DSP_LIBRARY_PATH=filesDir only, but
+>        APK-packaged skels extract to nativeLibraryDir. Now
+>        nativeLibraryDir:filesDir. build-apk.yml ran GREEN on 4c410f4
+>        (run #119); operator DOWNLOADED the resulting horizons.apk.
 > 6. Toolchain fact, don't re-derive: ghcr.io/snapdragon-toolchain/
 >    arm64-android:v0.7 is confirmed the latest available tag (checked
 >    v0.1-v0.7 via GHCR's anonymous token endpoint) and anonymously
@@ -91,17 +100,20 @@
 >    toolchain Docker image already bundles the SDK. Keep as fallback
 >    only, not part of the working pipeline.
 >
-> ACCEPTANCE BAR for "the skel fix is done" — not just "CI is green":
-> curl the latest-debug release assets and confirm libggml-htp-v79.so
-> AND libggml-htp-v75.so are present with nonzero size. Only then tell
-> the operator to test on-device.
+ PICKUP POINT for the NEXT session: the APK is built (run #119 green) and
+> already downloaded by the operator. Nothing blocks on-device testing —
+> start there. Skels now ride INSIDE the APK, so no manual import needed.
 >
-> ON-DEVICE NEXT STEPS once skels are confirmed live: reinstall
-> horizons.apk from latest-debug (self-contained, no manual pushes
-> needed) → grant All Files access → GGUF already in Download/ → open/
-> import libggml-htp-v79.so with Horizons (already in RUNTIME_FILES) so
-> DSP_LIBRARY_PATH finds it → relaunch chat → watch CLIFFORD
-> notification + tokens/sec.
+> ON-DEVICE NEXT STEPS: install the downloaded horizons.apk
+> (self-contained, no pushes) → grant All Files access → GGUF already in
+> Download/ → open chat → watch CLIFFORD notification + first token.
+> ACCEPTANCE BAR (unchanged): "done" = NPU offload CONFIRMED FROM THE
+> llama-server LOG (Hexagon backend init lines, not CPU-only fallback) +
+> tokens/sec — not just "the app runs." Log at
+> getExternalFilesDir/llama-server.log. If decode is CPU-only despite the
+> skels shipping: `ls` nativeLibraryDir on device to confirm the skel
+> extracted, and check DSP_LIBRARY_PATH/ADSP_LIBRARY_PATH reaches the
+> child process.
 >
 > Older sections below (compile track, ort_engine-only architecture,
 > Job 8 trigger command) predate this pivot — historical record only,
