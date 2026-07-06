@@ -15,6 +15,14 @@
 > Explicitly out of scope — operator's own words: "not even sure we need
 > the decompile layer" now that the GGUF path works. Side deal only.
 >
+> READ THESE IN ORDER BEFORE ANY ACTION:
+>   1. CLAUDE.md (full read, all sections)
+>   2. wiki/HORIZONS-BLUEPRINTS.md (full read — architectural foundation)
+>   3. wiki/GPT-DAEMON-REFERENCE.md
+>   4. wiki/NPU-RUNTIME-PATHS.md
+>   5. wiki/SESSION{N}-HANDOFF.md (latest N)
+>   6. models/manifest.yaml
+>
 > CURRENT ARCHITECTURE (decided and largely built this session):
 > Model = GGUF (operator has Qwen3.5-9B Q4_0, ~5.7GB, ALREADY ON PHONE).
 > Runtime = llama-server + ggml-hexagon hybrid CPU/NPU scheduler.
@@ -117,12 +125,13 @@ Type `/memory` in any Claude Code session to reload full project context.
 
 **Sequence:**
 1. Read `CLAUDE.md` (this file, all sections)
-2. Read `wiki/GPT-DAEMON-REFERENCE.md`
-3. Read `wiki/NPU-RUNTIME-PATHS.md`
-4. Read latest `wiki/SESSION{N}-HANDOFF.md`
-5. Read `models/manifest.yaml`
-6. Read `scripts/compile_qwen3_5_9b.py`
-7. Produce a SOTU summary and confirm next action before touching any file
+2. Read `wiki/HORIZONS-BLUEPRINTS.md` (architectural foundation — what we're building and why)
+3. Read `wiki/GPT-DAEMON-REFERENCE.md`
+4. Read `wiki/NPU-RUNTIME-PATHS.md`
+5. Read latest `wiki/SESSION{N}-HANDOFF.md`
+6. Read `models/manifest.yaml`
+7. Read `scripts/compile_qwen3_5_9b.py`
+8. Produce a SOTU summary and confirm next action before touching any file
 
 ---
 
@@ -691,9 +700,10 @@ skills/
 models/manifest.yaml
 scripts/compile_qwen3_5_9b.py   PRIMARY
 wiki/
+  HORIZONS-BLUEPRINTS.md          ARCHITECTURAL FOUNDATION — what we're building
   GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
   NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
-  FEATURE-SPEC.md                 UI tile spec
+  FEATURE-SPEC.md                 UI tile spec (visual details only)
   FAILURE_LOG.md                  append-only strike/failure ledger
   SESSION{5,6,8,9,10,11,12,13}-HANDOFF.md
 horizons/                        Android app
