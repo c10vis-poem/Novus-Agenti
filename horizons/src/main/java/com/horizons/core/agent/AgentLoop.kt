@@ -32,6 +32,7 @@ class AgentLoop(
     private val llmProvider: () -> LlmRuntime,
     private val tasker: TaskerBridge,
     private val stateStore: AppStateStore,
+    private val toolApprover: suspend (toolJson: String) -> Boolean = { true },
 ) {
     private val appTool     = AppTool(context)
     private val alarmTool   = AlarmTool(context)
@@ -65,13 +66,20 @@ class AgentLoop(
             val tool = pendingTool
             if (tool == null || tool is AgentTool.Done) break
 
-            // Execute tool
-            emit("\n")  // visual newline before status
+            val toolJson = toolToJson(tool)
+            emit("\n§TOOL_CONFIRM:$toolJson")
+            val approved = toolApprover(toolJson)
+            if (!approved) {
+                emit("\n§TOOL_DENIED")
+                context.append("\n[Tool execution denied by user]\nAssistant:")
+                parser.reset()
+                continue
+            }
+            emit("\n§TOOL_APPROVED")
+
             val toolResult = executeTool(tool)
             Log.d(TAG, "Tool ${tool::class.simpleName}: ok=${toolResult.ok} data=${toolResult.data.take(120)}")
 
-            // Inject result into context for next turn
-            val toolJson  = toolToJson(tool)
             val resultTag = AgentSystemPrompt.wrapResult(toolResult)
             context.append("\n<tool>$toolJson</tool>\n$resultTag\n")
 

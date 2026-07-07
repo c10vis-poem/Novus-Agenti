@@ -116,6 +116,7 @@ fun ChatPane(modifier: Modifier = Modifier) {
 
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
     val modelReady = backendStatus != "idle" && backendStatus != "loading…"
+    val isThinking by app.llmRuntime.thinkingActive.collectAsState()
 
     val screenShareLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -313,6 +314,21 @@ fun ChatPane(modifier: Modifier = Modifier) {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(messages) { msg -> CarbonBubble(msg) }
+            }
+
+            // ── Thinking indicator ────────────────────────────────────────────
+            if (isThinking) {
+                Surface(
+                    color = ChatAccent.copy(alpha = 0.08f),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Thinking · · ·",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ChatAccent.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                }
             }
 
             // ── Attachment thumbnail strip ────────────────────────────────────

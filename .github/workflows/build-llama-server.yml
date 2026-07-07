@@ -1,0 +1,90 @@
+name: build-llama-server
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - '.github/workflows/build-llama-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/snapdragon-toolchain/arm64-android:v0.7
+
+    steps:
+      - name: Clone llama.cpp
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /workspace/llama.cpp
+
+      - name: Build llama-server (arm64-v8a, Hexagon NPU + OpenCL)
+        working-directory: /workspace/llama.cpp
+        run: |
+          cp docs/backend/snapdragon/CMakeUserPresets.json .
+          cmake --preset arm64-android-snapdragon-release -B build-snapdragon
+          # htp-v{73,75,79,81} are separate ExternalProject_Add targets (the DSP
+          # skels) with no dependency edge from llama-server/ggml-hexagon — they
+          # only ride along on the default "all" target, so they must be named
+          # explicitly or they're silently skipped. Each one's own internal
+          # install step (part of its ExternalProject build, not our concern)
+          # already drops its .so at ggml/src/ggml-hexagon/libggml-htp-<v>.so —
+          # confirmed directly in CI logs, no further action needed to collect it.
+          cmake --build build-snapdragon -j$(nproc) --target llama-server llama-quantize llama-cli htp-v73 htp-v75 htp-v79 htp-v81
+
+      - name: Verify binaries and skels
+        # Deliberately NOT running `cmake --install`. It walks install() rules
+        # for the ENTIRE llama.cpp tree, not just what we built — it died twice
+        # in a row on unrelated, unbuilt targets (test-tokenizer-0, then
+        # llama-batched) with more such subdirectories almost certainly still
+        # lurking. Every path referenced below has been directly confirmed to
+        # exist post-`cmake --build` across three separate CI runs; copying
+        # straight from them sidesteps the whole install-rule minefield.
+        working-directory: /workspace/llama.cpp
+        run: |
+          ls -la build-snapdragon/bin/llama-server
+          ls -la build-snapdragon/bin/llama-quantize
+          ls -la build-snapdragon/bin/llama-cli
+          for v in v73 v75 v79 v81; do
+            f="build-snapdragon/ggml/src/ggml-hexagon/libggml-htp-${v}.so"
+            if [ ! -f "$f" ]; then echo "MISSING: $f"; exit 1; fi
+          done
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/out
+          cd /workspace/llama.cpp/build-snapdragon
+          cp bin/llama-server bin/llama-quantize bin/llama-cli $GITHUB_WORKSPACE/out/
+          cp bin/*.so $GITHUB_WORKSPACE/out/
+          cp ggml/src/ggml-hexagon/libggml-htp-v*.so $GITHUB_WORKSPACE/out/
+          ls -la $GITHUB_WORKSPACE/out/
+
+      - name: Upload artifacts (Actions tab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-server-arm64
+          path: ${{ github.workspace }}/out/*
+          if-no-files-found: error
+
+      - name: Publish to latest-debug release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-debug
+          name: latest-debug (auto)
+          body: |
+            Auto-built from ${{ github.sha }} on ${{ github.ref_name }}.
+
+            Includes the Hexagon DSP-side skels (libggml-htp-v73/v75/v79/v81.so)
+            needed for actual NPU offload — the earlier publish was missing
+            these, so decode silently ran CPU-only.
+
+            Install: horizons.apk ships all of this already (packaged into
+            the APK's native libs by build-apk.yml). No manual push needed.
+          files: ${{ github.workspace }}/out/*
+          prerelease: true
+          make_latest: false
