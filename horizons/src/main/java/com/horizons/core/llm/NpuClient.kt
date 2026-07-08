@@ -30,13 +30,34 @@ import java.net.URL
  * Think-token shim: <think>…</think> blocks are collapsed to a single "[Thinking…]" emit.
  * The daemon may suppress them natively in future; this shim is a Kotlin-side safety net.
  */
-class NpuClient : LlmRuntime {
+class NpuClient(
+    /**
+     * true → daemon speaks OpenAI-compatible SSE (llama-server:
+     * POST /v1/chat/completions, delta.content chunks, "data: [DONE]").
+     * false → legacy ort_engine protocol (POST /api/v1/generate, {"token":…}).
+     */
+    private val openAiProtocol: Boolean = false,
+) : LlmRuntime {
 
-    private val _backendStatus = MutableStateFlow("Hexagon HTP · NPU (ort_engine daemon)")
+    private val _backendStatus = MutableStateFlow(
+        if (openAiProtocol) "Hexagon HTP · NPU (llama-server daemon)"
+        else "Hexagon HTP · NPU (ort_engine daemon)"
+    )
     override val backendStatus: StateFlow<String> = _backendStatus.asStateFlow()
 
     private val _perfMetrics = MutableStateFlow<LlmRuntime.PerfMetrics?>(null)
     override val perfMetrics: StateFlow<LlmRuntime.PerfMetrics?> = _perfMetrics.asStateFlow()
+
+    private val _thinkingActive = MutableStateFlow(false)
+    override val thinkingActive: StateFlow<Boolean> = _thinkingActive.asStateFlow()
+
+    override val capabilities: LlmRuntime.Capabilities = LlmRuntime.Capabilities(
+        supportsVision = false,
+        supportsThinking = true,
+        supportsToolCalling = true,
+        maxContextLength = 4096,
+        runtimeFamily = if (openAiProtocol) "llama-server" else "ort_engine",
+    )
 
     override fun stream(prompt: String): Flow<String> {
         val startNanos = System.nanoTime()
@@ -60,7 +81,8 @@ class NpuClient : LlmRuntime {
             return@flow
         }
 
-        val conn = URL("http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}/api/v1/generate")
+        val endpoint = if (openAiProtocol) "/v1/chat/completions" else "/api/v1/generate"
+        val conn = URL("http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}$endpoint")
             .openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
@@ -70,23 +92,43 @@ class NpuClient : LlmRuntime {
             conn.connectTimeout = 5_000
             conn.readTimeout    = 120_000
 
-            val body = JSONObject().apply {
-                put("prompt",      prompt)
-                put("temperature", 0.7)
-                put("max_tokens",  2048)
-                put("stream",      true)
-            }.toString().toByteArray()
+            val body = if (openAiProtocol) {
+                JSONObject().apply {
+                    put("model", "local")
+                    put("messages", org.json.JSONArray().put(
+                        JSONObject().put("role", "user").put("content", prompt)
+                    ))
+                    put("temperature", 0.7)
+                    put("max_tokens",  2048)
+                    put("stream",      true)
+                }.toString().toByteArray()
+            } else {
+                JSONObject().apply {
+                    put("prompt",      prompt)
+                    put("temperature", 0.7)
+                    put("max_tokens",  2048)
+                    put("stream",      true)
+                }.toString().toByteArray()
+            }
             conn.outputStream.use { it.write(body) }
 
-            var inThink    = false
-            var thinkShown = false
+            var inThink = false
 
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
                 var line = reader.readLine()
                 while (line != null) {
                     val token = if (line.startsWith("data: ") && line.length > 6) {
-                        try { JSONObject(line.substring(6)).optString("token", "") }
-                        catch (_: Exception) { line.substring(6) }
+                        val payload = line.substring(6)
+                        if (openAiProtocol && payload.trim() == "[DONE]") break
+                        try {
+                            val obj = JSONObject(payload)
+                            if (openAiProtocol) {
+                                obj.optJSONArray("choices")?.optJSONObject(0)
+                                    ?.optJSONObject("delta")?.optString("content", "") ?: ""
+                            } else {
+                                obj.optString("token", "")
+                            }
+                        } catch (_: Exception) { if (openAiProtocol) "" else payload }
                     } else {
                         line = reader.readLine(); continue
                     }
@@ -97,17 +139,16 @@ class NpuClient : LlmRuntime {
                         !inThink && "<think>" in token -> {
                             val before = token.substringBefore("<think>")
                             if (before.isNotEmpty()) emit(before)
-                            inThink    = true
-                            thinkShown = false
+                            inThink = true
+                            _thinkingActive.value = true
                         }
                         inThink && "</think>" in token -> {
                             inThink = false
+                            _thinkingActive.value = false
                             val after = token.substringAfter("</think>")
                             if (after.isNotEmpty()) emit(after)
                         }
-                        inThink -> {
-                            if (!thinkShown) { emit("[Thinking…]"); thinkShown = true }
-                        }
+                        inThink -> { /* suppressed — UI observes thinkingActive */ }
                         else -> emit(token)
                     }
 
@@ -118,6 +159,7 @@ class NpuClient : LlmRuntime {
             Log.e(TAG, "NPU stream error", e)
             emit("\n[NPU stream error: ${e.message}]")
         } finally {
+            _thinkingActive.value = false
             conn.disconnect()
         }
     }.flowOn(Dispatchers.IO)

@@ -33,6 +33,14 @@ class CloudLlmRuntime(private val appState: AppStateStore) : LlmRuntime {
     private val _perfMetrics = MutableStateFlow<LlmRuntime.PerfMetrics?>(null)
     override val perfMetrics: StateFlow<LlmRuntime.PerfMetrics?> = _perfMetrics.asStateFlow()
 
+    override val capabilities: LlmRuntime.Capabilities = LlmRuntime.Capabilities(
+        supportsVision = false,
+        supportsThinking = false,
+        supportsToolCalling = true,
+        maxContextLength = 8192,
+        runtimeFamily = "cloud-openai",
+    )
+
     data class CloudConfig(
         val endpoint: String,
         val apiKey: String,

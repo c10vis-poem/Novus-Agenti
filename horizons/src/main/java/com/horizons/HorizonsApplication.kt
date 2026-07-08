@@ -54,8 +54,12 @@ class HorizonsApplication : Application() {
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    lateinit var appState: AppStateStore
-        private set
+    // Lazy so secondary processes (:clifford) never construct it. AppStateStore
+    // opens EncryptedSharedPreferences via an Android Keystore MasterKey, and
+    // androidx security-crypto is NOT multi-process safe — two processes racing
+    // the same keyset at cold start throw AEADBadTagException/KeyStoreException,
+    // which crash-looped :clifford (START_STICKY) until the system killed the app.
+    val appState: AppStateStore by lazy { AppStateStore(this) }
 
     val settingsStore: SettingsStore by lazy { SettingsStore(this) }
     val chatHistory: ChatHistoryStore by lazy { ChatHistoryStore(this) }
@@ -264,8 +268,11 @@ class HorizonsApplication : Application() {
         com.horizons.core.diag.Breadcrumb.drop("onCreate_after_super")
 
         if (!isMainProcess()) {
+            // Do NOT touch appState here — constructing EncryptedSharedPreferences
+            // concurrently with the main process races the Android Keystore keyset
+            // and crashes this process (see appState declaration). :clifford's
+            // code paths (CRS loop, daemon launch, NPU swap) never read appState.
             com.horizons.core.diag.Breadcrumb.drop("onCreate_skip_non_main_process")
-            appState = AppStateStore(this)
             return
         }
 
@@ -273,8 +280,27 @@ class HorizonsApplication : Application() {
             CrashRecorder(this).install()
             com.horizons.core.diag.Breadcrumb.drop("crashrecorder_installed")
 
-            appState = AppStateStore(this)
+            appState.get("boot.probe") // force EncryptedSharedPreferences init inside this try
             com.horizons.core.diag.Breadcrumb.drop("appstate_loaded")
+
+            // :clifford runs in another process — its direct activateNpuRuntime()
+            // call only reaches its own Application instance. This receiver is how
+            // the MAIN process learns the daemon is healthy.
+            try {
+                androidx.core.content.ContextCompat.registerReceiver(
+                    this,
+                    object : android.content.BroadcastReceiver() {
+                        override fun onReceive(c: android.content.Context, i: android.content.Intent) {
+                            activateNpuRuntime()
+                        }
+                    },
+                    android.content.IntentFilter(com.horizons.fgs.CliffordService.ACTION_NPU_READY),
+                    androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
+                com.horizons.core.diag.Breadcrumb.drop("npu_ready_receiver_registered")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("npu_ready_receiver_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
 
             // CLIFFORD FGS -- separate process. Failure here shouldn't kill main.
             try {
@@ -325,7 +351,12 @@ class HorizonsApplication : Application() {
     }
 
     fun activateNpuRuntime() {
-        if (_npuClient == null) _npuClient = NpuClient()
+        if (_npuClient == null) {
+            // GGUF models are served by llama-server (OpenAI-compatible SSE);
+            // everything else by ort_engine's legacy protocol.
+            val gguf = resolveNpuModelPath()?.lowercase()?.endsWith(".gguf") == true
+            _npuClient = NpuClient(openAiProtocol = gguf)
+        }
     }
 
     fun resolveNpuModelPath(): String? {

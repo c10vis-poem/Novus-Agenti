@@ -44,6 +44,11 @@ class CliffordService : Service() {
     private var crsJob: Job? = null
     private var launcher: DaemonLauncher? = null
     private var npuPerfLock: AutoCloseable? = null
+    private var llamaTuning: com.horizons.core.shell.NpuTuning? = null
+
+    /** One offload probe per daemon launch — reset when (re)launching. */
+    @Volatile private var offloadProbed = false
+    @Volatile private var offloadSummary: String? = null
 
     private enum class DaemonState(val label: String) {
         BinaryMissing("waiting for daemon binary"),
@@ -55,15 +60,34 @@ class CliffordService : Service() {
 
     @Volatile private var state: DaemonState = DaemonState.BinaryMissing
 
+    override fun onCreate() {
+        super.onCreate()
+        // Foreground FIRST, before any file I/O or app wiring: miss the 10s
+        // startForegroundService() deadline and the system ANR-kills this
+        // process silently ("Killing …:clifford (bg anr)") — reproduced in
+        // emulator on 2026-07-04. Nothing may run above this line.
+        startForeground(NOTIF_ID, buildNotification())
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_RESTART_DAEMON) {
+            // Apply fresh npu-tuning.json: kill the daemon, relaunch immediately
+            // (the CRS loop would also catch it, this just skips the wait).
+            scope.launch {
+                launcher?.stop()
+                kotlinx.coroutines.delay(1_000)
+                ensureDaemonRunning()
+            }
+            return START_STICKY
+        }
+        startForeground(NOTIF_ID, buildNotification())
         // Init Breadcrumb in this process too so last() can read boot.log.
         com.horizons.core.diag.Breadcrumb.install(this)
         com.horizons.core.diag.Breadcrumb.drop("CliffordService_started")
-        startForeground(NOTIF_ID, buildNotification())
         startCrs()
         return START_STICKY
     }
@@ -114,7 +138,14 @@ class CliffordService : Service() {
                     ensureDaemonRunning()
                 } else {
                     updateState(DaemonState.Healthy)
+                    probeOffloadOnce()
                     if (app != null && !app.isNpuActive) {
+                        // This runs in the :clifford process — activating the local
+                        // Application instance does nothing for the UI process.
+                        // Broadcast so the main process activates its own NpuClient.
+                        sendBroadcast(
+                            Intent(ACTION_NPU_READY).setPackage(packageName)
+                        )
                         app.activateNpuRuntime()
                         acquireNpuPerfLock()
                         Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
@@ -137,18 +168,78 @@ class CliffordService : Service() {
             Log.w(TAG, "CRS: no model found — waiting for model")
             return
         }
-        val binaryName = NativeBinaryInstaller.installedBinaryName(this)
-            ?: DaemonLauncher.ENGINE_BINARY
+        // Runtime-family dispatch: .gguf → llama-server (OpenAI-compatible),
+        // everything else → ort_engine. Each family is its own drop-in package.
+        val family = DaemonLauncher.familyFor(modelPath)
+        val binaryName: String
+        val engineArgs: List<String>
+        if (family == DaemonLauncher.LLAMA_BINARY) {
+            val present = java.io.File(
+                applicationInfo.nativeLibraryDir, DaemonLauncher.PACKAGED_LLAMA_LIB
+            ).exists() || java.io.File(filesDir, DaemonLauncher.LLAMA_BINARY).canExecute()
+            if (!present) {
+                updateState(DaemonState.BinaryMissing)
+                Log.w(TAG, "CRS: GGUF model found but no llama-server runtime package — waiting")
+                return
+            }
+            binaryName = DaemonLauncher.LLAMA_BINARY
+            // Tunable knobs live in filesDir/npu-tuning.json (RouterPane edits
+            // them; this process reads them fresh at every daemon launch).
+            val tuning = com.horizons.core.shell.NpuTuning.load(this)
+            engineArgs = buildList {
+                add("-m"); add(modelPath)
+                add("--host"); add("127.0.0.1")
+                add("--port"); add(DaemonLauncher.ENGINE_PORT.toString())
+                // Small ctx keeps the KV cache small — mobile inference is
+                // bandwidth-bound and a runaway KV cache OOMs the device.
+                add("-c"); add(tuning.ctxSize.toString())
+                add("-ngl"); add("999")
+                // Flash attention: big memory-bandwidth win on mobile.
+                if (tuning.flashAttention) add("-fa")
+                if (tuning.extraArgs.isNotBlank()) {
+                    addAll(tuning.extraArgs.trim().split(Regex("\\s+")))
+                }
+            }
+            llamaTuning = tuning
+        } else {
+            binaryName = NativeBinaryInstaller.installedBinaryName(this)
+                ?: DaemonLauncher.ENGINE_BINARY
+            engineArgs = listOf("--model", modelPath)
+        }
         val l = DaemonLauncher(this, binaryName).also { launcher = it }
         if (!l.isRunning()) {
             updateState(DaemonState.Launching)
-            l.launch(listOf("--model", modelPath))
+            offloadProbed = false
+            offloadSummary = null
+            l.launch(engineArgs, llamaTuning ?: com.horizons.core.shell.NpuTuning())
                 .onSuccess { Log.i(TAG, "CRS: daemon launched PID=${it.pid}") }
                 .onFailure {
                     updateState(DaemonState.Unhealthy)
                     Log.e(TAG, "CRS: daemon launch failed", it)
                 }
         }
+    }
+
+    /**
+     * The acceptance-bar check: once per daemon launch, read the llama-server
+     * log tail and record whether Hexagon offload actually initialized or
+     * decode silently fell back to CPU. Verdict goes into the CLIFFORD
+     * notification (visible without adb) and filesDir/npu-status.json
+     * (RouterPane reads it in the main process).
+     */
+    private fun probeOffloadOnce() {
+        if (offloadProbed) return
+        val l = launcher ?: return
+        if (l.binaryName != DaemonLauncher.LLAMA_BINARY) return
+        val status = com.horizons.core.shell.NpuOffloadProbe.probe(l.logFile())
+        if (status.summary == "no daemon log yet") return // retry next CRS tick
+        offloadProbed = true
+        offloadSummary = status.summary
+        com.horizons.core.shell.NpuOffloadProbe.writeStatus(this, status)
+        Log.i(TAG, "NPU offload probe: ${status.summary}")
+        // Force-refresh the notification so the verdict is visible immediately.
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, buildNotification())
     }
 
     private fun pingDaemon(): Boolean = try {
@@ -205,11 +296,18 @@ class CliffordService : Service() {
         // body so the user can see WHERE the main process died without opening
         // the app or pulling logs.
         val crumb = com.horizons.core.diag.Breadcrumb.last()
-        val expanded = "${state.label}\nlast: $crumb"
+        val offload = offloadSummary
+        val headline =
+            if (state == DaemonState.Healthy && offload != null) offload else state.label
+        val expanded = buildString {
+            append(state.label)
+            if (offload != null) append("\n").append(offload)
+            append("\nlast: ").append(crumb)
+        }
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle("Novus Agenti")
-            .setContentText(state.label)
+            .setContentText(headline)
             .setStyle(Notification.BigTextStyle().bigText(expanded))
             .setOngoing(true)
             .build()
@@ -222,9 +320,20 @@ class CliffordService : Service() {
         private const val CRS_INTERVAL_MS = 15_000L
 
         const val ACTION_STOP = "com.horizons.clifford.STOP"
+        const val ACTION_RESTART_DAEMON = "com.horizons.clifford.RESTART_DAEMON"
+
+        /** Cross-process signal: daemon healthy → main process should activate NpuClient. */
+        const val ACTION_NPU_READY = "com.horizons.NPU_READY"
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, CliffordService::class.java))
+        }
+
+        /** Kill + relaunch the daemon so a fresh npu-tuning.json takes effect. */
+        fun restartDaemon(context: Context) {
+            context.startService(
+                Intent(context, CliffordService::class.java).setAction(ACTION_RESTART_DAEMON)
+            )
         }
 
         fun stop(context: Context) {

@@ -1,30 +1,142 @@
 # CLAUDE.md — Novus Agenti / Omni Claw
 
 > **RESUME PROMPT — COPY THIS BLOCK VERBATIM TO START ANY NEW SESSION**
+> **(supersedes any older resume prompt in git history — architecture pivoted)**
 >
 > ```
-> Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
-> → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
-> Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS, TWO BRANCHES —
-> pick the one matching your actual task, don't assume there's only one:
->   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
->     claude/project-scope-review-lf615p, PR #4
->   - APP track (Android app, daemon, UI): branch
->     claude/horizons-closeout-hf-review-ycjkm3, PR #8 — most recent work
->     (sessions 9-12) happened here
+> Project: Novus Agenti (Omni Claw) — Horizons Android app.
+> Canonical repo: c10vis-poem/Novus-Agenti.
+> ACTIVE BRANCH: claude/horizons-ui-apk-0i0adk, PR #12 (draft, open).
+> This branch has PR #13's commits fast-forward-merged into it — the two
+> tracks CONVERGED. #12 is the LIVE PR; work here. (Older resume prompts
+> said #12 was "superseded by #13" — that is stale and inverted, ignore
+> it.) Full detail: wiki/SESSION18-HANDOFF.md.
+>
+> DO NOT touch the compile track (Job 8 / QAI Hub / ONNX / qnn_context_binary).
+> Explicitly out of scope — operator's own words: "not even sure we need
+> the decompile layer" now that the GGUF path works. Side deal only.
+>
+> OPERATOR STANDING DECISIONS are recorded in
+> skills/memory-as-skill/memory/active/novus-agenti.md — workstream order,
+> the 12-13 tok/s bar, Job 8's conditional-parked status, the browser
+> connector, the OpenWiki memory-system mandate. READ THEM. Do NOT re-ask
+> the operator any question that file already answers — sessions keep
+> re-asking decided questions because nobody wrote the answers down, and
+> the operator is rightfully sick of it.
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
->   2. wiki/GPT-DAEMON-REFERENCE.md (full read)
->   3. wiki/NPU-RUNTIME-PATHS.md (full read)
->   4. wiki/SESSION{N}-HANDOFF.md (latest N)
->   5. models/manifest.yaml
->   6. scripts/compile_qwen3_5_9b.py
+>   2. wiki/HORIZONS-BLUEPRINTS.md (full read — architectural foundation)
+>   3. wiki/REFERENCE-IMPLEMENTATIONS.md (fork/paper dissection + patterns)
+>   4. wiki/GPT-DAEMON-REFERENCE.md
+>   5. wiki/NPU-RUNTIME-PATHS.md
+>   6. wiki/SESSION{N}-HANDOFF.md (latest N)
+>   7. models/manifest.yaml
+>   8. skills/memory-as-skill/memory/active/novus-agenti.md (live project state)
 >
-> Use /memory slash command to reload full project context.
-> After reading: state current SOTU, last job result, next action. Then wait.
-> HF_TOKEN / QAI_HUB_API_TOKEN come from the environment config (§Tokens
-> below) — already exported, no manual step needed. Never hardcode them.
+> CURRENT ARCHITECTURE (decided and largely built this session):
+> Model = GGUF (operator has Qwen3.5-9B Q4_0, ~5.7GB, ALREADY ON PHONE).
+> Runtime = llama-server + ggml-hexagon hybrid CPU/NPU scheduler.
+> NDEV=2 splits the model across 2 HTP sessions (~2.85GB each, under the
+> 4GB/session 32-bit cDSP ceiling) — viable on paper, first real run is
+> the actual experiment. Flash attention (-fa) and -c 4096 already wired.
+>
+> DONE, verified not assumed:
+> 1. Fixed the real on-device crash (app died in ~1s): :clifford process
+>    raced the main process to open EncryptedSharedPreferences/Keystore —
+>    crash-looped the watchdog until the OS killed everything. Fixed:
+>    appState now lazy + main-process-only; AppStateStore degrades to
+>    in-memory instead of crashing on Keystore failure. VERIFIED on
+>    emulator: 75s stability test PASS, zero clifford kills (old builds
+>    died ~12s).
+> 2. Daemon made fully self-contained in the APK (both ort_engine AND
+>    llama-server): packaged as jniLibs/*.so, extracted to
+>    nativeLibraryDir at install — the ONLY exec()-allowed location on
+>    targetSdk 29+. The old "adb push to filesDir" deploy path was dead
+>    on arrival (SELinux blocks exec from app-writable storage). No more
+>    manual binary pushes for ANY runtime.
+> 3. Confirmed via binary inspection (strings on the actual June-30
+>    libllama.so) that qwen35/qwen35moe IS in the arch registry — no
+>    llama.cpp rebuild needed for model compat.
+> 4. THE ACTUAL BLOCKER, found and fixed live: the Hexagon DSP-side
+>    skels (libggml-htp-v79.so etc.) were NEVER published by any prior
+>    CI run. ARM-side libggml-hexagon.so existed since 2026-06-30 but
+>    NPU offload was silently dead — decode fell back to CPU with zero
+>    error surfaced. Root cause (read directly from
+>    ggml/src/ggml-hexagon/CMakeLists.txt upstream): the four skel
+>    builds are separate ExternalProject_Add targets with no dependency
+>    edge into llama-server — only ride the default "all" target, which
+>    the recovered build-llama-server.yml (from stale PR #5) never built.
+> 5. Fixed in .github/workflows/build-llama-server.yml across FOUR real
+>    CI iterations (each diagnosed from actual failed-job logs — do not
+>    repeat any of these, all confirmed dead ends or confirmed fixes):
+>    a. [run #5, a7a2c9a] First cut never ran `cmake --install` at all —
+>       skels never collected. FAILED (expected — this is what exposed
+>       the bug in the first place).
+>    b. [run #6, 466dccc] Added htp-v73/v75/v79/v81 explicitly to the
+>       --target list (they're separate ExternalProject_Add targets
+>       with no dependency edge into llama-server, so they were silently
+>       skipped). This part WORKED — log confirmed all four skels built
+>       AND installed. But cmake --install then failed on an UNRELATED
+>       bug: it walks install() rules for the WHOLE llama.cpp tree, and
+>       died on llama.cpp's own unbuilt test-tokenizer-0.
+>    c. [run #7, ffa36db] Tried -DLLAMA_TESTS_INSTALL=OFF to fix (b).
+>       That specific error was gone, but cmake --install hit YET
+>       ANOTHER unbuilt-target install() rule elsewhere in the tree
+>       (examples/batched/llama-batched this time). CONCLUSION: patching
+>       cmake --install one broken subdirectory at a time is a dead end
+>       — llama.cpp has many example/tool subdirs each with their own
+>       install() rule, disabling them one CMake option at a time doesn't
+>       scale. DO NOT go back to using cmake --install for this workflow.
+>    d. [run #8, 6d8cc0f — CURRENT APPROACH] Dropped cmake --install
+>       entirely. Every file actually needed has a fixed, confirmed path
+>       straight out of `cmake --build` (observed directly in 3 separate
+>       CI logs): bin/{llama-server,llama-quantize,llama-cli,*.so} and
+>       ggml/src/ggml-hexagon/libggml-htp-{v73,v75,v79,v81}.so (each
+>       skel's own ExternalProject install step drops it there
+>       automatically as part of the build itself — that part was never
+>       broken). Stage artifacts by cp-ing directly from these paths.
+>    RUN #8 (6d8cc0f) CONFIRMED GREEN — all four skels built and
+>    published to latest-debug. build-llama-server.yml is DONE; do not
+>    reopen it.
+> 5b. [SESSION 18, commit 4c410f4] Two more silent-CPU-fallback bugs
+>    fixed in the APK build, both now on this branch:
+>    (i) build-apk.yml never downloaded the skels into jniLibs — the APK
+>        shipped without them even though the release had them. Added the
+>        libggml-htp-v79/v75.so download to the "Package llama.cpp
+>        runtime" step.
+>    (ii) DaemonLauncher.kt set DSP_LIBRARY_PATH=filesDir only, but
+>        APK-packaged skels extract to nativeLibraryDir. Now
+>        nativeLibraryDir:filesDir. build-apk.yml ran GREEN on 4c410f4
+>        (run #119); operator DOWNLOADED the resulting horizons.apk.
+> 6. Toolchain fact, don't re-derive: ghcr.io/snapdragon-toolchain/
+>    arm64-android:v0.7 is confirmed the latest available tag (checked
+>    v0.1-v0.7 via GHCR's anonymous token endpoint) and anonymously
+>    pullable — no auth needed for GitHub's hosted runners.
+> 7. A Hexagon SDK zip was manually uploaded to a private HF repo
+>    (Mer0vin8ian/hexagon-sdk) as a backup — turned out UNNECESSARY, the
+>    toolchain Docker image already bundles the SDK. Keep as fallback
+>    only, not part of the working pipeline.
+>
+ PICKUP POINT for the NEXT session: the APK is built (run #119 green) and
+> already downloaded by the operator. Nothing blocks on-device testing —
+> start there. Skels now ride INSIDE the APK, so no manual import needed.
+>
+> ON-DEVICE NEXT STEPS: install the downloaded horizons.apk
+> (self-contained, no pushes) → grant All Files access → GGUF already in
+> Download/ → open chat → watch CLIFFORD notification + first token.
+> ACCEPTANCE BAR (unchanged): "done" = NPU offload CONFIRMED FROM THE
+> llama-server LOG (Hexagon backend init lines, not CPU-only fallback) +
+> tokens/sec — not just "the app runs." Log at
+> getExternalFilesDir/llama-server.log. If decode is CPU-only despite the
+> skels shipping: `ls` nativeLibraryDir on device to confirm the skel
+> extracted, and check DSP_LIBRARY_PATH/ADSP_LIBRARY_PATH reaches the
+> child process.
+>
+> Older sections below (compile track, ort_engine-only architecture,
+> Job 8 trigger command) predate this pivot — historical record only,
+> do not treat as current instructions where they conflict with this
+> resume prompt.
 > ```
 
 ---
@@ -35,12 +147,14 @@ Type `/memory` in any Claude Code session to reload full project context.
 
 **Sequence:**
 1. Read `CLAUDE.md` (this file, all sections)
-2. Read `wiki/GPT-DAEMON-REFERENCE.md`
-3. Read `wiki/NPU-RUNTIME-PATHS.md`
-4. Read latest `wiki/SESSION{N}-HANDOFF.md`
-5. Read `models/manifest.yaml`
-6. Read `scripts/compile_qwen3_5_9b.py`
-7. Produce a SOTU summary and confirm next action before touching any file
+2. Read `wiki/HORIZONS-BLUEPRINTS.md` (architectural foundation)
+3. Read `wiki/REFERENCE-IMPLEMENTATIONS.md` (fork/paper dissection)
+4. Read `wiki/GPT-DAEMON-REFERENCE.md`
+5. Read `wiki/NPU-RUNTIME-PATHS.md`
+6. Read latest `wiki/SESSION{N}-HANDOFF.md`
+7. Read `models/manifest.yaml`
+8. Read `skills/memory-as-skill/memory/active/novus-agenti.md` (live project state)
+9. Produce a SOTU summary and confirm next action before touching any file
 
 ---
 
@@ -340,25 +454,71 @@ ExecuTorch / SNPE / TFLite / Jetson Tensor targets). Adding a new runtime is
 
 ## Android App / Battery Rules
 
-### NpuManager Performance Lock (PENDING — NOT YET WIRED)
-```kotlin
-val npuManager = getSystemService(NpuManager::class.java)
-val lock = npuManager.acquirePerformanceLock(NpuManager.PERF_MODE_HIGH)
-```
+All three items previously listed here as PENDING are **done** (verified
+against source 2026-07-04, session 16 — see `wiki/HORIZONS-APP-DEBUG-PLAN.md`
+for the audit):
 
-### Game SDK Performance Mode (PENDING — NOT YET WIRED)
-```kotlin
-GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
-```
+- **NpuManager performance lock** — wired in
+  `horizons/src/main/java/com/horizons/fgs/CliffordService.kt`
+  (`acquireNpuPerfLock()` / `releaseNpuPerfLock()`): reflection against the
+  `@hide` `npu` system service, `PERF_MODE_HIGH`, safe no-op fallback when
+  the service is unavailable.
+- **Game-mode performance boost** — implemented as
+  `horizons/src/main/java/com/horizons/core/perf/GameModeBoost.kt` (+
+  `PerfHintSession.kt`), using ADPF `GameState(false,
+  MODE_GAMEPLAY_UNINTERRUPTIBLE)` scoped to inference hot-loops (reentrant
+  enter/exit), called from `HorizonsApplication.kt` and `AgentLoop.kt`. This
+  deliberately replaces the older app-lifetime
+  `GameManager.setGameMode(PERFORMANCE)` plan — do not "finish" that snippet.
+- **Manifest** — `android.permission.HIGH_PERFORMANCE` and
+  `uses-feature android.hardware.game` are present in
+  `horizons/src/main/AndroidManifest.xml`; `CliffordService` is declared
+  with `foregroundServiceType="specialUse"`.
 
-### Manifest (PENDING)
-```xml
-<uses-feature android:name="android.hardware.game" android:required="true" />
-<uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
-<service android:name=".CliffordService" android:foregroundServiceType="specialUse" />
-```
+**Both the NpuManager lock + game-mode boost are required together.** The
+game-mode/ADPF path boosts CPU-side scheduling only; the NpuManager lock is
+what gives the NPU daemon full performance.
 
-**Both NpuManager + GameManager are required together.** Game SDK boosts UI scheduler only; NpuManager lock is what gives the NPU daemon full performance.
+---
+
+## State of the Union — 2026-07-04 (session 16, app track)
+
+### Done — session 16 (app-track debug session planned by session 15)
+Executed `wiki/HORIZONS-APP-DEBUG-PLAN.md` (written on branch
+`claude/novus-job-8-verify-r96601`, PR #11). Full detail in
+`wiki/SESSION16-HANDOFF.md`. Summary:
+- **Corrected this file's stale "PENDING — NOT YET WIRED" Android
+  App / Battery Rules section** — NpuManager lock, game-mode boost, and
+  manifest entries were all already implemented (re-verified directly
+  against source this session, not just trusted from the plan). Pending
+  list renumbered accordingly.
+- **Tokenizer audit (`daemon/src/tokenizer.cpp`)** — NOT the
+  hash-tokenization bug (real vocab load + real map lookups), but three
+  real gaps that would garble on-device output in a way that mimics a
+  bad compile: (1) no GPT-2 byte-to-unicode mapping (`Ġ`/`Ċ`), so
+  spaces/newlines never match the vocab and are **silently dropped** in
+  `encode()` and emitted literally in `decode()`; (2) `merges` parsed
+  but never used — greedy longest-match instead of a BPE merge loop;
+  (3) JSON escapes (`\"`, `\uXXXX`) never unescaped when building the
+  vocab maps. Must be fixed before any on-device model verification is
+  trusted. See Pending list.
+- **RouterPane / SettingsPane claims re-verified against source** —
+  both still true: no routing rule engine anywhere in `RouterPane.kt`
+  (773 lines: NPU Runtime / Performance / Cloud Model Selector /
+  OpenRouter Catalog / Cloud APIs sections only), and `HorizonsColors`
+  is still a flat hardcoded object with no theme picker in
+  `SettingsPane.kt`.
+- **Three orphaned classes re-confirmed still unwired** (each matches
+  only its own definition file). Question posed to operator; do not
+  delete without an answer.
+- **Job 8 status observed (read-only, for the compile track — NOT
+  worked on here)**: job `6a488c52d235f6e43ae5a5a3` ERROR after 39m53s.
+  ONNX export fully succeeded (grid_thw fix confirmed working); failure
+  is QAI Hub vision-encoder compile `jpeler3og` — **exit code 14,
+  "Conversion to context binary failed"** — the original HTP issue, now
+  at the compile stage. Also: calibration dataset load failed (invalid
+  `wikitext` HF URI) → synthetic-token fallback. Both are compile-track
+  items; `ort_engine` on-device verification stays blocked.
 
 ---
 
@@ -488,21 +648,24 @@ as fact that are actually false. Findings, ranked, and fixes applied:
    packaged by CI; what's still open is verifying it actually loads and
    serves a real compiled model on a physical Hexagon HTP v75 device,
    which needs Job 8's output first.
-3. **NpuManager lock** — wire into `CliffordService.kt`
-4. **GameManager** — wire into `HorizonsApplication.kt`
-5. **Manifest** — `uses-feature` + `HIGH_PERFORMANCE`
-6. **RouterPane "routing rules"** — use-cloud-when-NPU-unavailable etc.
+3. **`daemon/src/tokenizer.cpp` byte-level BPE fixes** (session 16 audit)
+   — add GPT-2 byte-to-unicode mapping on encode/decode (spaces and
+   newlines are currently silently dropped/garbled), implement the BPE
+   merge loop (merges are parsed but unused), unescape JSON strings when
+   building the vocab maps. Blocks trustworthy on-device verification:
+   without this, a good compiled model will look broken.
+4. **RouterPane "routing rules"** — use-cloud-when-NPU-unavailable etc.
    Deliberately not built yet; needs a real rule engine, not UI toggles
    that don't affect behavior
-7. **SettingsPane "Themes"** — deliberately not built; needs a switchable
+5. **SettingsPane "Themes"** — deliberately not built; needs a switchable
    palette system, `HorizonsColors` is currently a flat hardcoded object
-8. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
+6. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
    `core/shell/SecureResourceRelay.kt`, `core/screen/ScreenshotCapture.kt`
    — fully implemented, never wired to any caller. Likely mid-flight
    features (screenshot capture for Vision-Agent tile, secure shell
    token relay, structured interaction logging), not accidental cruft —
    confirm with operator before deleting.
-9. **CI publish-target TODO below** — could not find evidence it's still
+7. **CI publish-target TODO below** — could not find evidence it's still
    real (checked `build-apk.yml`'s full history, no foreign repo ever
    hardcoded, `softprops/action-gh-release@v2` has no `repository:` field
    so it already defaults to this repo). Verify against a live release
@@ -560,9 +723,10 @@ skills/
 models/manifest.yaml
 scripts/compile_qwen3_5_9b.py   PRIMARY
 wiki/
+  HORIZONS-BLUEPRINTS.md          ARCHITECTURAL FOUNDATION — what we're building
   GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
   NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
-  FEATURE-SPEC.md                 UI tile spec
+  FEATURE-SPEC.md                 UI tile spec (visual details only)
   FAILURE_LOG.md                  append-only strike/failure ledger
   SESSION{5,6,8,9,10,11,12,13}-HANDOFF.md
 horizons/                        Android app
@@ -578,6 +742,50 @@ release/debug.keystore           committed by design
 confirmed still real as of session 13 (no foreign repo found hardcoded
 anywhere in its history) — verify against a live release page before
 assuming it needs work.
+
+---
+
+## Canonical Reference Documents
+
+Sources cross-referenced against the Horizons codebase. Every architecture
+decision traces back to one of these. Stored in the operator's Google Drive
+("ANDROID APK / RESEARCH DOCS" folder) and in fork repos.
+
+### Research Papers
+- **NPU Scaling** — "Scaling LLM Test-Time Compute with Mobile NPU on
+  Smartphones" (Hao et al., EuroSys 2026, arXiv 2509.23324). Tile
+  quantization, LUT Softmax, NDEV parallel, test-time scaling on Hexagon.
+- **FraQAT** — "Fractional Quantization-Aware Training" (Samsung AI,
+  arXiv 2510.14823). W4A8 QAT on SM8750-AB, static quant only on HTP.
+
+### Google Drive Docs (canonical)
+- OverlayD-AI Technical Guide v1.1 — Shizuku/Rish, llama.cpp localhost:8080
+- Scaling LLM + Mobile NPU — full paper with HMX tile geometry detail
+- SocketSweep README — scrcpy-pattern daemon push, TCP IPC, POSIX traversal
+- HTP - QAIRT SDK — HTP backend config, DSP_LIBRARY_PATH, skel loading
+- QAIRT Overview — QNN runtime architecture, execution providers
+- Utilizing Qualcomm NPUs w/ LiteRT — LiteRT + QNN delegate
+- PackageManager API Reference — app discovery for AgentLoop ListApps
+- Automated Build Android — GitHub Actions CI/CD, multi-variant builds
+- FraQAT paper — mobile NPU quantization research
+- Genymotion SaaS HTTP API — cloud emulator API
+- README: EdgeAIApp-ExecuTorch — JNI bridge, QNN, CLIP, v79 context binary
+- README: Android RE Skill — APK decompile, API extraction
+- README: Snapdragon NPU LLM — cdsprpc domain 3, skel loading, 31 tok/s
+- README: Off Grid AI Mobile — LLMProvider, model routing, Silero VAD
+- README: Silero VAD — <1ms, 2MB, ONNX, voice interface
+- README: qcom-build-utils — Qualcomm Linux Debian packaging, CI workflows
+- CI/CD pipeline doc — scalable secret strategy, variant classification
+
+### Fork Repos (code reference)
+- `c10vis-poem/llama.cpp-npu` — GGML_HEXAGON, tile quant, NDEV split
+- `c10vis-poem/snapdragon-npu-llm` — ExecuTorch+QNN, cdsprpc, skel loading
+- `c10vis-poem/edgeaiapp-executorch` — JNI bridge, QNN backend
+- `c10vis-poem/off-grid-ai-mobile` — LLMProvider, ActiveModelService
+- `c10vis-poem/mlc-llm` — universal LLM deployment
+- `c10vis-poem/qcom-build-utils` — Qualcomm CI workflows
+- `c10vis-poem/ai-hub-models` — QAI Hub model compilation
+- `M0DU14R-SYSx-inc/nexa-sdk` — GenieX inference runtime
 
 ---
 

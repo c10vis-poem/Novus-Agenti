@@ -226,6 +226,25 @@ class ModelImportActivity : ComponentActivity() {
             "libQnnHtp.so",
             "libQnnSystem.so",
             "libQnnHtpV75Skel.so",
+            "libQnnHtpV79Skel.so", // SM8750 / 8 Elite is Hexagon v79 (v75 kept for older SoCs)
+            // GGUF runtime family: llama.cpp llama-server + ggml-hexagon NPU backend
+            com.horizons.core.shell.DaemonLauncher.LLAMA_BINARY, // "llama-server"
+            "libllama.so",
+            "libllama-common.so",
+            "libllama-server-impl.so",
+            "libggml.so",
+            "libggml-base.so",
+            "libggml-cpu.so",
+            "libggml-hexagon.so",
+            "libggml-opencl.so",
+            "libmtmd.so",
+            // DSP-side skel the ggml-hexagon backend loads via FastRPC from
+            // DSP_LIBRARY_PATH (filesDir) — verified name from the binary:
+            // "libggml-htp-v%u.so". Unlike the daemon exe/libs (SELinux blocks
+            // exec/dlopen from filesDir), this is DATA read by the FastRPC
+            // driver, so the filesDir import path works for it.
+            "libggml-htp-v79.so",
+            "libggml-htp-v75.so",
         )
     }
 }
