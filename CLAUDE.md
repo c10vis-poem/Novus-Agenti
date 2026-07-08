@@ -16,6 +16,14 @@
 > Explicitly out of scope — operator's own words: "not even sure we need
 > the decompile layer" now that the GGUF path works. Side deal only.
 >
+> OPERATOR STANDING DECISIONS are recorded in
+> skills/memory-as-skill/memory/active/novus-agenti.md — workstream order,
+> the 12-13 tok/s bar, Job 8's conditional-parked status, the browser
+> connector, the OpenWiki memory-system mandate. READ THEM. Do NOT re-ask
+> the operator any question that file already answers — sessions keep
+> re-asking decided questions because nobody wrote the answers down, and
+> the operator is rightfully sick of it.
+>
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
 >   2. wiki/HORIZONS-BLUEPRINTS.md (full read — architectural foundation)
