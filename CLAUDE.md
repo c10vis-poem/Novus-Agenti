@@ -16,6 +16,16 @@
 > Explicitly out of scope — operator's own words: "not even sure we need
 > the decompile layer" now that the GGUF path works. Side deal only.
 >
+> READ THESE IN ORDER BEFORE ANY ACTION:
+>   1. CLAUDE.md (full read, all sections)
+>   2. wiki/HORIZONS-BLUEPRINTS.md (full read — architectural foundation)
+>   3. wiki/REFERENCE-IMPLEMENTATIONS.md (fork/paper dissection + patterns)
+>   4. wiki/GPT-DAEMON-REFERENCE.md
+>   5. wiki/NPU-RUNTIME-PATHS.md
+>   6. wiki/SESSION{N}-HANDOFF.md (latest N)
+>   7. models/manifest.yaml
+>   8. skills/memory-as-skill/memory/active/novus-agenti.md (live project state)
+>
 > CURRENT ARCHITECTURE (decided and largely built this session):
 > Model = GGUF (operator has Qwen3.5-9B Q4_0, ~5.7GB, ALREADY ON PHONE).
 > Runtime = llama-server + ggml-hexagon hybrid CPU/NPU scheduler.
@@ -129,12 +139,14 @@ Type `/memory` in any Claude Code session to reload full project context.
 
 **Sequence:**
 1. Read `CLAUDE.md` (this file, all sections)
-2. Read `wiki/GPT-DAEMON-REFERENCE.md`
-3. Read `wiki/NPU-RUNTIME-PATHS.md`
-4. Read latest `wiki/SESSION{N}-HANDOFF.md`
-5. Read `models/manifest.yaml`
-6. Read `scripts/compile_qwen3_5_9b.py`
-7. Produce a SOTU summary and confirm next action before touching any file
+2. Read `wiki/HORIZONS-BLUEPRINTS.md` (architectural foundation)
+3. Read `wiki/REFERENCE-IMPLEMENTATIONS.md` (fork/paper dissection)
+4. Read `wiki/GPT-DAEMON-REFERENCE.md`
+5. Read `wiki/NPU-RUNTIME-PATHS.md`
+6. Read latest `wiki/SESSION{N}-HANDOFF.md`
+7. Read `models/manifest.yaml`
+8. Read `skills/memory-as-skill/memory/active/novus-agenti.md` (live project state)
+9. Produce a SOTU summary and confirm next action before touching any file
 
 ---
 
@@ -703,9 +715,10 @@ skills/
 models/manifest.yaml
 scripts/compile_qwen3_5_9b.py   PRIMARY
 wiki/
+  HORIZONS-BLUEPRINTS.md          ARCHITECTURAL FOUNDATION — what we're building
   GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
   NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
-  FEATURE-SPEC.md                 UI tile spec
+  FEATURE-SPEC.md                 UI tile spec (visual details only)
   FAILURE_LOG.md                  append-only strike/failure ledger
   SESSION{5,6,8,9,10,11,12,13}-HANDOFF.md
 horizons/                        Android app
@@ -721,6 +734,50 @@ release/debug.keystore           committed by design
 confirmed still real as of session 13 (no foreign repo found hardcoded
 anywhere in its history) — verify against a live release page before
 assuming it needs work.
+
+---
+
+## Canonical Reference Documents
+
+Sources cross-referenced against the Horizons codebase. Every architecture
+decision traces back to one of these. Stored in the operator's Google Drive
+("ANDROID APK / RESEARCH DOCS" folder) and in fork repos.
+
+### Research Papers
+- **NPU Scaling** — "Scaling LLM Test-Time Compute with Mobile NPU on
+  Smartphones" (Hao et al., EuroSys 2026, arXiv 2509.23324). Tile
+  quantization, LUT Softmax, NDEV parallel, test-time scaling on Hexagon.
+- **FraQAT** — "Fractional Quantization-Aware Training" (Samsung AI,
+  arXiv 2510.14823). W4A8 QAT on SM8750-AB, static quant only on HTP.
+
+### Google Drive Docs (canonical)
+- OverlayD-AI Technical Guide v1.1 — Shizuku/Rish, llama.cpp localhost:8080
+- Scaling LLM + Mobile NPU — full paper with HMX tile geometry detail
+- SocketSweep README — scrcpy-pattern daemon push, TCP IPC, POSIX traversal
+- HTP - QAIRT SDK — HTP backend config, DSP_LIBRARY_PATH, skel loading
+- QAIRT Overview — QNN runtime architecture, execution providers
+- Utilizing Qualcomm NPUs w/ LiteRT — LiteRT + QNN delegate
+- PackageManager API Reference — app discovery for AgentLoop ListApps
+- Automated Build Android — GitHub Actions CI/CD, multi-variant builds
+- FraQAT paper — mobile NPU quantization research
+- Genymotion SaaS HTTP API — cloud emulator API
+- README: EdgeAIApp-ExecuTorch — JNI bridge, QNN, CLIP, v79 context binary
+- README: Android RE Skill — APK decompile, API extraction
+- README: Snapdragon NPU LLM — cdsprpc domain 3, skel loading, 31 tok/s
+- README: Off Grid AI Mobile — LLMProvider, model routing, Silero VAD
+- README: Silero VAD — <1ms, 2MB, ONNX, voice interface
+- README: qcom-build-utils — Qualcomm Linux Debian packaging, CI workflows
+- CI/CD pipeline doc — scalable secret strategy, variant classification
+
+### Fork Repos (code reference)
+- `c10vis-poem/llama.cpp-npu` — GGML_HEXAGON, tile quant, NDEV split
+- `c10vis-poem/snapdragon-npu-llm` — ExecuTorch+QNN, cdsprpc, skel loading
+- `c10vis-poem/edgeaiapp-executorch` — JNI bridge, QNN backend
+- `c10vis-poem/off-grid-ai-mobile` — LLMProvider, ActiveModelService
+- `c10vis-poem/mlc-llm` — universal LLM deployment
+- `c10vis-poem/qcom-build-utils` — Qualcomm CI workflows
+- `c10vis-poem/ai-hub-models` — QAI Hub model compilation
+- `M0DU14R-SYSx-inc/nexa-sdk` — GenieX inference runtime
 
 ---
 

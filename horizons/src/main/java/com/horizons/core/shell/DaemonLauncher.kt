@@ -7,18 +7,14 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Launches the native ONNX-RT/QNN engine binary as a detached background daemon.
+ * Launches the native daemon binary (ort_engine or llama-server) as a detached process.
  *
- * Expected binary location: context.filesDir/ort_engine
- * Deploy via: adb push ort_engine /data/data/com.horizons/files/ort_engine
- *             adb shell chmod +x /data/data/com.horizons/files/ort_engine
+ * Primary path: APK-packaged jniLibs/arm64-v8a/lib*.so extracted to nativeLibraryDir
+ * at install time — the ONLY exec()-allowed location on targetSdk 29+ (SELinux denies
+ * exec on app-writable storage). Fallback to filesDir kept only for rooted sideloads.
  *
  * The daemon serves inference requests at 127.0.0.1:8080 (see NpuClient).
- *
- * Priority: If root is available, oom_score_adj is set to -1000 (unkillable by lmkd).
- * Without root, the daemon inherits the app's oom_score_adj and may be killed under
- * extreme memory pressure. The ADB shell -950 loophole documented in ADB_CLOUD_BUILD
- * requires Wireless Debugging; this launcher uses sh -T- detach instead.
+ * Priority: oom_score_adj -1000 with root, app priority without.
  */
 class DaemonLauncher(
     private val context: Context,
@@ -69,8 +65,9 @@ class DaemonLauncher(
             // to init so it survives shell exit. Equivalent to nohup + setsid.
             // llama-server's ggml-hexagon backend reads the NPU session count and
             // DSP skel search path from its environment (wiki/NPU-RUNTIME-PATHS.md Path 2).
+            val dspPath = "${context.applicationInfo.nativeLibraryDir}:${context.filesDir.absolutePath}"
             val envPrefix = if (binaryName == LLAMA_BINARY)
-                "GGML_HEXAGON_NDEV=2 DSP_LIBRARY_PATH=${context.applicationInfo.nativeLibraryDir}:${context.filesDir.absolutePath} " else ""
+                "GGML_HEXAGON_NDEV=2 DSP_LIBRARY_PATH=$dspPath " else ""
             val args = engineArgs.joinToString(" ")
             val shellCmd = "${envPrefix}LD_LIBRARY_PATH=$libDir ${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
 

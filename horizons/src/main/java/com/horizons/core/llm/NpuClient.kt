@@ -48,6 +48,17 @@ class NpuClient(
     private val _perfMetrics = MutableStateFlow<LlmRuntime.PerfMetrics?>(null)
     override val perfMetrics: StateFlow<LlmRuntime.PerfMetrics?> = _perfMetrics.asStateFlow()
 
+    private val _thinkingActive = MutableStateFlow(false)
+    override val thinkingActive: StateFlow<Boolean> = _thinkingActive.asStateFlow()
+
+    override val capabilities: LlmRuntime.Capabilities = LlmRuntime.Capabilities(
+        supportsVision = false,
+        supportsThinking = true,
+        supportsToolCalling = true,
+        maxContextLength = 4096,
+        runtimeFamily = if (openAiProtocol) "llama-server" else "ort_engine",
+    )
+
     override fun stream(prompt: String): Flow<String> {
         val startNanos = System.nanoTime()
         var firstTokenNanos = -1L
@@ -101,8 +112,7 @@ class NpuClient(
             }
             conn.outputStream.use { it.write(body) }
 
-            var inThink    = false
-            var thinkShown = false
+            var inThink = false
 
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
                 var line = reader.readLine()
@@ -129,17 +139,16 @@ class NpuClient(
                         !inThink && "<think>" in token -> {
                             val before = token.substringBefore("<think>")
                             if (before.isNotEmpty()) emit(before)
-                            inThink    = true
-                            thinkShown = false
+                            inThink = true
+                            _thinkingActive.value = true
                         }
                         inThink && "</think>" in token -> {
                             inThink = false
+                            _thinkingActive.value = false
                             val after = token.substringAfter("</think>")
                             if (after.isNotEmpty()) emit(after)
                         }
-                        inThink -> {
-                            if (!thinkShown) { emit("[Thinking…]"); thinkShown = true }
-                        }
+                        inThink -> { /* suppressed — UI observes thinkingActive */ }
                         else -> emit(token)
                     }
 
@@ -150,6 +159,7 @@ class NpuClient(
             Log.e(TAG, "NPU stream error", e)
             emit("\n[NPU stream error: ${e.message}]")
         } finally {
+            _thinkingActive.value = false
             conn.disconnect()
         }
     }.flowOn(Dispatchers.IO)
