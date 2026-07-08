@@ -55,9 +55,19 @@ class NpuClient : LlmRuntime {
     }
 
     private fun rawStream(prompt: String): Flow<String> = flow {
-        if (!isDaemonReachable()) {
-            emit("[NPU daemon not reachable at 127.0.0.1:${DaemonLauncher.ENGINE_PORT}]")
-            return@flow
+        when (daemonHealthCode()) {
+            200 -> { /* ready — fall through to the generate request below */ }
+            503 -> {
+                // Daemon is up but the model isn't loaded yet (still loading, or the
+                // model failed to load). Not a crash — an honest, actionable message.
+                emit("[NPU model not ready — the daemon is up but no model is loaded. " +
+                     "Import a compiled model, then try again.]")
+                return@flow
+            }
+            else -> {
+                emit("[NPU daemon not reachable at 127.0.0.1:${DaemonLauncher.ENGINE_PORT}]")
+                return@flow
+            }
         }
 
         val conn = URL("http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}/api/v1/generate")
@@ -122,15 +132,16 @@ class NpuClient : LlmRuntime {
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun isDaemonReachable(): Boolean = try {
+    /** /health status: 200 ready · 503 up-but-model-not-ready · -1 unreachable. */
+    private fun daemonHealthCode(): Int = try {
         val conn = URL("http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}/health")
             .openConnection() as HttpURLConnection
         conn.connectTimeout = 1_000
         conn.requestMethod  = "GET"
         val code = conn.responseCode
         conn.disconnect()
-        code == 200
-    } catch (_: Exception) { false }
+        code
+    } catch (_: Exception) { -1 }
 
     companion object { private const val TAG = "NpuClient" }
 }

@@ -49,11 +49,25 @@ class CliffordService : Service() {
         BinaryMissing("waiting for daemon binary"),
         ModelMissing("waiting for model file"),
         Launching("starting daemon…"),
+        Loading("loading model…"),          // process alive, /health 503 (loading or load-failed)
         Unhealthy("daemon offline"),
         Healthy("NPU daemon active"),
+        Failed("daemon unavailable — import a model to retry"), // gave up relaunching
     }
 
     @Volatile private var state: DaemonState = DaemonState.BinaryMissing
+
+    // ── Relaunch backoff + failure cap ─────────────────────────────────────────
+    // Defense-in-depth against a genuinely-crashing daemon (e.g. a native segfault
+    // that the C++ load() try/catch can't catch). The daemon-side fix already makes
+    // a *clean* load failure keep the process alive serving 503, which the loop below
+    // treats as "alive, don't relaunch". But if the process actually dies, we relaunch
+    // with exponential backoff and stop after MAX_LAUNCH_FAILURES so we never thrash.
+    private var consecutiveLaunchFailures = 0
+    private var lastLaunchAttemptMs = 0L
+    // Signature (path:size:mtime) of the model that was live when we gave up, so we
+    // can re-arm automatically once the user imports/changes the model.
+    private var failedModelSig: String? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -94,31 +108,68 @@ class CliffordService : Service() {
             // Daemon inherits this process's oom_score_adj (~-200 to -400).
             ensureDaemonRunning()
 
-            // Phase 2: CRS heartbeat — re-launch if daemon dies, swap runtime when healthy.
+            // Phase 2: CRS heartbeat.
+            // Key rule that breaks the crash loop: a LIVE process is NEVER relaunched,
+            // no matter what /health says. Readiness (200 vs 503) only decides whether
+            // we activate NpuClient — it never triggers a relaunch. Only an actually
+            // DEAD process is relaunched, and that path has backoff + a failure cap.
             while (isActive) {
                 delay(CRS_INTERVAL_MS)
-                // Refresh notification so the breadcrumb text stays current
-                // even when state didn't change.
                 runCatching {
                     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     nm.notify(NOTIF_ID, buildNotification())
                 }
-                val alive = pingDaemon()
-                if (!alive) {
-                    // Don't downgrade to Unhealthy when we're waiting on a missing
-                    // binary or model — those states are more informative.
-                    if (state == DaemonState.Healthy || state == DaemonState.Launching) {
-                        updateState(DaemonState.Unhealthy)
+
+                // Terminal state: we gave up relaunching. Sit idle until the model
+                // changes (user imported a new/valid one), then re-arm.
+                if (state == DaemonState.Failed) {
+                    if (modelSignature(app) != failedModelSig) {
+                        Log.i(TAG, "CRS: model changed since failure — re-arming daemon")
+                        resetFailureState()
+                        ensureDaemonRunning()
                     }
-                    Log.w(TAG, "CRS: daemon not responding — relaunching")
-                    ensureDaemonRunning()
+                    continue
+                }
+
+                val processAlive = launcher?.isRunning() == true
+
+                if (processAlive) {
+                    // Process is up. Readiness decides activation; we do NOT relaunch.
+                    consecutiveLaunchFailures = 0
+                    when (daemonHealthCode()) {
+                        200 -> {
+                            updateState(DaemonState.Healthy)
+                            if (app != null && !app.isNpuActive) {
+                                app.activateNpuRuntime()
+                                acquireNpuPerfLock()
+                                Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                            }
+                        }
+                        // 503 = alive but model still loading OR load failed. Either way the
+                        // daemon is up and stable — show progress, never relaunch. No thrash.
+                        503  -> updateState(DaemonState.Loading)
+                        else -> updateState(DaemonState.Unhealthy)
+                    }
                 } else {
-                    updateState(DaemonState.Healthy)
-                    if (app != null && !app.isNpuActive) {
-                        app.activateNpuRuntime()
-                        acquireNpuPerfLock()
-                        Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                    // Process is genuinely dead.
+                    if (state == DaemonState.BinaryMissing || state == DaemonState.ModelMissing) {
+                        // Nothing to launch yet — cheap re-check in case assets/model
+                        // arrived. Not a launch failure, so don't count it.
+                        ensureDaemonRunning()
+                        continue
                     }
+                    val now = System.currentTimeMillis()
+                    if (now - lastLaunchAttemptMs < launchBackoffMs()) continue
+                    if (consecutiveLaunchFailures >= MAX_LAUNCH_FAILURES) {
+                        failedModelSig = modelSignature(app)
+                        updateState(DaemonState.Failed)
+                        Log.e(TAG, "CRS: daemon died $consecutiveLaunchFailures× — giving up until model changes")
+                        continue
+                    }
+                    consecutiveLaunchFailures++
+                    lastLaunchAttemptMs = now
+                    Log.w(TAG, "CRS: daemon dead — relaunch attempt $consecutiveLaunchFailures/$MAX_LAUNCH_FAILURES")
+                    ensureDaemonRunning()
                 }
             }
         }
@@ -151,16 +202,40 @@ class CliffordService : Service() {
         }
     }
 
-    private fun pingDaemon(): Boolean = try {
+    /**
+     * HTTP status from the daemon's /health, or -1 if the port didn't respond at all.
+     * 200 = ready · 503 = alive but model not ready (loading or load-failed) · -1 = unreachable.
+     * Note: readiness is only used to decide activation. Whether to relaunch is decided
+     * by process liveness (launcher.isRunning()), never by this code.
+     */
+    private fun daemonHealthCode(): Int = try {
         val conn = java.net.URL(
             "http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}/health"
         ).openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 1_000
         conn.requestMethod = "GET"
-        val ok = conn.responseCode == 200
+        val code = conn.responseCode
         conn.disconnect()
-        ok
-    } catch (_: Exception) { false }
+        code
+    } catch (_: Exception) { -1 }
+
+    /** Exponential backoff between relaunch attempts: 15s, 30s, 60s, 120s, capped at 4min. */
+    private fun launchBackoffMs(): Long =
+        (CRS_INTERVAL_MS shl consecutiveLaunchFailures).coerceAtMost(240_000L)
+
+    private fun resetFailureState() {
+        consecutiveLaunchFailures = 0
+        lastLaunchAttemptMs = 0L
+        failedModelSig = null
+    }
+
+    /** path:size:mtime of the currently-resolvable model, or null if none. Used to
+     *  detect that the user imported/changed the model so we can re-arm after giving up. */
+    private fun modelSignature(app: HorizonsApplication?): String? {
+        val path = app?.resolveNpuModelPath() ?: return null
+        val f = java.io.File(path)
+        return "$path:${f.length()}:${f.lastModified()}"
+    }
 
     // ── NpuManager Performance Lock ───────────────────────────────────────────
     // NpuManager is an @hide system service on Qualcomm BSPs (SM8750+).
@@ -220,6 +295,9 @@ class CliffordService : Service() {
         private const val NOTIF_ID     = 9001
         private const val CHANNEL_ID   = "clifford_brd"
         private const val CRS_INTERVAL_MS = 15_000L
+        // Consecutive dead-process relaunches before we give up and idle in Failed
+        // state (re-armed automatically when the model file changes).
+        private const val MAX_LAUNCH_FAILURES = 5
 
         const val ACTION_STOP = "com.horizons.clifford.STOP"
 
