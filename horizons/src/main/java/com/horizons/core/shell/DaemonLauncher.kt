@@ -18,7 +18,7 @@ import java.io.File
  */
 class DaemonLauncher(
     private val context: Context,
-    private val binaryName: String = ENGINE_BINARY,
+    val binaryName: String = ENGINE_BINARY,
 ) {
 
     data class DaemonHandle(val pid: Int, val logPath: String)
@@ -38,7 +38,10 @@ class DaemonLauncher(
         return File(context.filesDir, binaryName)
     }
 
-    suspend fun launch(engineArgs: List<String> = emptyList()): Result<DaemonHandle> =
+    suspend fun launch(
+        engineArgs: List<String> = emptyList(),
+        tuning: NpuTuning = NpuTuning(),
+    ): Result<DaemonHandle> =
         withContext(Dispatchers.IO) {
             val engine = resolveEngineFile()
             if (!engine.exists()) {
@@ -66,8 +69,12 @@ class DaemonLauncher(
             // llama-server's ggml-hexagon backend reads the NPU session count and
             // DSP skel search path from its environment (wiki/NPU-RUNTIME-PATHS.md Path 2).
             val dspPath = "${context.applicationInfo.nativeLibraryDir}:${context.filesDir.absolutePath}"
-            val envPrefix = if (binaryName == LLAMA_BINARY)
-                "GGML_HEXAGON_NDEV=2 DSP_LIBRARY_PATH=$dspPath " else ""
+            val envPrefix = if (binaryName == LLAMA_BINARY) buildString {
+                append("GGML_HEXAGON_NDEV=${tuning.ndev} ")
+                if (tuning.verboseHexagon) append("GGML_HEXAGON_VERBOSE=1 ")
+                if (tuning.extraEnv.isNotBlank()) append("${tuning.extraEnv.trim()} ")
+                append("DSP_LIBRARY_PATH=$dspPath ")
+            } else ""
             val args = engineArgs.joinToString(" ")
             val shellCmd = "${envPrefix}LD_LIBRARY_PATH=$libDir ${engine.absolutePath} $args >> ${logFile.absolutePath} 2>&1 &"
 
@@ -91,6 +98,9 @@ class DaemonLauncher(
         }
 
     fun isRunning(): Boolean = resolveEnginePid(resolveEngineFile().name) > 0
+
+    /** Deterministic daemon log path — same value launch() redirects into. */
+    fun logFile(): File = File(context.getExternalFilesDir(null), "$binaryName.log")
 
     fun stop() {
         val pid = resolveEnginePid(resolveEngineFile().name)

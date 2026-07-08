@@ -291,6 +291,152 @@ fun RouterPane(
 
         HorizontalDivider(color = Accent.copy(alpha = 0.2f))
 
+        // ── NPU Offload & Tuning ─────────────────────────────────────────────
+        // Verdict comes from :clifford's log probe (filesDir/npu-status.json);
+        // knobs write filesDir/npu-tuning.json and take effect on daemon restart.
+        RouterSection("NPU Offload & Tuning")
+
+        var offloadStatus by remember {
+            mutableStateOf(com.horizons.core.shell.NpuOffloadProbe.readStatus(ctx))
+        }
+        Surface(
+            color = when {
+                offloadStatus?.hexagonDetected == true -> HorizonsColors.StatusAsr.copy(alpha = 0.1f)
+                offloadStatus != null -> HorizonsColors.ActionYellow.copy(alpha = 0.1f)
+                else -> HorizonsColors.Surface
+            },
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    offloadStatus?.summary
+                        ?: "No offload probe yet — start the NPU daemon to populate.",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = if (offloadStatus?.hexagonDetected == true)
+                        HorizonsColors.TileTerminal
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = {
+                    offloadStatus = com.horizons.core.shell.NpuOffloadProbe.readStatus(ctx)
+                }) {
+                    Text("↻", fontSize = 14.sp, color = Accent)
+                }
+            }
+        }
+
+        var tuning by remember { mutableStateOf(com.horizons.core.shell.NpuTuning.load(ctx)) }
+        var ctxDraft by remember { mutableStateOf(tuning.ctxSize.toString()) }
+        var extraArgsDraft by remember { mutableStateOf(tuning.extraArgs) }
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "HTP sessions (NDEV): ${tuning.ndev}",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Row {
+                        OutlinedButton(
+                            onClick = { if (tuning.ndev > 1) tuning = tuning.copy(ndev = tuning.ndev - 1) },
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                            modifier = Modifier.size(32.dp),
+                        ) { Text("−", color = Accent) }
+                        Spacer(Modifier.width(8.dp))
+                        OutlinedButton(
+                            onClick = { if (tuning.ndev < 4) tuning = tuning.copy(ndev = tuning.ndev + 1) },
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                            modifier = Modifier.size(32.dp),
+                        ) { Text("+", color = Accent) }
+                    }
+                }
+                Text(
+                    "9B Q4_0 needs ≥2 (4GB/session cDSP ceiling). More sessions = more parallel HTP, more DSP memory pressure.",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                )
+                OutlinedTextField(
+                    value = ctxDraft,
+                    onValueChange = { ctxDraft = it.filter(Char::isDigit) },
+                    label = { Text("Context size (-c)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = {
+                        tuning = tuning.copy(flashAttention = !tuning.flashAttention)
+                    }) {
+                        Text(
+                            if (tuning.flashAttention) "☑ flash attention (-fa)" else "☐ flash attention (-fa)",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = if (tuning.flashAttention) Accent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        )
+                    }
+                    TextButton(onClick = {
+                        tuning = tuning.copy(verboseHexagon = !tuning.verboseHexagon)
+                    }) {
+                        Text(
+                            if (tuning.verboseHexagon) "☑ verbose hexagon log" else "☐ verbose hexagon log",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = if (tuning.verboseHexagon) Accent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = extraArgsDraft,
+                    onValueChange = { extraArgsDraft = it },
+                    label = { Text("Extra llama-server args (advanced)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                )
+                Button(
+                    onClick = {
+                        val next = tuning.copy(
+                            ctxSize = ctxDraft.toIntOrNull()?.coerceIn(512, 32768) ?: tuning.ctxSize,
+                            extraArgs = extraArgsDraft.trim(),
+                        )
+                        tuning = next
+                        ctxDraft = next.ctxSize.toString()
+                        next.save(ctx)
+                        com.horizons.fgs.CliffordService.restartDaemon(ctx)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Apply & Restart Daemon",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(color = Accent.copy(alpha = 0.2f))
+
         // ── Cloud Model Selector ─────────────────────────────────────────────
         RouterSection("Cloud Model Selector")
 
