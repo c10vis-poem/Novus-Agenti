@@ -903,8 +903,8 @@ private fun BrowserTab(app: HorizonsApplication) {
         AndroidView(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             factory = { c -> android.widget.FrameLayout(c) },
-            update = { host ->
-                val page = pages.getOrNull(activeIdx) ?: return@update
+            update = updater@ { host ->
+                val page = pages.getOrNull(activeIdx) ?: return@updater
                 val wv = page.webView ?: createBrowserWebView(host.context, page) { msg ->
                     // Bridge messages from web content back into the app. For now,
                     // surface them via the daemon-agnostic breadcrumb log; a real
