@@ -5,21 +5,25 @@
 > ```
 > Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
 > → Hexagon HTP v75 (SM8750) qnn_context_binary via QAI Hub.
-> Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS, TWO BRANCHES —
+> Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS —
 > pick the one matching your actual task, don't assume there's only one:
 >   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
 >     claude/project-scope-review-lf615p, PR #4
->   - APP track (Android app, daemon, UI): branch
->     claude/horizons-closeout-hf-review-ycjkm3, PR #8 — most recent work
->     (sessions 9-12) happened here
+>   - APP track (Android app, daemon, UI, knowledge layer): branch
+>     claude/on-device-inference-openwiki-sae7cy, PR #15 — CURRENT app
+>     work (session 15: daemon crash-loop fix, in-app browser, knowledge/
+>     corpus). PR #8 (claude/horizons-closeout-hf-review-ycjkm3) already
+>     MERGED to main — do not reuse it.
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
 >   2. wiki/GPT-DAEMON-REFERENCE.md (full read)
 >   3. wiki/NPU-RUNTIME-PATHS.md (full read)
 >   4. wiki/SESSION{N}-HANDOFF.md (latest N)
->   5. models/manifest.yaml
->   6. scripts/compile_qwen3_5_9b.py
+>   5. knowledge/README.md (byte-faithful master-wiki corpus — the operator's
+>      finished portable knowledge layer; NEVER re-process or re-summarize it)
+>   6. models/manifest.yaml
+>   7. scripts/compile_qwen3_5_9b.py
 >
 > Use /memory slash command to reload full project context.
 > After reading: state current SOTU, last job result, next action. Then wait.
@@ -38,9 +42,10 @@ Type `/memory` in any Claude Code session to reload full project context.
 2. Read `wiki/GPT-DAEMON-REFERENCE.md`
 3. Read `wiki/NPU-RUNTIME-PATHS.md`
 4. Read latest `wiki/SESSION{N}-HANDOFF.md`
-5. Read `models/manifest.yaml`
-6. Read `scripts/compile_qwen3_5_9b.py`
-7. Produce a SOTU summary and confirm next action before touching any file
+5. Read `knowledge/README.md` (master-wiki corpus map — copy, never re-process)
+6. Read `models/manifest.yaml`
+7. Read `scripts/compile_qwen3_5_9b.py`
+8. Produce a SOTU summary and confirm next action before touching any file
 
 ---
 
@@ -362,7 +367,43 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ---
 
-## State of the Union — 2026-07-04 (session 14)
+## State of the Union — 2026-07-11 (session 15)
+
+### Done — session 15
+- **`knowledge/` corpus landed** (branch `claude/on-device-inference-openwiki-sae7cy`,
+  PR #15). A **byte-faithful copy** of the operator's finished `Claude_master_wiki`
+  Google Drive folder — 23 distilled `.md`/`.jsonl`/`.txt`/doc artifacts across six
+  topic folders (omni-claw-defined, research-npu, proofs, fragmented-qat,
+  google-dev-docs, gemini-query). Decoded base64→exact bytes, every size verified
+  against Drive `fileSize`. See `knowledge/README.md` for folder↔Drive provenance.
+  This IS the operator's portable knowledge layer, hand-distilled over ~18h — it is
+  the ingestion source for the OpenWiki/OB1/reasoning-bank memory backend, NOT
+  something to re-summarize, reflow, or re-compile. Skip nothing; copy faithfully.
+- **Daemon crash-loop fixed + in-app browser** (same branch/PR, from earlier this
+  session): `daemon/src/main.cpp` now loads the model on a background thread and
+  binds :8080 immediately (a model-less daemon stays UP serving /health 503 instead
+  of suiciding → no watchdog thrash); `CliffordService.kt` never relaunches a LIVE
+  process and backs off/caps relaunch of a dead one; `TerminalPanel.kt` gained a
+  real multi-page WebView "Browser" tab with a `window.OmniClaw` JS bridge.
+
+### Standing directives from the operator (session 15) — these are LAW
+- **QAIT>ORT** — the operator prefers **QAIRT / LiteRT** over the current
+  `ort_engine` (ONNX Runtime + QNN EP) for on-device model placement. This is an
+  OPEN architectural fork, not yet decided: (a) QAIRT native as a detached daemon
+  binary (keeps the daemon/watchdog model + crash-loop fix + the "no in-process
+  tensor runtime" hard rule) vs (b) LiteRT `CompiledModel` in-process Kotlin
+  (breaks that rule). **Confirm the operator's choice before writing new runtime
+  code.** The `gemini-query/` and `research-npu/` corpus files are the reference.
+- **Never invent priority.** The operator's labels and ordering ARE the priority.
+  Do not reorder, re-scope, or substitute your own judgement for what he flagged.
+  If unsure what's next, ask — don't improvise a roadmap.
+- **OmniNeural / Nexa SDK = DEAD.** Confirmed abandoned (Nexa's HF presence is
+  effectively gone; the model is dead). Do not try to download a Nexa SDK or build
+  on OmniNeural. Reference-only for reverse-engineering, nothing more.
+- **Orchestrator model.** When the operator says to spin up parallel agents, brief
+  each per the sub-agent template, give a 1h cache TTL, and hold them to it — if a
+  background agent hasn't returned in hours, it's dead; do the work inline instead
+  of waiting.
 
 ### Done — session 14
 - **PR #8 merged to `main`** (merge commit `6188398`) — all of session 12-13's
@@ -557,6 +598,9 @@ skills/
   horizons-wiki/SKILL.md        novus-agenti-wiki
   project-memory/SKILL.md
   termux-mobile-dev/SKILL.md
+knowledge/                       byte-faithful master-wiki corpus (see README.md)
+  omni-claw-defined/  research-npu/  proofs/  fragmented-qat/
+  google-dev-docs/  gemini-query/   ← distilled .md/.jsonl/.txt, DO NOT re-process
 models/manifest.yaml
 scripts/compile_qwen3_5_9b.py   PRIMARY
 wiki/
