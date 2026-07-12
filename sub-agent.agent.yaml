@@ -21,7 +21,7 @@ description: |
   Reusable sub-agent template for Novus Agenti / Omni Claw build/review
   work: compiling Mer0vin8ian/Qwen3.5-9B to a qnn_context_binary via QAI
   Hub, and the on-device Android app (com.horizons) that serves it
-  through the ort_engine daemon on Hexagon HTP v75. Inherits the same
+  through the ort_engine daemon on Hexagon HTP v79. Inherits the same
   scope as the parent Builder (agents/neuralmash-builder.system.md) via
   the shared horizons-wiki skill, but is sized for short-lived at-bat
   tasks: implement a layer, then archive. Use a fresh session per at-bat

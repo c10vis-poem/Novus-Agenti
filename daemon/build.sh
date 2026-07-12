@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build ort_engine for aarch64-android (Snapdragon 8 Elite / Hexagon HTP v75)
+# Build ort_engine for aarch64-android (Snapdragon 8 Elite / Hexagon HTP v79)
 #
 # Prerequisites:
 #   - Android NDK r26+ (ANDROID_NDK env var)

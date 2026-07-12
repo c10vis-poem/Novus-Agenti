@@ -144,7 +144,7 @@ fun MonitorPane(
                 isModel -> name
                 lower.startsWith("ort_engine") -> com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
                 lower.startsWith("libonnxruntime") -> "libonnxruntime.so"
-                lower.startsWith("libqnnhtpv75skel") -> "libQnnHtpV75Skel.so"
+                lower.startsWith("libqnnhtpv79skel") -> "libQnnHtpV79Skel.so"
                 lower.startsWith("libqnnhtp") -> "libQnnHtp.so"
                 lower.startsWith("libqnnsystem") -> "libQnnSystem.so"
                 else -> name

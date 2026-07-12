@@ -1,4 +1,4 @@
-# Minimal deps for the staged Colab compile of Qwen3-VL-8B → Snapdragon HTP v75.
+# Minimal deps for the staged Colab compile of Qwen3-VL-8B → Snapdragon HTP v79.
 # Pinned loose on purpose — Colab base image already ships current torch/transformers.
 torch>=2.4
 transformers>=4.45

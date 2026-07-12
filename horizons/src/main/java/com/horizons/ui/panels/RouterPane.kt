@@ -132,7 +132,7 @@ fun RouterPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "ort_engine · Hexagon HTP v75",
+                        "ort_engine · Hexagon HTP v79",
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurface,

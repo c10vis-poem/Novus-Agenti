@@ -14,7 +14,7 @@
 | `transformers==4.40.2` | Qwen3.5 requires transformers 5.x+ |
 | `optimum-cli --rope-fuse` | No Qwen3.5 export config in optimum; our manual M-RoPE fold is required |
 | Output `.hex` / `.qpc` | QAI Hub produces `qnn_context_binary` (.bin) |
-| Hexagon v68 | SM8750 = Hexagon HTP v75 |
+| Hexagon v68 | SM8750 = Hexagon HTP v79 |
 | SNPE SDK / `snpe-profiler` | We use QNN EP (ORT or Genie SDK), not SNPE |
 | System UID daemon (`init.rc`, `android.uid.system`) | Requires root/custom ROM; we have neither |
 | `/dev/adsprpc` direct access | Requires root |

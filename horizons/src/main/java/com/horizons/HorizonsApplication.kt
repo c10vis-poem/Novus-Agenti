@@ -47,7 +47,7 @@ enum class ChatMode {
 
 /**
  * Application singleton. All AI inference runs on-device via
- * Qwen3.5-9B via ort_engine daemon (Hexagon HTP v75).
+ * Qwen3.5-9B via ort_engine daemon (Hexagon HTP v79).
  * TTS: Sherpa-ONNX -> Kokoro multi-lang v1.0 (28 English voices), no Android TTS broker.
  */
 class HorizonsApplication : Application() {

@@ -178,7 +178,7 @@ class ModelImportActivity : ComponentActivity() {
     private fun isRuntimeFile(name: String): Boolean {
         val lower = name.lowercase()
         // Tolerant match: handles download-dedupe suffixes ("ort_engine (1)"),
-        // versioned QNN libs ("libQnnHtpV75Skel.so"), and case variations.
+        // versioned QNN libs ("libQnnHtpV79Skel.so"), and case variations.
         if (lower.startsWith("ort_engine")) return true
         if (lower.startsWith("libonnxruntime") && lower.endsWith(".so")) return true
         if (lower.startsWith("libqnn") && lower.endsWith(".so")) return true
@@ -191,7 +191,7 @@ class ModelImportActivity : ComponentActivity() {
         return when {
             lower.startsWith("ort_engine") -> com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
             lower.startsWith("libonnxruntime") -> "libonnxruntime.so"
-            lower.startsWith("libqnnhtpv75skel") -> "libQnnHtpV75Skel.so"
+            lower.startsWith("libqnnhtpv79skel") -> "libQnnHtpV79Skel.so"
             lower.startsWith("libqnnhtp") -> "libQnnHtp.so"
             lower.startsWith("libqnnsystem") -> "libQnnSystem.so"
             else -> name
@@ -225,7 +225,7 @@ class ModelImportActivity : ComponentActivity() {
             "libonnxruntime.so",
             "libQnnHtp.so",
             "libQnnSystem.so",
-            "libQnnHtpV75Skel.so",
+            "libQnnHtpV79Skel.so",
         )
     }
 }

@@ -6,7 +6,7 @@
 #include <csignal>
 #include <thread>
 
-// ort_engine — on-device LLM inference daemon for Hexagon HTP v75
+// ort_engine — on-device LLM inference daemon for Hexagon HTP v79
 //
 // Loads a qnn_context_binary via ONNX Runtime + QNN Execution Provider,
 // serves HTTP at 127.0.0.1:8080 matching the NpuClient.kt wire protocol.
@@ -38,7 +38,7 @@ static std::string get_arg(int argc, char** argv, const std::string& flag, const
 }
 
 int main(int argc, char** argv) {
-    std::cerr << "[ort_engine] Novus Agenti · Hexagon HTP v75 inference daemon\n";
+    std::cerr << "[ort_engine] Novus Agenti · Hexagon HTP v79 inference daemon\n";
 
     std::string model_path   = get_arg(argc, argv, "--model",       "/storage/emulated/0/Download/qwen3_5_9b_unified.bin");
     std::string tok_path     = get_arg(argc, argv, "--tokenizer",   "/storage/emulated/0/Download/tokenizer.json");
