@@ -17,6 +17,9 @@ import com.horizons.core.shell.TaskerBridge
 import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatHistoryStore
 import com.horizons.core.state.SavedCommandStore
+import com.horizons.core.stt.MoonshineModelManager
+import com.horizons.core.stt.MoonshineSetupState
+import com.horizons.core.stt.MoonshineSttEngine
 import com.horizons.core.voice.KokoroModelManager
 import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
@@ -27,6 +30,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,6 +90,10 @@ class HorizonsApplication : Application() {
     // -- Shared AudioRecorder --
     val audioRecorder: AudioRecorder by lazy { AudioRecorder(this) }
 
+    // -- Moonshine STT -- our own system-level transcription, model-independent --
+    val moonshineManager: MoonshineModelManager by lazy { MoonshineModelManager(this, scope) }
+    val stt: MoonshineSttEngine by lazy { MoonshineSttEngine(moonshineManager.modelDir) }
+
     // -- Pending screen capture (dock button -> stored here -> chat ask) --
     val pendingScreenJpeg = MutableStateFlow<ByteArray?>(null)
 
@@ -118,8 +126,12 @@ class HorizonsApplication : Application() {
             recorder = audioRecorder,
             tts = tts,
             engineStreamAudio = { pcm ->
-                llmRuntime.streamAudio(pcmToWav(pcm, AudioRecorder.SAMPLE_RATE))
-                    .gameBoosted(this@HorizonsApplication)
+                // VAD → Moonshine STT (ours) → LLM (text reasoning) → TTS.
+                // STT is model-independent; the LLM only ever sees text.
+                flow {
+                    val text = transcribeAudio(pcm, AudioRecorder.SAMPLE_RATE)
+                    if (text.isNotBlank()) emitAll(llmRuntime.stream(text))
+                }.gameBoosted(this@HorizonsApplication)
             },
             vad = VadFactory.create(this@HorizonsApplication),
         )
@@ -242,8 +254,16 @@ class HorizonsApplication : Application() {
         }
     }
 
-    /** Voice STT: PCM -> WAV -> Qwen3.5-9B -> transcript string. */
+    /**
+     * Voice STT: PCM -> Moonshine (our system-level STT), model-independent.
+     * Falls back to the active LLM's audio path only if our STT isn't ready and
+     * a model that accepts audio is loaded.
+     */
     suspend fun transcribeAudio(pcm: ShortArray, sampleRate: Int): String {
+        if (stt.ready.value) {
+            val text = stt.transcribe(pcm, sampleRate)
+            if (text.isNotBlank()) return text
+        }
         val wav = pcmToWav(pcm, sampleRate)
         var result = ""
         llmRuntime.streamAudio(wav, "Transcribe the audio accurately.").collect { result += it }
@@ -309,6 +329,27 @@ class HorizonsApplication : Application() {
                             com.horizons.core.diag.Breadcrumb.drop("tts_inited")
                         } catch (e: Throwable) {
                             com.horizons.core.diag.Breadcrumb.drop("tts_init_failed: ${e.javaClass.simpleName}: ${e.message}")
+                        }
+                    }
+                }
+            }
+
+            // -- Moonshine STT: download model, init our system STT when ready --
+            try {
+                moonshineManager.ensureReady()
+                com.horizons.core.diag.Breadcrumb.drop("moonshine_ensure_ready_called")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("moonshine_ensure_ready_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
+            scope.launch {
+                moonshineManager.state.collect { state ->
+                    if (state is MoonshineSetupState.Ready) {
+                        com.horizons.core.diag.Breadcrumb.drop("moonshine_state_ready")
+                        try {
+                            withContext(Dispatchers.IO) { stt.init() }
+                            com.horizons.core.diag.Breadcrumb.drop("stt_inited")
+                        } catch (e: Throwable) {
+                            com.horizons.core.diag.Breadcrumb.drop("stt_init_failed: ${e.javaClass.simpleName}: ${e.message}")
                         }
                     }
                 }
