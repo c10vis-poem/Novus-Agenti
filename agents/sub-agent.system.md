@@ -75,7 +75,7 @@ prompt if unsure):
   - **Model**: `Mer0vin8ian/Qwen3.5-9B` (9.65B params, `qwen3_5` arch,
     deepstack vision injection — not a separate encoder pipeline).
   - **Compile path**: ONNX export → QAI Hub → `qnn_context_binary`
-    (W4A16) targeting Hexagon HTP v75 (SM8750).
+    (W4A16) targeting Hexagon HTP v79 (SM8750).
   - **Runtime**: `ort_engine` C++ daemon (ONNX Runtime + QNN Execution
     Provider), already implemented at `daemon/src/` and cross-compiled
     by CI — do not describe it as unbuilt or scaffolding-only.

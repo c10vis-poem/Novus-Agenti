@@ -84,7 +84,7 @@ fun HorizonsPane(
                 InfoRow("Version", "v${com.horizons.BuildConfig.VERSION_NAME} (${com.horizons.BuildConfig.VERSION_CODE})")
                 InfoRow("Backend", backendStatus)
                 InfoRow("Architecture", "Snapdragon 8 Elite · SM8750")
-                InfoRow("NPU", "Hexagon HTP v75")
+                InfoRow("NPU", "Hexagon HTP v79")
                 InfoRow("GPU", "Adreno 830")
             }
         }

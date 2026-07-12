@@ -11,7 +11,7 @@ import java.io.File
  *   assets/ort_engine                — ONNX-RT + QNN EP daemon (Qwen3.5-9B, qnn_context_binary)
  *   assets/qnn/libQnnHtp.so          — Hexagon HTP execution provider
  *   assets/qnn/libQnnSystem.so       — QNN system library
- *   assets/qnn/libQnnHtpV75Skel.so   — HTP v75 skeleton for SM8750
+ *   assets/qnn/libQnnHtpV79Skel.so   — HTP v79 skeleton for SM8750
  *
  * All extractions are silent no-ops until the binaries are packaged into APK assets.
  * isInstalled() returns false when no binary is present.
@@ -21,7 +21,7 @@ object NativeBinaryInstaller {
     private val QNN_LIBS = listOf(
         "libQnnHtp.so",
         "libQnnSystem.so",
-        "libQnnHtpV75Skel.so",
+        "libQnnHtpV79Skel.so",
     )
 
     fun install(context: Context): Boolean {

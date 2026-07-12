@@ -1,7 +1,7 @@
 # NPU Runtime Paths — Novus Agenti / Omni Claw
 
 > Canonical reference for every path from source model → running on Hexagon
-> HTP v75 (SM8750), the Qualcomm SDK distribution model, and the Qualcomm
+> HTP v79 (SM8750), the Qualcomm SDK distribution model, and the Qualcomm
 > documentation glossary. Supersedes any prior "GPT-OSS-Reference" pointer —
 > that filename never existed in this repo; see `GPT-DAEMON-REFERENCE.md`
 > for the distilled daemon/architecture notes instead.
@@ -18,7 +18,7 @@
 |---|---|
 | Device | Motorola Razr Ultra 2025 |
 | SoC | Snapdragon 8 Elite (SM8750) |
-| NPU | Hexagon HTP v75 |
+| NPU | Hexagon HTP v79 |
 | RAM | 16 GB LPDDR5X |
 | Android | 15 (API 35) |
 
@@ -72,7 +72,7 @@ launches whatever binary is installed in `filesDir`.
 ```
 HF model → ONNX export (RoPE fold, static shapes) → QAI Hub compile
   (server-side, W4A16) → .bin (qnn_context_binary) → ort_engine daemon
-  (ORT + QNN EP) → Hexagon HTP v75
+  (ORT + QNN EP) → Hexagon HTP v79
 ```
 
 No local/CI SDK needed for the compile step — QAI Hub does it. `ort_engine`
@@ -126,7 +126,7 @@ Meta's ExecuTorch with a QNN delegate. Actively changing API upstream.
 |---|---|
 | QNN Context Binary | Pre-compiled model graph for a specific HTP version. Fastest load, no runtime compile. |
 | QNN Execution Provider | ONNX Runtime backend routing ops to QNN/HTP. Supports pre-compiled binaries or runtime ONNX compile. |
-| HTP | Hexagon Tensor Processor — the ML accelerator cores in the Hexagon DSP. v75 in SM8750. |
+| HTP | Hexagon Tensor Processor — the ML accelerator cores in the Hexagon DSP. v79 in SM8750. |
 | VTCM | Vector Tightly Coupled Memory — on-chip scratch SRAM. `--scratch_size_mib` controls allocation. |
 | W4A16 | Weight 4-bit int, activation 16-bit float. Primary LLM quantization for HTP. |
 | Partition Override | JSON forcing specific ops to CPU/GPU when HTP lacks a kernel (e.g. FP16 Softmax). |

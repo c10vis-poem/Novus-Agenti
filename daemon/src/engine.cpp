@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <chrono>
+#include <atomic>
 
 struct Engine::Impl {
     EngineConfig config;
@@ -12,7 +13,10 @@ struct Engine::Impl {
     Ort::SessionOptions session_opts;
     std::unique_ptr<Ort::Session> session;
     Tokenizer tokenizer;
-    bool ready = false;
+    // Written by the background loader thread (see main.cpp), read by the server
+    // thread via is_ready()/generate(). Atomic so the readiness flip is visible
+    // across threads without a data race.
+    std::atomic<bool> ready{false};
 
     // Pre-allocated buffers for static-shape inference
     std::vector<int64_t> input_ids_buf;

@@ -1,0 +1,16 @@
+https://creativecommons.org/licenses/by/4.0/legalcode
+https://doi.org/10.1145/3767295.3769382
+https://github.com/haozixu/llama.cpp-npu
+https://github.com/haozixu/htp-ops-lib
+https://huggingface.co/PowerServe/Llama-3.2-1B-PowerServe-QNN29-8G3
+https://github.com/powerserve-project/PowerServe/tree/main
+https://intel.github.io/intel-npu-acceleration-library/npu.html
+https://www.intel.com/content/www/us/en/content-details/817486/intel-gaudi-3-ai-accelerator-white-paper.html
+https://github.com/ggml-org/llama.cpp
+https://huggingface.co/spaces/HuggingFaceH4/blogpost-scaling-test-time-compute
+https://www.amd.com/en/products/specifications/processors.html
+https://www.qualcomm.com/content/dam/qcomm-martech/dm-assets/documents/Unlocking-on-device-generative-AI-with-an-NPU-and-heterogeneous-computing.pdf
+https://huggingface.co/Skywork
+https://github.com/quic/fastrpc
+https://developer.qualcomm.com/software/qualcomm-ai-engine-direct-sdk
+https://github.com/pytorch/executorch

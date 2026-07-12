@@ -10,18 +10,18 @@
 # Target hardware
 target:
   soc: SM8750                              # Snapdragon 8 Elite
-  npu: Hexagon HTP v75                     # SD8 Elite NPU
+  npu: Hexagon HTP v79                     # SD8 Elite NPU
   qai_hub_device_qwen35:  "Snapdragon 8 Elite"      # Qwen3.5-9B (ONNX path)
   qai_hub_device_qwenvl:  "Snapdragon 8 Elite QRD"  # Qwen3-VL backup
   qai_hub_device_gemma:   "Snapdragon 8 Elite"      # Gemma 4 12B backup
 
 # Hard caps from wiki/GPT-DAEMON-REFERENCE.md
-# Hexagon v69/v75 require static shapes; max_seq_len cannot change at runtime.
+# Hexagon v69/v79 require static shapes; max_seq_len cannot change at runtime.
 hexagon_constraints:
   rope_fold: true                          # bake Q/K rotations into weights at export
   disable_mha_fusion: true                 # --disable_fusion for variable-len safety
   gelu_approx: tanh                        # FP16-native, ~0.1% error
-  layernorm_rewrite: pre_ln                # post-LN not supported on v75
+  layernorm_rewrite: pre_ln                # post-LN not supported on v79
   bias_as_int32: true                      # INT8 bias overflow guard
   scratch_size_mib: 16
   max_dynamic_tensor_size_mib: 64
@@ -68,7 +68,7 @@ models:
       type: w4a16
       calibration_tokens: 10000
       calibration_dataset: ""
-    output_repo: Mer0vin8ian/qwen3-vl-8b-thinking-htp-v75
+    output_repo: Mer0vin8ian/qwen3-vl-8b-thinking-htp-v79
     output_artifacts:
       - qwen3_vl_8b_thinking_vision_encoder.bin
       - qwen3_vl_8b_thinking_language_model.bin

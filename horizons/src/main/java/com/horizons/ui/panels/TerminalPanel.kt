@@ -72,7 +72,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.viewinterop.AndroidView
 import com.horizons.HorizonsApplication
+import com.horizons.core.shell.DaemonLauncher
 import com.horizons.core.state.SavedCommand
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.launch
@@ -186,6 +193,17 @@ fun TerminalPanel(
                         )
                     },
                 )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = {
+                        Text(
+                            "Browser",
+                            fontFamily = FontFamily.Monospace,
+                            color = if (selectedTab == 3) MatrixGreen else MatrixGreen.copy(alpha = 0.4f),
+                        )
+                    },
+                )
             }
 
             when (selectedTab) {
@@ -199,6 +217,7 @@ fun TerminalPanel(
                         selectedTab = 0
                     },
                 )
+                3 -> BrowserTab(app = app)
             }
         }
     }
@@ -673,5 +692,235 @@ private fun PromptCard(
                 )
             }
         }
+    }
+}
+
+// ── Browser tab ──────────────────────────────────────────────────────────────
+// An in-app Chromium (Android System WebView) browser with multiple pages, so
+// the UI runs its own browser instead of shelling out to a cloud/desktop one.
+//
+// The "socket" the front end can attach to: every page gets a JavaScript bridge
+// injected as `window.OmniClaw` — web content can call OmniClaw.postMessage(json)
+// to talk back to the app, and OmniClaw.daemonPort() to discover the local
+// ort_engine port. This is the seam for wiring the browser to the agent/daemon
+// later (e.g. an in-page control surface that drives 127.0.0.1:8080).
+
+private const val BROWSER_HOME = "https://duckduckgo.com/"
+
+private class BrowserPage(val id: Int, startUrl: String) {
+    val url = mutableStateOf(startUrl)
+    val title = mutableStateOf("New Tab")
+    val canGoBack = mutableStateOf(false)
+    var webView: android.webkit.WebView? = null
+    var loaded = false
+}
+
+/** Turn free text into a navigable URL: bare domains → https://, anything else → DuckDuckGo search. */
+private fun normalizeToUrl(input: String): String {
+    val s = input.trim()
+    if (s.isEmpty()) return BROWSER_HOME
+    if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("about:")) return s
+    val looksLikeHost = s.contains('.') && !s.contains(' ')
+    return if (looksLikeHost) "https://$s"
+           else "https://duckduckgo.com/?q=" + android.net.Uri.encode(s)
+}
+
+private class OmniClawBridge(private val onMessage: (String) -> Unit) {
+    @android.webkit.JavascriptInterface
+    fun postMessage(msg: String) { onMessage(msg) }
+
+    @android.webkit.JavascriptInterface
+    fun daemonPort(): Int = DaemonLauncher.ENGINE_PORT
+}
+
+@android.annotation.SuppressLint("SetJavaScriptEnabled")
+private fun createBrowserWebView(
+    context: android.content.Context,
+    page: BrowserPage,
+    onMessage: (String) -> Unit,
+): android.webkit.WebView = android.webkit.WebView(context).apply {
+    layoutParams = android.view.ViewGroup.LayoutParams(
+        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+    )
+    with(settings) {
+        javaScriptEnabled = true
+        domStorageEnabled = true
+        databaseEnabled = true
+        loadWithOverviewMode = true
+        useWideViewPort = true
+        builtInZoomControls = true
+        displayZoomControls = false
+        setSupportMultipleWindows(false)
+        mediaPlaybackRequiresUserGesture = true
+    }
+    addJavascriptInterface(OmniClawBridge(onMessage), "OmniClaw")
+    webViewClient = object : android.webkit.WebViewClient() {
+        override fun onPageStarted(view: android.webkit.WebView, url: String?, favicon: android.graphics.Bitmap?) {
+            if (url != null) page.url.value = url
+        }
+        override fun onPageFinished(view: android.webkit.WebView, url: String?) {
+            page.url.value = view.url ?: url ?: page.url.value
+            page.title.value = view.title?.takeIf { it.isNotBlank() } ?: page.url.value
+            page.canGoBack.value = view.canGoBack()
+        }
+    }
+}
+
+@Composable
+private fun BrowserTab(app: HorizonsApplication) {
+    val scope = rememberCoroutineScope()
+    val pages = remember { mutableStateListOf(BrowserPage(0, BROWSER_HOME)) }
+    var activeIdx by remember { mutableIntStateOf(0) }
+    var nextId by remember { mutableIntStateOf(1) }
+    var address by remember { mutableStateOf(BROWSER_HOME) }
+
+    val active = pages.getOrNull(activeIdx)
+
+    // Keep the address bar in sync with whichever page is showing.
+    LaunchedEffect(activeIdx, active?.url?.value) {
+        address = active?.url?.value ?: ""
+    }
+
+    // Destroy all WebViews when leaving the Browser tab so we never leak them.
+    DisposableEffect(Unit) {
+        onDispose { pages.forEach { it.webView?.destroy() } }
+    }
+
+    // In-browser back takes priority over leaving the panel.
+    BackHandler(enabled = active?.canGoBack?.value == true) {
+        active?.webView?.goBack()
+    }
+
+    fun go() { active?.webView?.loadUrl(normalizeToUrl(address)) }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)) {
+        // ── Page (tab) strip ────────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            pages.forEachIndexed { idx, p ->
+                val selected = idx == activeIdx
+                Surface(
+                    color = if (selected) MatrixGreen.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.4f),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.padding(end = 6.dp).clickable { activeIdx = idx },
+                ) {
+                    Row(
+                        Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            p.title.value.take(14),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = if (selected) MatrixGreen else MatrixGreen.copy(alpha = 0.5f),
+                        )
+                        if (pages.size > 1) {
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "✕",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = MatrixGreen.copy(alpha = 0.5f),
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable {
+                                        val closing = pages[idx]
+                                        closing.webView?.destroy()
+                                        pages.removeAt(idx)
+                                        if (activeIdx >= pages.size) activeIdx = pages.size - 1
+                                    },
+                            )
+                        }
+                    }
+                }
+            }
+            Text(
+                "＋",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 16.sp,
+                color = MatrixGreen,
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .clickable {
+                        pages.add(BrowserPage(nextId++, BROWSER_HOME))
+                        activeIdx = pages.size - 1
+                    },
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // ── Nav + address bar ───────────────────────────────────────────────
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "‹",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 22.sp,
+                color = if (active?.canGoBack?.value == true) MatrixGreen else MatrixGreen.copy(alpha = 0.25f),
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable { if (active?.canGoBack?.value == true) active.webView?.goBack() },
+            )
+            Text(
+                "⟳",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 16.sp,
+                color = MatrixGreen,
+                modifier = Modifier.size(28.dp).clickable { active?.webView?.reload() },
+            )
+            Spacer(Modifier.width(4.dp))
+            OutlinedTextField(
+                value = address,
+                onValueChange = { address = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                label = { Text("url / search", color = MatrixGreen.copy(alpha = 0.4f)) },
+                textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 12.sp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                    unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                    cursorColor = MatrixGreen,
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { go() }),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                "→",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 18.sp,
+                color = MatrixGreen,
+                modifier = Modifier.size(28.dp).clickable { go() },
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // ── The live page — a single host that re-parents the active WebView ─
+        AndroidView(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            factory = { c -> android.widget.FrameLayout(c) },
+            update = updater@ { host ->
+                val page = pages.getOrNull(activeIdx) ?: return@updater
+                val wv = page.webView ?: createBrowserWebView(host.context, page) { msg ->
+                    // Bridge messages from web content back into the app. For now,
+                    // surface them via the daemon-agnostic breadcrumb log; a real
+                    // handler can route these into AgentLoop later.
+                    scope.launch { com.horizons.core.diag.Breadcrumb.drop("browser_msg: ${msg.take(120)}") }
+                }.also { page.webView = it }
+                if (wv.parent !== host) {
+                    (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                    host.removeAllViews()
+                    host.addView(wv)
+                }
+                if (!page.loaded) {
+                    page.loaded = true
+                    wv.loadUrl(page.url.value)
+                }
+            },
+        )
     }
 }
