@@ -94,6 +94,53 @@ C++ server needed.
   `geniex-android` Gradle SDK for an in-app path — but that's IN-PROCESS and is
   rejected here; the **`geniex serve` binary** keeps the separate-daemon rule).
 
+## Grounded HTTP contract (from GenieX docs)
+
+Confirmed verbatim from the GenieX README:
+
+```bash
+geniex pull ai-hub-models/Qwen3-4B-Instruct-2507   # fetch a model
+geniex serve                                        # serves http://127.0.0.1:18181/v1
+```
+```bash
+curl http://127.0.0.1:18181/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "ai-hub-models/Qwen3-4B-Instruct-2507",
+       "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+So the wire seam is settled: **standard OpenAI `POST /v1/chat/completions`** on
+`127.0.0.1:18181`, model selected by the `"model"` string in the body.
+
+- **Readiness / health** — OpenAI-standard: **`GET /v1/models` → 200** once the
+  server is up and the model is registered. That replaces the old `/health` 503
+  gate. Keep the serve-first / "alive ≠ ready" behavior: the watchdog treats
+  "port open but `/v1/models` not 200 yet" as *loading*, not *dead*.
+- **`NpuClient.kt` change** — swap the `:8080 /api/v1/generate` call for a
+  `:18181 /v1/chat/completions` OpenAI request (messages array in, streamed
+  `choices[].delta.content` out), and point the readiness probe at
+  `/v1/models`. This is a documented, stable contract — not a guess.
+
+### Still needs the repo source (fork → `add_repo` to read)
+
+The README does **not** document these; they require reading the GenieX repo:
+- Exact `geniex serve` flags: **port override, bind/host, backend selector**
+  (QAIRT/AI-Engine-Direct NPU-only vs GGML), and **which model** to serve when
+  several are pulled.
+- Whether a dedicated `/health` (or `/readyz`) exists beyond `GET /v1/models`.
+- `geniex pull` syntax for a **specific HF GGUF** (vs the `ai-hub-models/...`
+  bundle shown) and how **Q4_0** is chosen ("pick Q4_0 when prompted").
+- **Android/aarch64 packaging as a detached binary.** The README only documents
+  the in-process Gradle SDK (`com.qualcomm.qti:geniex-android:0.3.1`) — which is
+  the rejected in-process path. Need to confirm a **standalone `geniex` CLI
+  binary** for arm64-android (prebuilt release vs Bazel build) to run it as the
+  detached daemon. Sample app lives in `qualcomm/ai-hub-apps`.
+
+**Because of the above, `NpuClient`/`DaemonLauncher`/CI wiring is NOT written
+yet** — the OpenAI wire format is safe to implement, but the serve flags, the
+readiness endpoint, and the standalone-binary packaging must be confirmed
+against source first (audit-before-feature, per the app-pathway mandate).
+
 ## Next steps (in order)
 
 1. Operator forks `qualcomm/GenieX` → `c10vis-poem/GenieX` (agent session is
