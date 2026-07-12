@@ -387,13 +387,28 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
   real multi-page WebView "Browser" tab with a `window.OmniClaw` JS bridge.
 
 ### Standing directives from the operator (session 15) — these are LAW
-- **QAIT>ORT** — the operator prefers **QAIRT / LiteRT** over the current
-  `ort_engine` (ONNX Runtime + QNN EP) for on-device model placement. This is an
-  OPEN architectural fork, not yet decided: (a) QAIRT native as a detached daemon
-  binary (keeps the daemon/watchdog model + crash-loop fix + the "no in-process
-  tensor runtime" hard rule) vs (b) LiteRT `CompiledModel` in-process Kotlin
-  (breaks that rule). **Confirm the operator's choice before writing new runtime
-  code.** The `gemini-query/` and `research-npu/` corpus files are the reference.
+- **QAIT>ORT — DECIDED (session 15).** Runtime layer for Qwen3.5-9B (and
+  anything on QAIRT) is: **backend = HTP SDK (QAIRT), runtime = `GenieX`,
+  wired to a SEPARATE detached daemon** (keeps the daemon/watchdog model +
+  crash-loop fix + the "no in-process tensor runtime" hard rule — the LiteRT
+  in-process `CompiledModel` option was rejected for breaking that rule). The
+  framing that settled it: this is a **what-do-we-CONNECT-the-app-to**
+  decision (backend/runtime behind the socket), not a what-do-we-compile-the-
+  app-as decision.
+  - `GenieX` is REAL and official: **`github.com/qualcomm/GenieX`** (~8k★,
+    Rust, "run frontier LLMs/VLMs on Qualcomm NPU/GPU/CPU"; topics include
+    `hexagon`, `qwen3`, `qwen3vl`, `snapdragon`). It is NOT the same as
+    QNN's `genie-t2t-run` "Genie" — the runtime is **GenieX**, not Genie.
+    A prior session wrongly flagged the repo as fabricated; corrected here.
+  - **`ort_engine` becomes legacy** — one of several uploadable runtime
+    binaries, not the Qwen3.5-9B path. The daemon/HTTP contract
+    (`127.0.0.1:8080` per `NpuClient.kt`) stays; only what runs behind it
+    changes.
+  - **Not yet forked:** `qualcomm/GenieX` is not in the `c10vis-poem`
+    profile yet (verified via GitHub search) — forking it is the next
+    runtime step. QAIRT SDK reference lives in Drive `#QAIRT/` (full
+    manual: Context/Backend/Api/Graph/Tensor/HTP/Overview chapters, PDF+mht)
+    and `QAIRT>ORT/` (screenshots + numbered Gemini reply docs).
 - **Never invent priority.** The operator's labels and ordering ARE the priority.
   Do not reorder, re-scope, or substitute your own judgement for what he flagged.
   If unsure what's next, ask — don't improvise a roadmap.
