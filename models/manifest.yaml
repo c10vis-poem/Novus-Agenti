@@ -5,7 +5,8 @@
 # Primary path is the Q4_0 GGUF served by GenieX (geniex serve, GGML backend)
 # directly on Hexagon HTP — no compile needed. This manifest/pipeline only
 # matters if that GGUF fails to run acceptably via GenieX. Confirm that
-# failure first. See wiki/NPU-RUNTIME-PATHS.md.
+# failure first. See knowledge/daemon-reference/NPU-RUNTIME-PATHS.md and
+# wiki/COMPILE-PIPELINE.md.
 # (No notebooks/ directory exists in this repo — an earlier comment here
 #  referenced notebooks/compile_*.ipynb, which was never actually created.
 #  .github/workflows/stage-colab.yml also assumed a notebook that doesn't
@@ -21,7 +22,7 @@ target:
   qai_hub_device_qwenvl:  "Snapdragon 8 Elite QRD"  # Qwen3-VL backup
   qai_hub_device_gemma:   "Snapdragon 8 Elite"      # Gemma 4 12B backup
 
-# Hard caps from wiki/GPT-DAEMON-REFERENCE.md
+# Hard caps from knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
 # Hexagon v69/v79 require static shapes; max_seq_len cannot change at runtime.
 hexagon_constraints:
   rope_fold: true                          # bake Q/K rotations into weights at export
@@ -49,7 +50,7 @@ models:
     quantization:
       strategy: ptq                        # no QAT variant exists for Qwen3.5
       type: w4a16                          # weight-only INT4, activations FP16
-      calibration_tokens: 10000            # ≥10K per GPT-DAEMON-REFERENCE.md
+      calibration_tokens: 10000            # ≥10K per knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
       calibration_dataset: wikitext-2-raw-v1
     output_repo: Mer0vin8ian/qwen3-5-9b-npu-sm8750
     output_artifacts:
@@ -94,7 +95,7 @@ models:
   # straight through GenieX's GGML backend -- no QAI Hub compile needed.
   # The compile fields below (output_artifacts, runtime: ort_engine,
   # script) are the FALLBACK path only, same disclaimer as qwen3_5_9b --
-  # see wiki/NPU-RUNTIME-PATHS.md.
+  # see knowledge/daemon-reference/NPU-RUNTIME-PATHS.md.
   gemma4_12b_qat:
     hf_repo: google/gemma-4-12B-it-qat-q4_0-unquantized
     hf_revision: main

@@ -3,33 +3,31 @@
 > **RESUME PROMPT — COPY THIS BLOCK VERBATIM TO START ANY NEW SESSION**
 >
 > ```
-> Project: Novus Agenti (Omni Claw). Mission: compile Mer0vin8ian/Qwen3.5-9B
-> → Hexagon HTP v79 (SM8750, Snapdragon 8 Elite) qnn_context_binary via QAI Hub.
-> Canonical repo: c10vis-poem/Novus-Agenti. TWO ACTIVE TRACKS —
-> pick the one matching your actual task, don't assume there's only one:
->   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
->     claude/project-scope-review-lf615p, PR #4
->   - APP track (Android app, daemon, UI, knowledge layer): branch
->     claude/on-device-inference-openwiki-sae7cy, PR #15 — MERGED to main
->     as of session 16 (PR #17). Do not reuse it.
->   - UI-FORK track (new local-first UI, model+vision/media daemon split):
->     branch claude/notice-agent-ui-local-xa14op — CURRENT app work
->     (session 16: LocalHomeActivity fork, NpuClient vision wiring,
->     DaemonTtsClient scaffold). This is now the active app-track branch;
->     use it instead of the merged sae7cy branch above.
+> Project: Novus Agenti (Omni Claw) — fully on-device agentic AI assistant.
+> Canonical repo: c10vis-poem/Novus-Agenti.
+>
+> ONE ACTIVE BRANCH: claude/notice-agent-ui-local-xa14op (app/UI-fork work —
+> local-first UI, model+vision daemon / media daemon split). This is THE
+> current work. Earlier app-track branch (sae7cy/PR #15) is merged to main
+> (PR #17) — do not reuse it.
+>
+> The compile pipeline (ONNX → QAI Hub, branch claude/project-scope-review-lf615p,
+> PR #4) is DORMANT — not a second parallel track to pick up by default. It
+> only becomes active if the primary path (Q4_0 GGUF via GenieX's GGML
+> backend, no compile needed) hits a hard failure on real hardware. See
+> wiki/COMPILE-PIPELINE.md. Don't run Job 8 pre-emptively.
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
->   1. CLAUDE.md (full read, all sections)
->   2. wiki/GPT-DAEMON-REFERENCE.md (full read)
->   3. wiki/NPU-RUNTIME-PATHS.md (full read)
->   4. wiki/SESSION{N}-HANDOFF.md (latest N)
->   5. knowledge/README.md (byte-faithful master-wiki corpus — the operator's
->      finished portable knowledge layer; NEVER re-process or re-summarize it)
->   6. models/manifest.yaml
->   7. scripts/compile_qwen3_5_9b.py
+>   1. CLAUDE.md (full read, all sections, including current State of the Union)
+>   2. knowledge/omni-claw-defined/ (always-read core project definition)
+>   3. knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
+>   4. knowledge/daemon-reference/NPU-RUNTIME-PATHS.md
+>   5. models/manifest.yaml
 >
-> Use /memory slash command to reload full project context.
-> After reading: state current SOTU, last job result, next action. Then wait.
+> Use /memory slash command to reload full project context. There is no
+> separate per-session handoff file — CLAUDE.md's State of the Union IS
+> the current-state doc, updated in place each session.
+> After reading: state current SOTU, next action. Then wait.
 > HF_TOKEN / QAI_HUB_API_TOKEN come from the environment config (§Tokens
 > below) — already exported, no manual step needed. Never hardcode them.
 > ```
@@ -41,14 +39,16 @@
 Type `/memory` in any Claude Code session to reload full project context.
 
 **Sequence:**
-1. Read `CLAUDE.md` (this file, all sections)
-2. Read `wiki/GPT-DAEMON-REFERENCE.md`
-3. Read `wiki/NPU-RUNTIME-PATHS.md`
-4. Read latest `wiki/SESSION{N}-HANDOFF.md`
-5. Read `knowledge/README.md` (master-wiki corpus map — copy, never re-process)
-6. Read `models/manifest.yaml`
-7. Read `scripts/compile_qwen3_5_9b.py`
-8. Produce a SOTU summary and confirm next action before touching any file
+1. Read `CLAUDE.md` (this file, all sections, including the current
+   `## State of the Union` — there is no separate handoff file)
+2. Read `knowledge/omni-claw-defined/` (always-read core project definition)
+3. Read `knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md`
+4. Read `knowledge/daemon-reference/NPU-RUNTIME-PATHS.md`
+5. Read `models/manifest.yaml`
+6. For anything else (compile pipeline, QAIRT SDK detail, prior research),
+   retrieve on demand from `knowledge/*.jsonl` per
+   `skills/project-memory/SKILL.md` — don't preload it
+7. Produce a SOTU summary and confirm next action before touching any file
 
 ---
 
@@ -58,7 +58,11 @@ Type `/memory` in any Claude Code session to reload full project context.
 2. **State** — current SOTU and next action
 3. **Act** — check the priority tree below FIRST, before touching the
    general Pending list
-4. **Document** — before ending: update SOTU in this file, write `wiki/SESSION{N+1}-HANDOFF.md`
+4. **Document** — before ending: update `## State of the Union` in this
+   file **in place** (no separate handoff file — see `§Cache Prompting`'s
+   file-edit-batching rule for when in the session this should happen),
+   then commit AND push. A local-only commit is invisible to the next
+   session.
 
 ### Act — priority tree (check top to bottom, stop at the first match)
 
@@ -66,14 +70,11 @@ Reading this file is not the same as acting on every item in it.
 "Act" means: find which of these applies, do that, THEN fall through
 to the general Pending list.
 
-1. **HF egress just became available?** Run
-   `curl -sS "$HTTPS_PROXY/__agentproxy/status"`. If `huggingface.co`
-   is NOT in `recentRelayFailures` → run `hf auth whoami`, and if that
-   returns `Mer0vin8ian`, your first action is triggering **Job 8**
-   (command in `§Job 8 Trigger Command`). This is almost certainly why
-   a session exists right after the operator reconfigures an
-   environment's network access — don't spend that session on general
-   cleanup before checking this.
+1. **HF egress just became available?** That is NOT automatically a
+   signal to run Job 8 anymore — the compile pipeline is dormant (see the
+   resume prompt above). Only trigger Job 8 if the operator has confirmed
+   the primary GGUF/GenieX path hard-failed. Otherwise treat HF egress
+   news as just useful information, not an action trigger.
 2. **User gave an explicit task in their first message?** Do that.
    It overrides the Pending list below.
 3. **Neither of the above?** Work `§State of the Union`'s Pending list,
@@ -85,29 +86,40 @@ If this file and a handoff disagree, **this file wins**.
 
 ## Cache Prompting + Sub-Agent Rules
 
-### Prompt-cache TTL — 1 hour, pace work to it
-- This session's requests share a **1-hour prompt-cache TTL**. Every tool call
-  within that window keeps the cache warm for free — there is no cliff to
-  work around inside the hour, and no benefit to scheduling extra wakeups or
-  busywork just to "keep it warm." Don't do that.
-- Only schedule a wakeup/check-in for something you're actually waiting on
-  (CI, a background job, an external event). Match the delay to that thing,
-  not to the cache window.
+### Prompt-cache warm-up — happens ONCE, at session start, and is mandatory there
+- The initial prompt is where the cacheable prefix (system context + tools)
+  gets established — this warm-up is not optional, it's the entire point of
+  a session start. Don't skip it or treat "warming up" as busywork to avoid.
+- Once established, that prefix is reused for the rest of the session under
+  the **1-hour prompt-cache TTL** — no need to re-touch it or re-warm it
+  mid-session just because time passed. Only schedule a wakeup/check-in for
+  something you're actually waiting on (CI, a background job, an external
+  event); match the delay to that thing, not to the cache window.
 - If a session goes quiet long enough to fall out of the 1h window (or the
   account enters usage overage, which drops the TTL to 5 minutes), that's a
   cost to notice, not a problem to prevent — don't restructure work around
   avoiding it.
 
-### Lazy tool loading — don't preload, request on demand
-- Tools are **not preloaded** at session start. MCP and other deferred tools
-  arrive as names only (in `<system-reminder>` deferred-tool lists); calling
-  one before loading its schema fails.
-- Load a tool's schema **only when you're about to use it**, via
-  `ToolSearch(query="select:<tool_name>")`. Don't speculatively resolve a
-  batch of tools "in case they're needed later" — that spends context for no
-  benefit before the work exists.
-- This applies for the whole session, not just at startup: if new work comes
-  up mid-session that needs a tool you haven't loaded, request it then.
+### Tool loading — attach at the start, don't fragment the cache mid-session
+- **Tools the task is known to need get attached with the initial prompt**,
+  at session start — that's part of the same warm-up as above. Loading a
+  tool's schema mid-session (each `ToolSearch` resolution) changes the tool
+  list, which perturbs/fragments the cached prefix from that point forward.
+- **If something unanticipated comes up mid-session that needs a tool not
+  loaded at the start, don't fetch it immediately.** Flag it, and request it
+  at the start of the **next** session/prompt cycle instead — don't break
+  the current cached prefix mid-stream for a one-off need.
+- MCP and other deferred tools still arrive as names only (in
+  `<system-reminder>` deferred-tool lists) until resolved via
+  `ToolSearch(query="select:<tool_name>")` — the point above is about
+  *when* to resolve them (up front, not scattered through the session), not
+  whether the deferred mechanism itself exists.
+
+### File edits — batch at the end, same reasoning as tool-loading
+- File edits perturb the working session the same way tool-loading does.
+  Gather everything that needs to change, get it confirmed, THEN execute
+  the edits together at the end of the review — don't interleave edits
+  throughout an open-ended review/discussion.
 
 ### When to spawn
 - Open-ended exploration spanning more than 3 files → `Explore` agent
@@ -123,11 +135,12 @@ Every sub-agent prompt must include:
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
-- **The same warm-up rules as the parent session**: 1h prompt-cache TTL (pace
-  work to it, don't manufacture busywork to keep it warm) and lazy tool
-  loading (don't preload tool schemas — resolve one only when about to call
-  it). A sub-agent that preloads its whole toolbox up front burns exactly the
-  context budget these rules exist to protect.
+- **The same warm-up rules as the parent session**: attach the tools this
+  task is known to need at the start (with this brief), don't fragment the
+  cache by resolving new ones mid-task unless truly unanticipated — and if
+  something unanticipated comes up, flag it for the next at-bat rather than
+  fetching it ad hoc. Batch any file edits at the end once the task's scope
+  is fully clear, not interleaved throughout.
 
 **Template:**
 ```
@@ -136,9 +149,9 @@ CLAUDE.md's resume prompt for which one>.
 Read CLAUDE.md fully before anything else.
 Task: [SPECIFIC TASK].
 Do NOT commit to main. Do NOT push to any branch other than the one above.
-Cache/tools: 1h prompt-cache TTL — don't schedule busywork to keep it warm.
-Load tool schemas on demand only (ToolSearch right before first use of each
-tool) — do not preload tools you don't immediately need.
+Cache/tools: attach the tools this task needs now, at the start. Don't
+resolve new tool schemas mid-task for unanticipated needs — flag those for
+the next at-bat instead. Batch file edits at the end, once scope is clear.
 ```
 
 ### Context budget rules
@@ -164,11 +177,10 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 
 - **`c10vis-poem/Novus-Agenti`** — THE canonical repo. All commits, pushes, CI, artifacts go here.
 - **`M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti`** — REFERENCE-ONLY. Never push, commit, or modify.
-- Two active working branches, one per track — see the resume prompt at
-  the top of this file for which one matches your task:
-  `claude/project-scope-review-lf615p` (compile, PR #4) and
-  `claude/notice-agent-ui-local-xa14op` (app/UI-fork — see the resume
-  prompt above for the current PR number; sae7cy/PR #15 is merged).
+- **One active branch**: `claude/notice-agent-ui-local-xa14op` (app/UI-fork
+  work). `claude/project-scope-review-lf615p` (compile, PR #4) exists but is
+  dormant — see the resume prompt above and `wiki/COMPILE-PIPELINE.md`.
+  `sae7cy`/PR #15 is merged; do not reuse it.
 
 ---
 
@@ -333,346 +345,144 @@ up in a shareable transcript.
 
 ---
 
-## Single-Path Architecture — Qwen3.5-9B Build
+## Compile Pipeline — Qwen3.5-9B (dormant fallback)
 
-Scoped to the Qwen3.5-9B → Hexagon HTP compile/deploy pipeline. The Horizons
-app itself is multi-runtime by design: each model family ships with its own
-uploadable runtime binary (e.g. `ort_engine` for ORT+QNN, future binaries for
-ExecuTorch / SNPE / TFLite / Jetson Tensor targets). Adding a new runtime is
-"drop the binary in via ModelImportActivity, register it in `RUNTIME_FILES`."
+Moved to `wiki/COMPILE-PIPELINE.md` — the Single-Path Architecture table,
+Size Envelope, Hexagon HTP Constraints, and Job 8 Trigger Command all live
+there now, rewritten to make clear this whole pipeline is the **fallback**,
+not the primary plan (primary = Q4_0 GGUF via GenieX's GGML backend, no
+compile step). Don't trigger Job 8 without confirming a hard failure on
+that primary path first.
 
-| Layer | What | Status |
-|---|---|---|
-| **Model** | `Mer0vin8ian/Qwen3.5-9B` — 9.65B params, `qwen3_5` arch. Multimodal via **deepstack vision injection** at decoder layers. NOT a separate encoder pipeline. | Source on HF Hub |
-| **ONNX export** | `scripts/compile_qwen3_5_9b.py` on HF Jobs `cpu-xl` | M-RoPE fix committed. Job 8 pending. |
-| **QAI Hub compile** | ONNX → `qnn_context_binary` (W4A16) server-side. | Job 8 pending |
-| **Runtime: `ort_engine`** | ONNX Runtime + QNN Execution Provider on aarch64-android. Serves `POST http://127.0.0.1:8080/api/v1/generate`. | Scaffolded — `daemon/src/` has real `engine.cpp`/`http_server.cpp`/`tokenizer.cpp`/`sampler.h`/`main.cpp` (735 lines), CI cross-compiles it (`build-apk.yml` "Build ort_engine daemon" step) and packages it into the release artifact. Not yet verified on-device against a real compiled model. |
-| **Daemon guardian** | `CliffordService` FGS — CLIFFORD == Watchdog. `START_STICKY`, `specialUse`, 15s CRS recovery loop. | In codebase |
-| **Bridge** | `NpuClient.kt` → `POST http://127.0.0.1:8080/api/v1/generate` | In codebase |
-| **Agent layer** | `AgentLoop` + 22 tools | In codebase |
+The Horizons app itself is multi-runtime by design regardless of which
+pipeline produced a given model: each model family ships with its own
+uploadable runtime binary (`ort_engine` for ORT+QNN today, `geniex serve`
+once GenieX is forked and wired, future binaries for ExecuTorch/SNPE/TFLite/
+Jetson Tensor targets). Adding a new runtime is "drop the binary in via
+ModelImportActivity, register it in `RUNTIME_FILES`."
 
----
-
-## Size Envelope (Hard Caps)
-
-| | Size | Notes |
-|---|---|---|
-| Target | **5.5 GB** | Shoot for this |
-| Ideal ceiling | 6.0 GB | Acceptable |
-| Redline | **7.0–7.2 GB** | Non-negotiable |
-| W4A16 at max_seq=4096 | ~5.7 GB | ✓ inside ideal |
-| W4A16 at max_seq=2048 | ~5.4 GB | ✓ inside target |
-
----
-
-## Hexagon HTP Constraints
-
-| Constraint | Applied as |
-|---|---|
-| RoPE fold (no FP16 Sin/Cos on Hexagon) | `make_folded_rope_forward` + `_patched_apply_rotary_pos_emb` |
-| Static shapes | batch=1, MAX_SEQ_LEN fixed |
-| `--disable_fusion` | In `COMPILE_OPTIONS_BASE` |
-| `--bias_as_int32` | In `COMPILE_OPTIONS_BASE` |
-| Scratch: 16 MiB | `--scratch_size_mib 16` |
-| Dynamic tensor: 64 MiB (canonical) | `--max_dynamic_tensor_size_mib 64` |
-| Single NPU context | `QNN_GRAPH_CONFIG_MAX_CONTEXTS=1` |
-| Stateless prefill | `use_cache=False` in `HtpDecodeWrapper` |
+`daemon/src/` (`ort_engine`) is real, CI-built code, not scaffolding — but
+it's the **legacy** runtime now that GenieX is the decided plan (session
+15). Its wire contract (`POST http://127.0.0.1:8080/api/v1/generate`,
+including the `image_b64` field added session 16 for vision) is what
+`NpuClient.kt` speaks today; that contract shape is expected to carry
+forward conceptually when GenieX replaces what's listening behind the
+socket, not to require a branch merge — there's no separate GenieX branch
+yet to merge with (it hasn't been forked into `c10vis-poem` at all yet).
 
 ---
 
 ## Android App / Battery Rules
 
-### NpuManager Performance Lock (PENDING — NOT YET WIRED)
-```kotlin
-val npuManager = getSystemService(NpuManager::class.java)
-val lock = npuManager.acquirePerformanceLock(NpuManager.PERF_MODE_HIGH)
-```
+**All three of the below are ALREADY WIRED — this section used to claim
+otherwise (stale since at least session 12-13); verified directly against
+the code during session 16's cleanup.** Both NpuManager + Game SDK boosts
+are required together: Game SDK boosts UI/scheduler only; NpuManager lock
+is what gives the NPU daemon full performance.
 
-### Game SDK Performance Mode (PENDING — NOT YET WIRED)
-```kotlin
-GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
-```
+### NpuManager Performance Lock — WIRED
+`CliffordService.acquireNpuPerfLock()`/`releaseNpuPerfLock()` (reflection-based,
+since `NpuManager` is an `@hide` system service on Qualcomm BSPs) — called
+from the CRS loop once the daemon reports healthy.
 
-### Manifest (PENDING)
-```xml
-<uses-feature android:name="android.hardware.game" android:required="true" />
-<uses-permission android:name="android.permission.HIGH_PERFORMANCE" />
-<service android:name=".CliffordService" android:foregroundServiceType="specialUse" />
-```
+### Game SDK Performance Mode — WIRED (better API than this section used to show)
+`core/perf/GameModeBoost.kt` — uses the modern per-thread ADPF API
+(`GameManager.setGameState(GameState(...))` + `PerfHintSession`), not the
+older `setGameMode(GameMode.PERFORMANCE)` call this section used to
+document. Wrapped around every LLM stream (`HorizonsApplication.sendChat()`)
+and the voice loop (`.gameBoosted()`).
 
-**Both NpuManager + GameManager are required together.** Game SDK boosts UI scheduler only; NpuManager lock is what gives the NPU daemon full performance.
+### Manifest — WIRED
+`android.permission.HIGH_PERFORMANCE` and `android.hardware.game`
+(`uses-feature`) are both present in `AndroidManifest.xml`.
+`CliffordService`'s `foregroundServiceType="specialUse"` is also present.
 
 ---
 
 ## State of the Union — 2026-07-13 (session 16)
 
-> **APP STATUS — read `wiki/APP-SOTU-AUDIT.md` first.** Device-grounded honest
-> audit (what's done / broken / priority order) + the operator's explicit
-> remaining needs (cloud connectors, Chromium WebView socket, GCS/OpenRouter/
-> OmniRoute/QAIHub/HF/GitHub, Tailscale to home node, chat-history export) + the
-> real device inventory (QAIRT/Hexagon SDKs, GenieX-bench prebuilt w/ vision,
-> Q4_0 GGUF, HTP v79 libs). **STT model = Moonshine small**, runs in the media
-> daemon (CPU, no HTP). The voice/UI stack runs WITHOUT the on-device model —
-> HTP/GenieX is an optional backend, not a boot requirement.
+This is the **only** current-state doc in this repo — updated in place
+each session, not accumulated as a new file per session. Historical
+session-by-session detail lives in git history (commit log + old PR
+diffs), not here — if you need "what happened in session 12," check the
+log, don't expect it copy-pasted in this file.
 
-### Standing directive — session 16 — daemon split, CONFIRMED again this session
-- **Vision lives in the SAME daemon/process as the LLM** (model+vision share one
-  socket, `127.0.0.1:${DaemonLauncher.ENGINE_PORT}`). This matches the GenieX plan
-  (`libgeniex_vlm` is part of the same QAIRT backend) — session 16 re-confirms it
-  and wires the contract end-to-end: `NpuClient.kt` now sends an optional
-  `image_b64` field on `/api/v1/generate` and overrides `streamImage()` for real
-  (previously fell through to the `LlmRuntime` default stub). `ort_engine`'s
-  `GenerateRequest` gained `image_b64`; `Engine::generate` acknowledges it with an
-  honest "VLM decode not yet wired" note rather than silently dropping it — no
-  fake vision response.
-- **STT + TTS are a separate media daemon**, NOT the model+vision daemon. Fixed a
-  stale doc bug: `DaemonSttClient`'s comment used to list "vision" as one of the
-  media daemon's models — wrong per this directive, corrected. Added
-  `core/tts/DaemonTtsClient.kt` as TTS's daemon-client half (mirrors
-  `DaemonSttClient`, same `127.0.0.1:8091` base, new `/tts` endpoint) — contract
-  only, not yet wired as a caller; `SherpaOnnxTtsClient` still runs TTS in-process
-  today, migrating it is a follow-up.
-- **Known gap flagged, not fixed this session**: `daemon/src/http_server.cpp`
-  reads a single `recv()` into an 8KB buffer — fine for text prompts, but
-  `image_b64` payloads (100KB+) will be silently truncated. Needs a real
-  read-until-`Content-Length` loop before vision can actually round-trip.
-  Documented inline; do not assume vision works end-to-end from the contract
-  existing alone.
-- **New local UI fork**: `com.horizons.uilocal.LocalHomeActivity` +
-  `LocalHomeScreen.kt` — additive, does not touch `MainActivity`/`HomeGrid`.
-  Boots instantly with no gate on the model daemon ("skip loading the model" —
-  matches the daemon-side serve-first fix at the UI layer). Shows two
-  independently-polled, non-blocking status rows (model+vision daemon, media
-  daemon) and a chat surface wired straight to the real
-  `HorizonsApplication.llmRuntime`/`sendChat()`/`chatMessages` state — not a
-  mock. Registered as a second launcher activity
-  (`"Novus Agenti (Local)"`) in `AndroidManifest.xml` so both UIs install side
-  by side while this fork is under active development.
-- Scope of this pass was deliberately **contracts + UI scaffold, not full
-  GenieX/Moonshine/Kokoro daemon binaries** — those still need the GenieX fork
-  (`§GenieX facts` in `wiki/GENIEX-DAEMON-PLAN.md`) and a real media-daemon
-  binary, neither of which exist as a process yet.
+### Current state
 
-### Done — session 15
-- **`knowledge/` corpus landed** (branch `claude/on-device-inference-openwiki-sae7cy`,
-  PR #15). A **byte-faithful copy** of the operator's finished `Claude_master_wiki`
-  Google Drive folder — 23 distilled `.md`/`.jsonl`/`.txt`/doc artifacts across six
-  topic folders (omni-claw-defined, research-npu, proofs, fragmented-qat,
-  google-dev-docs, gemini-query). Decoded base64→exact bytes, every size verified
-  against Drive `fileSize`. See `knowledge/README.md` for folder↔Drive provenance.
-  This IS the operator's portable knowledge layer, hand-distilled over ~18h — it is
-  the ingestion source for the OpenWiki/OB1/reasoning-bank memory backend, NOT
-  something to re-summarize, reflow, or re-compile. Skip nothing; copy faithfully.
-- **Daemon crash-loop fixed + in-app browser** (same branch/PR, from earlier this
-  session): `daemon/src/main.cpp` now loads the model on a background thread and
-  binds :8080 immediately (a model-less daemon stays UP serving /health 503 instead
-  of suiciding → no watchdog thrash); `CliffordService.kt` never relaunches a LIVE
-  process and backs off/caps relaunch of a dead one; `TerminalPanel.kt` gained a
-  real multi-page WebView "Browser" tab with a `window.OmniClaw` JS bridge.
+- **App/UI-fork track is the one active branch** (`claude/notice-agent-ui-local-xa14op`).
+  Horizons app is code-complete UI (Compose, 6 panels, home grid, chat,
+  terminal, browser tab); daemon/watchdog architecture (`CliffordService`,
+  `DaemonLauncher`) is real and working; a new additive local-first UI fork
+  (`com.horizons.uilocal.LocalHomeActivity`) boots without gating on the
+  model daemon and shows independent status for the model+vision daemon vs.
+  the media (STT/TTS) daemon.
+- **Compile pipeline is dormant** — fallback only, see
+  `wiki/COMPILE-PIPELINE.md`. Don't trigger Job 8 without a confirmed hard
+  failure on the primary GGUF/GenieX path.
+- **NpuManager lock, Game SDK boost, and the manifest permission/feature
+  entries are all already wired** — see `§Android App / Battery Rules`.
+  This file used to claim otherwise for several sessions; corrected.
+- **Vision lives in the same daemon/process as the LLM**; STT+TTS are a
+  separate media daemon. `NpuClient.kt` carries an `image_b64` field
+  end-to-end to `ort_engine`; `DaemonTtsClient` is the TTS half of the
+  media-daemon client, mirroring `DaemonSttClient`. Neither GenieX nor a
+  real media-daemon binary exist as processes yet — this is contract +
+  scaffold work, not full runtime implementation.
+- **Known gap**: `daemon/src/http_server.cpp` reads a single `recv()` into
+  an 8KB buffer — image payloads (100KB+) will be truncated until it reads
+  until Content-Length. Documented inline in that file.
+- **Doc/knowledge restructure (this session)**: `knowledge/daemon-reference/`
+  (moved from `wiki/`), `knowledge/qairt-sdk/htp.jsonl` (new — completes
+  that topic's triplet), `wiki/COMPILE-PIPELINE.md` and
+  `wiki/JOB_EXECUTION_LOG.md` (new, replacing several older files),
+  `skills/project-memory/SKILL.md` redesigned around the knowledge/ corpus
+  instead of being a redundant CLAUDE.md/SOTU re-read.
 
-### Standing directives from the operator (session 15) — these are LAW
-- **QAIT>ORT — DECIDED (session 15).** Runtime layer for Qwen3.5-9B (and
-  anything on QAIRT) is: **backend = HTP SDK (QAIRT), runtime = `GenieX`,
-  wired to a SEPARATE detached daemon** (keeps the daemon/watchdog model +
-  crash-loop fix + the "no in-process tensor runtime" hard rule — the LiteRT
-  in-process `CompiledModel` option was rejected for breaking that rule). The
-  framing that settled it: this is a **what-do-we-CONNECT-the-app-to**
-  decision (backend/runtime behind the socket), not a what-do-we-compile-the-
-  app-as decision.
-  - `GenieX` is REAL and official: **`github.com/qualcomm/GenieX`** (~8k★,
-    Rust, "run frontier LLMs/VLMs on Qualcomm NPU/GPU/CPU"; topics include
-    `hexagon`, `qwen3`, `qwen3vl`, `snapdragon`). It is NOT the same as
-    QNN's `genie-t2t-run` "Genie" — the runtime is **GenieX**, not Genie.
-    A prior session wrongly flagged the repo as fabricated; corrected here.
-  - **`ort_engine` becomes legacy** — one of several uploadable runtime
-    binaries, not the Qwen3.5-9B path. The daemon/HTTP contract
-    (`127.0.0.1:8080` per `NpuClient.kt`) stays; only what runs behind it
-    changes.
-  - **Not yet forked:** `qualcomm/GenieX` is not in the `c10vis-poem`
-    profile yet (verified via GitHub search) — forking it is the next
-    runtime step. QAIRT SDK reference lives in Drive `#QAIRT/` (full
-    manual: Context/Backend/Api/Graph/Tensor/HTP/Overview chapters, PDF+mht)
-    and `QAIRT>ORT/` (screenshots + numbered Gemini reply docs).
-- **Never invent priority.** The operator's labels and ordering ARE the priority.
-  Do not reorder, re-scope, or substitute your own judgement for what he flagged.
-  If unsure what's next, ask — don't improvise a roadmap.
-- **OmniNeural / Nexa SDK = DEAD.** Confirmed abandoned (Nexa's HF presence is
-  effectively gone; the model is dead). Do not try to download a Nexa SDK or build
-  on OmniNeural. Reference-only for reverse-engineering, nothing more.
-- **Orchestrator model.** When the operator says to spin up parallel agents, brief
-  each per the sub-agent template, give a 1h cache TTL, and hold them to it — if a
-  background agent hasn't returned in hours, it's dead; do the work inline instead
-  of waiting.
+### Standing decisions — LAW, not to re-litigate
 
-### Done — session 14
-- **PR #8 merged to `main`** (merge commit `6188398`) — all of session 12-13's
-  work (crash fixes, UI/perf metrics, security cleanup, full doc audit,
-  priority tree) is now on `main`, not just a feature branch.
-- **Fixed the actual reason the SessionStart hook kept not-committing**:
-  `.claude/` was entirely gitignored. Carved out `.claude/hooks/` and
-  `.claude/settings.json`; both are now really tracked on `main`
-  (verified directly via `git ls-tree origin/main`).
-- **`c10vis-poem/openwiki` fork**: merged a real feature to its `main`
-  (`openwiki/SKILL.md` project-customization convention, "memory as a
-  skill"), and started an `--audit` mode branch with an explicit
-  guardrail against a real failure mode: a doc/code mismatch is NOT
-  automatically "stale" — it's often a parallel session's newer,
-  unseen work. Audit reports chronological evidence, never auto-deletes.
-- **Three pathways identified for this project going forward** (see
-  below) — the next session should orient around these, not just the
-  flat Pending list.
-
-### Three Pathways — orient here first, every session
-
-1. **Compile pipeline (Qwen3.5-9B → Hexagon HTP)** — branch
-   `claude/project-scope-review-lf615p`, PR #4. Has its own clean merge
-   point and handoff already. Job 8 is the live blocker — check status
-   before assuming it's untriggered.
-2. **OpenWiki dual-role** — `c10vis-poem/openwiki` (separate repo). Two
-   jobs here, not one: (a) build out OpenWiki itself (audit mode next,
-   see `AUDIT_MODE_TODO.md` on branch `claude/audit-mode`), AND (b) **run
-   OpenWiki against Novus-Agenti's own docs** — the operator's explicit
-   observation this session: the discipline we've been hand-applying to
-   CLAUDE.md/wiki/ all session (quickstart entrypoint, section pages,
-   stale-claim detection, a SKILL.md-style memory layer) IS what OpenWiki
-   is built to automate. Whoever works this pathway is coordinating BOTH:
-   don't just develop the CLI, start actually using it here too.
-3. **Horizons Android app** — **most stale pathway.** The app should
-   already be a working assistant right now. Sessions have been
-   "shooting from the hip" — making changes without grounding them in
-   documented state, attached repos, or verified current progress. The
-   next session on this pathway's explicit mandate: **audit first, off
-   real sources** — this file, the wiki, the actual repo state, actual
-   CI results — not assumption or improvisation. No new feature work
-   until an honest audit confirms what's actually true.
-
-### Done — session 12 (2026-07-02)
-- App-side crash fixes: multi-process crash loop, ChatHistoryStore, Monitor
-  card overflow — PR #8, CI green
-- Real Performance Metrics (tokens/sec, first-token latency, device memory)
-  wired into RouterPane from actual LlmRuntime stream timing
-- Prompt/Script Library added to MonitorPane (real `SavedCommandStore`)
-- Settings → Terminal/Artifacts quick-nav wired
-- `wiki/GPT-OSS-Reference.md` → corrected to `wiki/GPT-DAEMON-REFERENCE.md`
-  everywhere in this file — that filename never existed in the repo
-- `wiki/NPU-RUNTIME-PATHS.md` added
-- `wiki/SESSION12-HANDOFF.md` written
-- Repo confirmed **public** via the GitHub API (`"private": false`)
-- Hardcoded `HF_TOKEN`/`QAI_HUB_API_TOKEN` removed from this file entirely
-  — moved to the cloud environment's Environment Variables config. Both
-  tokens need rotation (they were exposed in this public repo's history).
-- `rules/AT_BAT_PROTOCOL.md` fixed (dead file pointers, corrected 2-repair-
-  attempt-then-orchestrator-then-gate strike model), `wiki/FAILURE_LOG.md`
-  created, `rules/CACHE_PROMPT_RULES.md` dangling ref removed
-
-### Done — session 13 (2026-07-03), full repo audit for dead weight / false claims
-Dispatched an Explore agent to re-audit the whole repo (not just the docs
-already touched) for dead references, redundant content, and claims stated
-as fact that are actually false. Findings, ranked, and fixes applied:
-- **This file had a real self-contradiction**: resume prompt / sub-agent
-  template / Repo Policy all said the working branch was
-  `claude/project-scope-review-lf615p` (PR #4), while the SOTU and the
-  actual checked-out branch were `horizons-closeout-hf-review-ycjkm3`
-  (PR #8). Root cause: there are genuinely **two active tracks with two
-  different branches** (compile vs app) and this file only ever
-  documented one of them as "the" branch. Fixed — resume prompt now
-  states both tracks explicitly.
-- **`ort_engine` "not yet built" was false** — `daemon/src/` has a real
-  735-line implementation (engine.cpp, http_server.cpp, tokenizer.cpp,
-  sampler.h, main.cpp) and CI already cross-compiles and packages it.
-  `models/manifest.yaml` had the correct `status: scaffolded` the whole
-  time; this file was 4+ days out of date. Fixed throughout this file.
-- `watchdog/` — was already deleted 2026-06-30 (commit `1ab4e7a`); this
-  file still listed it as a pending TODO. Removed.
-- `models/manifest.yaml`'s comment pointing at the nonexistent
-  `wiki/GPT-OSS-Reference.md` — fixed to `wiki/GPT-DAEMON-REFERENCE.md`.
-- `horizons/src/main/java/com/horizons/core/README.md` was entirely
-  stale (referenced a nonexistent `GREENFIELD_PLAN.md`, a nonexistent
-  `nexa/` package, and listed `voice/`/`screen/`/`log/`/`shell/` as
-  "coming in follow-up commits" when all four already exist with more
-  content than described) — deleted.
-- `agents/neuralmash-builder.system.md`, `agents/sub-agent.system.md`,
-  top-level `sub-agent.agent.yaml` — rewritten to describe the real
-  stack (Qwen3.5-9B → qnn_context_binary → ort_engine, both real
-  branches) instead of dead Nexa/OmniNeural/v79 content and pointers at
-  the reference-only repo as source-of-truth.
-- `agents/.snapshots/*.yaml` — left as historical captures (not
-  corrected in place, that would be dishonest); added
-  `agents/.snapshots/README.md` disclaiming them as dead-stack,
-  audit-trail-only.
-- `agents/build-runner.yaml` — session 8's SOTU claimed this was
-  "rewritten as `novus-compile-runner`... scoped to HF Jobs + QAI Hub
-  pipeline." **That claim was itself false** — the file is still named
-  `horizons-build-runner`, scoped to Android CI, and was never touched.
-  That scope is legitimate on its own merits (Android CI is a real,
-  separate concern from the compile pipeline) so it wasn't renamed, but
-  two real bugs in it were fixed: `environment_hint` said JDK 21
-  (CLAUDE.md says 17), and `Working branch: main` ignored the two-track
-  branch setup.
-- `rules/README.md` / `rules/GIT_HYGIENE.md` — dead pickup-file names
-  (`SOTU.md`/`PROMPT_PREFIX.md`/`EXECUTION_BOARD.md`/
-  `CLAUDE_AT_HORIZONS.md`) replaced with real files, matching the
-  pattern already fixed in `AT_BAT_PROTOCOL.md`.
-- `rules/AAR_DECOMPILE.md` — archived-header added (Nexa-specific,
-  not applicable to current stack, kept only for the reusable
-  javap-decompile technique).
-- Full findings (including lower-confidence items intentionally left
-  untouched pending operator input) are in the session 13 handoff.
+- **Runtime: GenieX on the QAIRT/HTP SDK backend**, wired to a separate
+  detached daemon (`geniex serve`, OpenAI-compatible wire on `:18181/v1`).
+  `ort_engine` is the legacy runtime — real, CI-built, still in the repo,
+  not the Qwen3.5-9B path going forward. `GenieX` (`github.com/qualcomm/GenieX`)
+  is NOT yet forked into `c10vis-poem` — that's the next real runtime step.
+  Full detail: `wiki/GENIEX-DAEMON-PLAN.md`.
+- **Never invent priority.** The operator's labels and ordering ARE the
+  priority. Don't reorder, re-scope, or substitute your own judgement. If
+  unsure what's next, ask.
+- **OmniNeural / Nexa SDK = dead.** Reference-only for reverse-engineering.
+- **Orchestrator/sub-agent model**: brief per the sub-agent template, hold
+  sub-agents to their brief; a background agent that hasn't returned in
+  hours is dead — do the work inline instead of waiting.
 
 ### Pending — in order
-1. **Job 8** — trigger command below. Blocked in some remote sessions by
-   `huggingface.co` egress policy (per-session-container, not fixed —
-   verify with `curl -sS "$HTTPS_PROXY/__agentproxy/status"` before
-   assuming either way)
-2. **`ort_engine` on-device verification** — the daemon builds and is
-   packaged by CI; what's still open is verifying it actually loads and
-   serves a real compiled model on a physical Hexagon HTP v79 device,
-   which needs Job 8's output first.
-3. **NpuManager lock** — wire into `CliffordService.kt`
-4. **GameManager** — wire into `HorizonsApplication.kt`
-5. **Manifest** — `uses-feature` + `HIGH_PERFORMANCE`
-6. **RouterPane "routing rules"** — use-cloud-when-NPU-unavailable etc.
-   Deliberately not built yet; needs a real rule engine, not UI toggles
-   that don't affect behavior
-7. **SettingsPane "Themes"** — deliberately not built; needs a switchable
-   palette system, `HorizonsColors` is currently a flat hardcoded object
-8. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
-   `core/shell/SecureResourceRelay.kt`, `core/screen/ScreenshotCapture.kt`
-   — fully implemented, never wired to any caller. Likely mid-flight
-   features (screenshot capture for Vision-Agent tile, secure shell
-   token relay, structured interaction logging), not accidental cruft —
-   confirm with operator before deleting.
-9. **CI publish-target TODO below** — could not find evidence it's still
-   real (checked `build-apk.yml`'s full history, no foreign repo ever
-   hardcoded, `softprops/action-gh-release@v2` has no `repository:` field
-   so it already defaults to this repo). Verify against a live release
-   page before removing the TODO outright.
 
----
-
-## Job Execution Log
-
-| Job | Error | Fix | Result |
-|---|---|---|---|
-| 1–4 | Various load/submodule errors | Iterative | Done |
-| 5 | `has_previous_state on LinearAttention` | `use_cache=False` | Done |
-| 6–7 | `cat(): got 5 and 4` M-RoPE shape | Two-pronged fix `2af893b` | Done |
-| **8** | pending | — | **Ready** |
-
----
-
-## Job 8 Trigger Command
-
-```bash
-hf jobs uv run --flavor cpu-xl --timeout 2h \
-  --with torch --with transformers --with onnx --with onnxruntime --with onnxscript \
-  --with qai-hub --with datasets --with numpy --with huggingface_hub --with accelerate \
-  --secrets HF_TOKEN --secrets QAI_HUB_API_TOKEN \
-  -e MODEL_ID=Mer0vin8ian/Qwen3.5-9B -e PUBLISH_HF=1 -e OUTPUT_DIR=/tmp \
-  https://raw.githubusercontent.com/c10vis-poem/Novus-Agenti/claude/project-scope-review-lf615p/scripts/compile_qwen3_5_9b.py
-```
-
-`SKIP_VISION` is NOT set — all three artifacts attempted.
+1. **GenieX fork + wire** — fork `qualcomm/GenieX` → `c10vis-poem/GenieX`,
+   then work `wiki/GENIEX-DAEMON-PLAN.md`'s next-steps list.
+2. **Real media-daemon binary** — Moonshine STT + Kokoro/Sherpa TTS as a
+   detached process on `127.0.0.1:8091`; currently only client-side
+   contracts exist (`DaemonSttClient`, `DaemonTtsClient`), nothing binds
+   that port yet.
+3. **Fix `http_server.cpp`'s recv() truncation** before vision can actually
+   round-trip end to end.
+4. **Define precise boot/loading-phase sequencing for the UI build** — the
+   actual init order (daemon launch → health poll → UI activation →
+   voice/assist service registration → perf-lock acquisition) is implicit/
+   scattered across `CliffordService`/`DaemonLauncher`/`MainActivity`/
+   `LocalHomeActivity` rather than specified as one sequence.
+5. **Cloud connectors** — OpenRouter works; OmniRoute, GitHub, HuggingFace,
+   QAI Hub, GCS still need wiring (`CloudLlmRuntime`, agent tools).
+6. **Tailscale** — route to home node, not yet installed/wired.
+7. **Chat history export** — `ChatHistoryStore` saves locally, no export/sync.
+8. **RouterPane "routing rules"** — deliberately not built; needs a real
+   rule engine, not UI toggles with no behavioral effect.
+9. **SettingsPane "Themes"** — deliberately not built; `HorizonsColors` is
+   currently a flat hardcoded object, needs a switchable palette system.
+10. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
+    `core/shell/SecureResourceRelay.kt`, `core/screen/ScreenshotCapture.kt`
+    — fully implemented, never wired to any caller. Confirm with operator
+    before deleting; likely mid-flight features, not cruft.
+11. **CI publish-target TODO** in `build-apk.yml` — unconfirmed as still
+    real; verify against a live release page before touching.
 
 ---
 
@@ -681,33 +491,37 @@ hf jobs uv run --flavor cpu-xl --timeout 2h \
 ```
 c10vis-poem/Novus-Agenti  (public — confirmed via GitHub API, not private)
 
-CLAUDE.md                     ← THIS FILE
+CLAUDE.md                     ← THIS FILE (architecture-of-record + current SOTU)
 agents/
-  build-runner.yaml             novus-compile-runner
+  build-runner.yaml             horizons-build-runner (Android CI, separate from compile)
   sub-agent.system.md           Novus-Agenti stack (single canonical agent brief)
-daemon/                          ort_engine C++ daemon (scaffolded, CI-built)
+daemon/                          ort_engine C++ daemon (legacy runtime, CI-built)
   src/engine.cpp, http_server.cpp, tokenizer.cpp, sampler.h, main.cpp
 rules/
-  AAR_DECOMPILE.md              QNN artifact inspection
+  AAR_DECOMPILE.md              QNN artifact inspection (archived, Nexa-era)
   AT_BAT_PROTOCOL.md
   CACHE_PROMPT_RULES.md
   GIT_HYGIENE.md
 skills/
-  horizons-wiki/SKILL.md        novus-agenti-wiki
-  project-memory/SKILL.md
+  horizons-wiki/SKILL.md        architecture bundle (CLAUDE.md + daemon-reference)
+  project-memory/SKILL.md       knowledge/ corpus retrieval (two-tier)
   termux-mobile-dev/SKILL.md
-knowledge/                       byte-faithful master-wiki corpus (see README.md)
-  omni-claw-defined/  research-npu/  proofs/  fragmented-qat/
-  google-dev-docs/  gemini-query/   ← distilled .md/.jsonl/.txt, DO NOT re-process
-models/manifest.yaml
-scripts/compile_qwen3_5_9b.py   PRIMARY
+knowledge/                       project knowledge corpus (see README.md)
+  omni-claw-defined/             ALWAYS-READ core project definition
+  research-npu/  proofs/  fragmented-qat/  google-dev-docs/  gemini-query/
+                                  Drive-mirrored, retrieve-on-demand
+  qairt-sdk/                      Drive-mirrored (QNN HTP manual, .md + .jsonl)
+  daemon-reference/               repo-native (moved from wiki/): GPT-DAEMON-REFERENCE.md,
+                                  NPU-RUNTIME-PATHS.md
+models/manifest.yaml            FALLBACK ONLY — see its own header
+scripts/compile_qwen3_5_9b.py   fallback compile script (dormant, see wiki/COMPILE-PIPELINE.md)
 wiki/
-  GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
-  NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
-  GENIEX-DAEMON-PLAN.md           GenieX runtime plan + model/vision daemon split
-  FEATURE-SPEC.md                 UI tile spec
-  FAILURE_LOG.md                  append-only strike/failure ledger
-  SESSION{5,6,8,9,10,11,12,13,14,16}-HANDOFF.md
+  COMPILE-PIPELINE.md            dormant fallback pipeline (Single-Path Architecture,
+                                  Size Envelope, Hexagon HTP Constraints, Job 8 command)
+  GENIEX-DAEMON-PLAN.md          GenieX runtime plan + model/vision daemon split
+  JOB_EXECUTION_LOG.md           combined compile-job + strike/failure ledger
+  FEATURE-SPEC.md                UI tile spec
+  BUILD-ACTION-PLAN.md
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
   core/llm/NpuClient.kt          model+vision daemon client
@@ -719,11 +533,14 @@ horizons/                        Android app
 .github/workflows/build-apk.yml
 release/debug.keystore           committed by design
 ```
-`watchdog/` was already deleted (2026-06-30) — don't look for it.
+`watchdog/` was already deleted — don't look for it. There is no
+per-session handoff file (`wiki/SESSION{N}-HANDOFF.md`) or standalone
+`wiki/APP-SOTU-AUDIT.md`/`wiki/FAILURE_LOG.md` anymore — consolidated
+into this file's SOTU and `wiki/JOB_EXECUTION_LOG.md` respectively.
 `.github/workflows/build-apk.yml`'s publish-target TODO could not be
-confirmed still real as of session 13 (no foreign repo found hardcoded
-anywhere in its history) — verify against a live release page before
-assuming it needs work.
+confirmed still real (no foreign repo found hardcoded anywhere in its
+history) — verify against a live release page before assuming it needs
+work.
 
 ---
 
@@ -734,8 +551,10 @@ assuming it needs work.
 - No CPU fallback in the Qwen3.5-9B path (NPU or nothing for that model)
 - No in-process tensor runtime — every model runs via its own uploadable daemon binary
 - `M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti` is REFERENCE-ONLY
-- Do NOT set `SKIP_VISION=1` in the default trigger command
-- `--max_dynamic_tensor_size_mib` stays at **64** until empirically verified
+- Don't trigger the dormant compile pipeline pre-emptively — see
+  `wiki/COMPILE-PIPELINE.md` for its own hard rules (`SKIP_VISION`,
+  `max_dynamic_tensor_size_mib`), which only matter if/when that pipeline
+  actually runs
 
 ---
 

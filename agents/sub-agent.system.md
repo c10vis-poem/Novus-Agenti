@@ -8,19 +8,19 @@ Before any code change, read in order from `c10vis-poem/Novus-Agenti`
 GitHub fetch needed):
 
   1. `CLAUDE.md` (full read, all sections — authoritative; if anything
-     below disagrees with it, `CLAUDE.md` wins)
-  2. `wiki/GPT-DAEMON-REFERENCE.md`
-  3. `wiki/NPU-RUNTIME-PATHS.md`
-  4. The latest `wiki/SESSION{N}-HANDOFF.md` (check `wiki/` for the
-     current highest N)
+     below disagrees with it, `CLAUDE.md` wins. Its `## State of the
+     Union` section is the single current-state doc — there is no
+     separate per-session handoff file in this repo.)
+  2. `knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md`
+  3. `knowledge/daemon-reference/NPU-RUNTIME-PATHS.md`
 
 Quote one load-bearing decision from each before proceeding. If any file
 is missing, STOP and report — do not assume a stale filename from an old
-prompt revision; verify against the actual `wiki/` directory contents.
+prompt revision; verify against the actual `knowledge/` directory contents.
 
-The `skills/horizons-wiki/SKILL.md` skill packages documents 1-3 above
-plus the latest handoff as a single cacheable bundle — use it when
-available instead of re-fetching files individually.
+The `skills/horizons-wiki/SKILL.md` skill packages documents 1-3 above as
+a single cacheable bundle — use it when available instead of re-fetching
+files individually.
 
 # At-bat rules (non-negotiable)
 
@@ -57,10 +57,12 @@ more than 15, you're spinning. Hand off.
 There are two active tracks, each on its own branch — confirm which one
 matches your task before touching anything (see `CLAUDE.md`'s resume
 prompt if unsure):
-  - Compile track: `claude/project-scope-review-lf615p` (PR #4)
-  - App track: `claude/on-device-inference-openwiki-sae7cy` (see
-    CLAUDE.md's resume prompt for the current PR — PR #8 is merged,
-    do not reuse it)
+  - Compile track: `claude/project-scope-review-lf615p` (PR #4) — DORMANT,
+    see `wiki/COMPILE-PIPELINE.md`; not the active work unless the operator
+    says the primary GGUF/GenieX path hard-failed.
+  - App/UI-fork track: `claude/notice-agent-ui-local-xa14op` (see CLAUDE.md's
+    resume prompt for the current PR — the earlier sae7cy/#15 branch is
+    merged, do not reuse it)
 
   - Never push `main`. Never push to any branch other than the one
     matching your assigned track.
@@ -74,8 +76,10 @@ prompt if unsure):
 
   - **Model**: `Mer0vin8ian/Qwen3.5-9B` (9.65B params, `qwen3_5` arch,
     deepstack vision injection — not a separate encoder pipeline).
-  - **Compile path**: ONNX export → QAI Hub → `qnn_context_binary`
-    (W4A16) targeting Hexagon HTP v79 (SM8750).
+  - **Primary path — Q4_0 GGUF via GenieX's GGML backend**, no compile
+    step needed. **Compile path (ONNX export → QAI Hub → `qnn_context_binary`,
+    W4A16, targeting Hexagon HTP v79/SM8750) is the FALLBACK**, dormant
+    until the GGUF path hits a hard failure — see `wiki/COMPILE-PIPELINE.md`.
   - **Runtime — DECIDED (session 15): backend = HTP SDK (QAIRT), runtime =
     `GenieX`** (`github.com/qualcomm/GenieX`, official Qualcomm, NOT QNN's
     `genie-t2t-run` "Genie"), run as `geniex serve` (OpenAI-compatible,
@@ -86,19 +90,19 @@ prompt if unsure):
   - **Bridge**: `NpuClient.kt` — migrating from `:8080/api/v1/generate`
     (ort_engine) to `:18181/v1/chat/completions` (GenieX); check
     `wiki/GENIEX-DAEMON-PLAN.md` for current state before assuming either.
-  - **Agent layer**: `AgentLoop` + 25 tools, including `HttpFetch` for
+  - **Agent layer**: `AgentLoop` + tools, including `HttpFetch` for
     any cloud access the agent needs.
   - The app boots and runs its full UI/voice/cloud stack with **zero
     model loaded** — HTP/GenieX is an optional backend, not a boot
-    requirement. See `wiki/APP-SOTU-AUDIT.md` for the honest current state.
+    requirement. See CLAUDE.md's `## State of the Union` for current state.
   - ABI: arm64-v8a only. No CPU fallback for this model. No in-process
     tensor runtime — every model family gets its own uploadable daemon
     binary.
 
-See `CLAUDE.md`'s `§Hexagon HTP Constraints` table for the compile-side
-knobs (RoPE fold, static shapes, `--disable_fusion`, `--bias_as_int32`,
-scratch/dynamic-tensor sizes, single NPU context, stateless prefill) —
-do not re-derive these, they're already pinned there.
+See `wiki/COMPILE-PIPELINE.md`'s Hexagon HTP Constraints table for the
+compile-side knobs (RoPE fold, static shapes, `--disable_fusion`,
+`--bias_as_int32`, scratch/dynamic-tensor sizes, single NPU context,
+stateless prefill) — do not re-derive these, they're already pinned there.
 
 # Tokens & MCP tools
 

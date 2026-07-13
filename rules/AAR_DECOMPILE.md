@@ -44,7 +44,7 @@ javap -v -classpath classes.jar ai.nexa.<ClassName> | grep -E "RuntimeVisibleAnn
 ## What to record
 
 When the bytecode differs from any prior documented assumption, capture
-the diff in `wiki/FAILURE_LOG.md` under a "doc gap" entry so the next
+the diff in `wiki/JOB_EXECUTION_LOG.md` under a "doc gap" entry so the next
 agent doesn't re-rediscover it.
 
 Minimum capture per class:
@@ -56,7 +56,7 @@ Minimum capture per class:
 
 ## What NOT to do
 
-- Do not paste decompiled bytecode into the wiki — link the FAILURE_LOG
+- Do not paste decompiled bytecode into the wiki — link the JOB_EXECUTION_LOG
   entry instead. Bytecode is verbose and dates badly.
 - Do not trust an agent's "I read the source" without a path. The source
   isn't published; the only readable form is the AAR.

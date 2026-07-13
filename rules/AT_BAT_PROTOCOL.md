@@ -4,12 +4,12 @@ An at-bat is one agent's turn at one milestone. End-to-end: claim → work →
 commit → release. The rotation pattern keeps each at-bat clean (no
 "polish own turd" loop) and parallelizable across disjoint deps.
 
-1. **Read the pickup files first.** `CLAUDE.md`'s `## State of the Union`
-   section, then the latest `wiki/SESSION{N}-HANDOFF.md`. There is no
-   separate `SOTU.md` / `PROMPT_PREFIX.md` / `EXECUTION_BOARD.md` in this
-   repo — those names are leftovers from an earlier project structure.
-   If the SOTU date is older than the most recent commit date, flag it
-   and ask before assuming it's current.
+1. **Read the pickup file first.** `CLAUDE.md`'s `## State of the Union`
+   section — the single current-state source. There is no separate
+   `SOTU.md` / `PROMPT_PREFIX.md` / `EXECUTION_BOARD.md` / per-session
+   handoff file in this repo — those names are leftovers from an earlier
+   project structure. If the SOTU date is older than the most recent
+   commit date, flag it and ask before assuming it's current.
 2. **Claim before touching code.** State what you're about to work on in
    your first message so a parallel agent doesn't duplicate the same
    milestone.
@@ -19,14 +19,15 @@ commit → release. The rotation pattern keeps each at-bat clean (no
 4. **End-of-at-bat close-out (mandatory):**
    1. Tests / lint clean (or CI green — this repo has no local Android
       SDK, so CI is the real gate; see CLAUDE.md's `§Build / CI`).
-   2. Commit + push to the assigned feature branch.
-   3. Update `CLAUDE.md`'s `## State of the Union` section for the next
-      session.
-   4. Write `wiki/SESSION{N+1}-HANDOFF.md`.
-   5. If a blocker surfaced, append to `wiki/FAILURE_LOG.md` (create it
-      if it doesn't exist yet — append-only ledger, one entry per
-      failure: date, milestone, what was tried, why it failed).
-   6. `git status` clean.
+   2. Update `CLAUDE.md`'s `## State of the Union` section in place for
+      the next session — this is the only current-state doc, there is no
+      separate handoff file to also write.
+   3. If a blocker surfaced, append to `wiki/JOB_EXECUTION_LOG.md`'s
+      strike/failure section (append-only ledger: date, milestone, what
+      was tried, why it failed).
+   4. Commit + push to the assigned feature branch — a local-only commit
+      is invisible to the next session; it must reach the remote branch.
+   5. `git status` clean.
 5. **Working tree clean.** Untracked files either get committed or
    `.gitignore`'d before ending the session.
 6. **No silent rule relaxation.** If a hard rule blocks you, raise it
@@ -68,7 +69,7 @@ Sub-agent's initial attempt
        ↓ fails
    [STRIKE 3]  Orchestrator's swing — happens automatically, no operator
                approval needed first. Researches the failure (broken diff
-               + FAILURE_LOG + recent operator pushes), designs
+               + wiki/JOB_EXECUTION_LOG.md + recent operator pushes), designs
                corrections, lands the change in-session, pushes. No more
                sub-agents on this milestone.
        ↓ fails
@@ -108,8 +109,8 @@ Sub-agent's initial attempt
 
 - Track strike counts per milestone. When parallelizing, each milestone's
   strike count is independent.
-- Every strike outcome gets an entry appended to `wiki/FAILURE_LOG.md`
-  per the append-only ledger format. The strike sequence + the failure
-  log together are the audit trail.
+- Every strike outcome gets an entry appended to `wiki/JOB_EXECUTION_LOG.md`
+  per the append-only ledger format. The strike sequence + that log
+  together are the audit trail.
 - After strike 3, the orchestrator does NOT autonomously continue.
   Reconvene with the operator, surface the analysis, wait for the call.

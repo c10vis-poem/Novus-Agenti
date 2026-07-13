@@ -12,13 +12,14 @@ Rules are the contract. **Rules > wiki guidance** when in conflict.
 ## Precedence
 
 1. Hard rules in this folder.
-2. Pickup-file directives: CLAUDE.md's `## State of the Union` section,
-   plus the latest `wiki/SESSION{N}-HANDOFF.md`. There is no separate
-   `SOTU.md` / `PROMPT_PREFIX.md` / `EXECUTION_BOARD.md` in this repo —
-   those names are leftovers from an earlier project structure.
-3. Wiki guidance (`wiki/*`, including `wiki/GPT-DAEMON-REFERENCE.md` and
-   `wiki/NPU-RUNTIME-PATHS.md`). There is no separate `CLAUDE_AT_HORIZONS.md`
-   in this repo.
+2. CLAUDE.md's `## State of the Union` section — the single current-state
+   source, kept up to date in place. There is no separate `SOTU.md` /
+   `PROMPT_PREFIX.md` / `EXECUTION_BOARD.md` / per-session handoff file in
+   this repo — those names are leftovers from an earlier project structure.
+3. Wiki/knowledge guidance (`wiki/*`, `knowledge/*`, including
+   `knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md` and
+   `knowledge/daemon-reference/NPU-RUNTIME-PATHS.md`). There is no separate
+   `CLAUDE_AT_HORIZONS.md` in this repo.
 4. Inline comments, ad-hoc convention.
 
 If a rule needs to change, the change goes through the operator. Don't

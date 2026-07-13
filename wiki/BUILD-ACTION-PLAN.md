@@ -1,7 +1,7 @@
 # Build Action Plan — remaining app build + repo hygiene
 
 > Step-by-step execution plan to finish the Horizons app and clean the repo.
-> Grounded in `wiki/APP-SOTU-AUDIT.md`. Principle: **the app runs fully on
+> Grounded in CLAUDE.md's State of the Union section. Principle: **the app runs fully on
 > cloud reasoning + CPU voice with NO on-device model** — HTP/GenieX is an
 > optional backend added last, not a blocker.
 
@@ -52,7 +52,7 @@ shared file, it hands the edit to that file's owner.
 - **Now (running):** 1 Explore agent — read-only dedup/stale audit (S6). Returns
   a list; the repo session does the edits.
 - **Next wave (up to 3 concurrent), each briefed per the CLAUDE.md sub-agent
-  template** (repo + branch, read CLAUDE.md + APP-SOTU-AUDIT.md first, exact task,
+  template** (repo + branch, read CLAUDE.md's State of the Union first, exact task,
   disjoint file set, do NOT commit/push — return a diff/patch for the repo
   session to apply and commit):
   - Agent-Vision (S1)

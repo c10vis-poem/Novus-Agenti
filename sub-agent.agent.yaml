@@ -65,9 +65,10 @@ mcp_servers: []
 
 # Skills are referenced by short name; the host environment resolves
 # them. The horizons-wiki skill (skills/horizons-wiki/SKILL.md) bundles
-# CLAUDE.md + wiki/GPT-DAEMON-REFERENCE.md + wiki/NPU-RUNTIME-PATHS.md +
-# the latest wiki/SESSION{N}-HANDOFF.md as a single cacheable prefix —
-# these are the real, current source-of-truth docs in this repo.
+# CLAUDE.md + knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md +
+# knowledge/daemon-reference/NPU-RUNTIME-PATHS.md as a single cacheable
+# prefix. CLAUDE.md's own State of the Union section is the current-state
+# doc — there is no separate per-session handoff file in this repo.
 # NOTE: skill upload is a separate flow (ant beta:skills create);
 # this list will be empty until that happens. The system prompt file
 # above already restates the required-reading order as a fallback.
@@ -75,13 +76,13 @@ skills: []
 
 # Metadata pairs are upserts on update. Used to track origin so we
 # can correlate sessions back to the source-of-truth in git.
-# There are two active tracks/branches for this repo (see CLAUDE.md's
-# resume prompt) — set working_branch to whichever one this deployment
-# is scoped to before applying.
+# There is one active branch for app/UI work (see CLAUDE.md's resume
+# prompt) — the compile track branch is dormant. Set working_branch to
+# whichever this deployment is actually scoped to before applying.
 metadata:
   wiki_stable: CLAUDE.md
-  wiki_reference: wiki/GPT-DAEMON-REFERENCE.md,wiki/NPU-RUNTIME-PATHS.md
-  working_branch: claude/on-device-inference-openwiki-sae7cy
+  wiki_reference: knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md,knowledge/daemon-reference/NPU-RUNTIME-PATHS.md
+  working_branch: claude/notice-agent-ui-local-xa14op
   cache_ttl_default: 1h
   parent_agent_id: UNSET-see-description-note-above
   role: at-bat-subagent
