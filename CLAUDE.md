@@ -91,7 +91,8 @@ If this file and a handoff disagree, **this file wins**.
 Every sub-agent prompt must include:
 - Repo: `c10vis-poem/Novus-Agenti`, and the correct branch for the track
   (`claude/project-scope-review-lf615p` for compile work, PR #4;
-  `claude/horizons-closeout-hf-review-ycjkm3` for app work, PR #8)
+  `claude/on-device-inference-openwiki-sae7cy` for app work — see the
+  resume prompt above for the current PR number; PR #8 is merged)
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
@@ -131,7 +132,8 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 - Two active working branches, one per track — see the resume prompt at
   the top of this file for which one matches your task:
   `claude/project-scope-review-lf615p` (compile, PR #4) and
-  `claude/horizons-closeout-hf-review-ycjkm3` (app, PR #8).
+  `claude/on-device-inference-openwiki-sae7cy` (app — see the resume
+  prompt above for the current PR number; PR #8 is merged).
 
 ---
 
@@ -369,6 +371,15 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ## State of the Union — 2026-07-11 (session 15)
 
+> **APP STATUS — read `wiki/APP-SOTU-AUDIT.md` first.** Device-grounded honest
+> audit (what's done / broken / priority order) + the operator's explicit
+> remaining needs (cloud connectors, Chromium WebView socket, GCS/OpenRouter/
+> OmniRoute/QAIHub/HF/GitHub, Tailscale to home node, chat-history export) + the
+> real device inventory (QAIRT/Hexagon SDKs, GenieX-bench prebuilt w/ vision,
+> Q4_0 GGUF, HTP v79 libs). **STT model = Moonshine small**, runs in the media
+> daemon (CPU, no HTP). The voice/UI stack runs WITHOUT the on-device model —
+> HTP/GenieX is an optional backend, not a boot requirement.
+
 ### Done — session 15
 - **`knowledge/` corpus landed** (branch `claude/on-device-inference-openwiki-sae7cy`,
   PR #15). A **byte-faithful copy** of the operator's finished `Claude_master_wiki`
@@ -600,8 +611,7 @@ c10vis-poem/Novus-Agenti  (public — confirmed via GitHub API, not private)
 CLAUDE.md                     ← THIS FILE
 agents/
   build-runner.yaml             novus-compile-runner
-  neuralmash-builder.system.md  Novus-Agenti stack
-  sub-agent.system.md           Novus-Agenti stack
+  sub-agent.system.md           Novus-Agenti stack (single canonical agent brief)
 daemon/                          ort_engine C++ daemon (scaffolded, CI-built)
   src/engine.cpp, http_server.cpp, tokenizer.cpp, sampler.h, main.cpp
 rules/
@@ -696,5 +706,5 @@ runtime binaries; this table is not a constraint on future runtimes.
 | LiteRT / LiteRT-LM (for Qwen3.5-9B) | ort_engine daemon |
 | genie_engine (for Qwen3.5-9B) | ort_engine (ORT + QNN EP) |
 | Separate Watchdog | CliffordService (CLIFFORD == Watchdog) |
-| Nexa SDK, OmniNeural, Moonshine | dead |
+| Nexa SDK, OmniNeural | dead |
 | Cloud failover in app LLM | HttpFetch agent tool |

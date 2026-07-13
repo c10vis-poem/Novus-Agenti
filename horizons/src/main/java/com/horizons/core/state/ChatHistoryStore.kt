@@ -67,6 +67,26 @@ class ChatHistoryStore(context: Context) {
     fun getSession(id: String): ChatSession? =
         _sessions.value.find { it.id == id }
 
+    /**
+     * Exports all known sessions as a single JSON array file at [destFile].
+     * Reloads from disk first so the export reflects everything currently
+     * persisted (not just what's cached in [sessions]).
+     * Returns the number of sessions exported, or the failure if the write fails.
+     */
+    suspend fun exportAll(destFile: File): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            reload()
+            val all = _sessions.value
+            val arr = JSONArray()
+            all.forEach { arr.put(it.toJson()) }
+            destFile.parentFile?.mkdirs()
+            destFile.writeText(arr.toString(2))
+            Result.success(all.size)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun readSession(file: File): ChatSession? = try {
         val obj = JSONObject(file.readText())
         val msgs = obj.getJSONArray("messages").let { arr ->

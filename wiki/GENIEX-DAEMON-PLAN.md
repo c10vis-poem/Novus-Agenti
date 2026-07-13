@@ -79,10 +79,17 @@ C++ server needed.
   GenieX's `:18181/v1`. **(a) is cleaner** — standard OpenAI wire format, and
   the health check becomes a GET on `/v1/models`. Keep the serve-first / "alive
   ≠ ready" behavior so the watchdog doesn't thrash while the model loads.
-- **Q2 (model path)** → two supported routes, both already in our world:
-  **Q4_0 GGUF** of `Mer0vin8ian/Qwen3.5-9B` (via `geniex pull` / HF), **or** the
-  **AI Hub bundle** that `scripts/compile_qwen3_5_9b.py` already targets. GenieX
-  eats both — the existing QAI Hub pipeline is NOT wasted.
+- **Q2 (model path)** → **the 9B is NOT turnkey on GenieX yet** (operator
+  correction). Two routes, at different readiness:
+  - **Today: Q4_0 GGUF** of `Mer0vin8ian/Qwen3.5-9B` via GenieX's **GGML /
+    llama.cpp backend** (NPU/GPU/CPU). This is the path that actually runs now.
+  - **Max-perf QAIRT / AI-Engine-Direct (NPU-only) needs BYOM.** Qualcomm's
+    prebuilt AI Hub library only ships **smaller** Qwen variants right now (a
+    Qwen3.5 variant + a 0.8B text-only), **not** the 9B — so the 9B on the QAIRT
+    backend requires **BYOM-compiling it via the QAI Hub workbench**, i.e. the
+    existing `scripts/compile_qwen3_5_9b.py` compile track / Job 8 producing the
+    AI Hub bundle GenieX loads. This is where the two tracks connect: the
+    compile pipeline is NOT wasted — it's the prerequisite for the fast path.
 - **Q3 (quant)** → **Q4_0** for the GGUF route (GenieX's own recommendation);
   W4A16/mixed-precision still applies to the AI-Hub-bundle route. Both live in
   `knowledge/` (FraQAT, NPU scaling paper, the Q4_0 gemini doc).

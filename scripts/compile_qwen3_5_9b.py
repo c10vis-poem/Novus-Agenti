@@ -2,7 +2,13 @@
 """
 compile_qwen3_5_9b.py — Qwen/Qwen3.5-9B (multimodal) → Hexagon HTP NPU binaries
 
-PRIMARY TARGET. First-ever compile of the Qwen3.5-9B native-multimodal architecture
+>>> FALLBACK ONLY — DO NOT RUN PRE-EMPTIVELY. <<<
+The primary path is the Q4_0 GGUF (Qwen_Qwen3.5-9B-Q4_0.gguf) served by
+GenieX (geniex serve, GGML backend) directly on Hexagon HTP — no compile
+needed. This script/pipeline is ONLY for the case where that GGUF fails to
+run acceptably via GenieX on-device. Confirm that failure first.
+
+First-ever compile of the Qwen3.5-9B native-multimodal architecture
 to Snapdragon 8 Elite Hexagon HTP. Produces chunked NPU artifacts:
 
     qwen3_5_9b_vision_encoder.bin         — vision tower (image patches → embeddings)
@@ -11,17 +17,17 @@ to Snapdragon 8 Elite Hexagon HTP. Produces chunked NPU artifacts:
 
 The decoder is split into NUM_CHUNKS (default 4) layer groups to keep each ONNX
 upload and QAI Hub compile job within practical size limits. At runtime the
-ort_engine daemon loads all chunks sequentially.
+serving daemon loads all chunks sequentially.
 
-At runtime the ort_engine daemon (ONNX Runtime + QNN execution provider) loads the
-.bin files and serves inference. The compiled qnn_context_binary is compatible with
-ORT+QNN-EP; no Genie SDK required.
+The compiled qnn_context_binary is compatible with ORT+QNN-EP (ort_engine,
+legacy runtime) and, once wired, with GenieX on the HTP SDK/QAIRT (primary
+runtime, decided session 15 — see wiki/GENIEX-DAEMON-PLAN.md).
 
 Sources of truth (do not paraphrase elsewhere):
-  • wiki/GPT-OSS-Reference.md         — Hexagon failure modes + mitigations
+  • wiki/GPT-DAEMON-REFERENCE.md      — Hexagon failure modes + mitigations
   • models/manifest.yaml              — build order, target devices, expected sizes
 
-Hexagon constraints applied (per GPT-OSS reference, §1-§3):
+Hexagon constraints applied (per GPT-DAEMON-REFERENCE, §1-§3):
   • RoPE fold          precompute cos/sin to FP16 tables, replace rotary with Gather
   • Static shapes      batch=1, MAX_SEQ_LEN compile-time, valid-length scalar at runtime
   • KV cache           pre-allocated at MAX_SEQ_LEN (QnnTensorUpdate buggy >4 MiB)

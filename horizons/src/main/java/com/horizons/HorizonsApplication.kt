@@ -17,6 +17,7 @@ import com.horizons.core.shell.TaskerBridge
 import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatHistoryStore
 import com.horizons.core.state.SavedCommandStore
+import com.horizons.core.stt.DaemonSttClient
 import com.horizons.core.voice.KokoroModelManager
 import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
@@ -27,6 +28,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,6 +88,9 @@ class HorizonsApplication : Application() {
     // -- Shared AudioRecorder --
     val audioRecorder: AudioRecorder by lazy { AudioRecorder(this) }
 
+    // -- STT via the media daemon (Whisper) -- never in-process; models run detached --
+    val stt: DaemonSttClient by lazy { DaemonSttClient(appState) }
+
     // -- Pending screen capture (dock button -> stored here -> chat ask) --
     val pendingScreenJpeg = MutableStateFlow<ByteArray?>(null)
 
@@ -118,8 +123,12 @@ class HorizonsApplication : Application() {
             recorder = audioRecorder,
             tts = tts,
             engineStreamAudio = { pcm ->
-                llmRuntime.streamAudio(pcmToWav(pcm, AudioRecorder.SAMPLE_RATE))
-                    .gameBoosted(this@HorizonsApplication)
+                // VAD → media-daemon STT (Whisper) → LLM (text reasoning) → TTS.
+                // STT runs in the daemon, not here; the LLM only ever sees text.
+                flow {
+                    val text = transcribeAudio(pcm, AudioRecorder.SAMPLE_RATE)
+                    if (text.isNotBlank()) emitAll(llmRuntime.stream(text))
+                }.gameBoosted(this@HorizonsApplication)
             },
             vad = VadFactory.create(this@HorizonsApplication),
         )
@@ -242,8 +251,16 @@ class HorizonsApplication : Application() {
         }
     }
 
-    /** Voice STT: PCM -> WAV -> Qwen3.5-9B -> transcript string. */
+    /**
+     * Voice STT: PCM -> media daemon (Whisper), never in-process, model-independent.
+     * Falls back to the active LLM's audio path only if the media daemon is down
+     * and a model that accepts audio is loaded.
+     */
     suspend fun transcribeAudio(pcm: ShortArray, sampleRate: Int): String {
+        // Media daemon (Whisper) first; returns "" if the daemon isn't reachable.
+        val text = stt.transcribe(pcm, sampleRate)
+        if (text.isNotBlank()) return text
+        // Fallback only if the media daemon is down and an audio-capable LLM is active.
         val wav = pcmToWav(pcm, sampleRate)
         var result = ""
         llmRuntime.streamAudio(wav, "Transcribe the audio accurately.").collect { result += it }
@@ -313,6 +330,9 @@ class HorizonsApplication : Application() {
                     }
                 }
             }
+
+            // -- STT: probe the media daemon so stt.ready reflects connectivity --
+            scope.launch { runCatching { stt.probe() } }
 
             scope.launch { ttsVoiceId.collect { id -> tts.voiceId = id; appState.put(AppStateStore.KEY_TTS_VOICE, id) } }
             scope.launch { ttsSpeed.collect  { sp -> tts.speed   = sp; appState.put(AppStateStore.KEY_TTS_SPEED, sp.toString()) } }
