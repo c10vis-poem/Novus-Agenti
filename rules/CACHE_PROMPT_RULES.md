@@ -38,11 +38,28 @@ never actually created in this repo.)
     and gone the moment a session goes quiet past its TTL. Carry over the
     *source text* between sessions/days, not the cache itself; re-send it
     to re-warm.
-11. **1h TTL for `ant`-CLI sub-agent deployments.** `sub-agent.agent.yaml`
-    and `agents/build-runner.yaml` already set `metadata.cache_ttl_default:
-    1h` — that's the real, confirmed knob for agents deployed via
-    `ant beta:agents create`. There is no `ant` CLI / `ant/config` slash
-    command available inside a Claude Code session itself (checked — no
-    such skill exists here); for Agent-tool sub-agents spawned from a
-    Claude Code session, set the TTL by rule #5 above instead of assuming
-    an `ant` command will run.
+11. **1h TTL — automatic on this operator's Claude subscription, no
+    command needed.** Claude Code requests the 1-hour TTL for the main
+    session by itself when running on a subscription (only drops to 5m if
+    the plan's usage limit is exceeded and it falls to paid credits). The
+    env var `ENABLE_PROMPT_CACHING_1H=1` only matters on API-key/Bedrock/
+    GCP/Foundry auth, which defaults to 5m. `FORCE_PROMPT_CACHING_5M=1`
+    overrides to 5m regardless of auth. See `wiki/PROMPT-CACHING.md` for
+    the full mechanics.
+12. **Scope note — two different "sub-agent" systems in this repo.**
+    Rules #3 and #5 (pre-warm, 1h TTL for fan-out) apply when **Omni
+    Claw's own code calls the Anthropic API directly** (e.g. a future
+    orchestrator using `cache_control` headers itself) — there, TTL is
+    fully our choice per request, 1h included.
+    A **Claude Code session's own `Agent`-tool sub-agents (this repo's
+    dev sessions, not the app) are different and NOT covered by rules
+    #3/#5**: a fresh `Agent`-tool sub-agent always starts its own cold
+    cache at the 5-minute TTL, even when the parent session has the
+    automatic 1h TTL — no setting changes this. Only a *fork* (inherits
+    the parent's system prompt/tools/history exactly) reads the parent's
+    already-warm cache. Don't assume "set TTL to 1h" fixes a Claude Code
+    sub-agent's cache misses; it can't.
+    `sub-agent.agent.yaml` / `agents/build-runner.yaml`'s
+    `metadata.cache_ttl_default: 1h` is a third, separate system — the
+    `ant beta:agents create` deployment path's own knob, unrelated to
+    either of the above.
