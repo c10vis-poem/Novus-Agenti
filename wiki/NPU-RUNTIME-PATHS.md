@@ -1,6 +1,9 @@
 # NPU Runtime Paths — Novus Agenti / Omni Claw
 
-> Target hardware: is device and model specific as Horizons is a Ui/harness for multiple endpoints, beliw is for a RAZR ULTRA 60 [HTP v7p]  running a Qwen 3.5 pB Q4_0gguf. For help compiling add requests to 'issues'
+> Target hardware is device- and model-specific — Horizons is a UI/harness
+> for multiple endpoints. Below is for a Razr Ultra 2025 (Hexagon HTP v79)
+> running Qwen3.5-9B Q4_0 GGUF. For help compiling, file a request as a
+> GitHub Issue.
 
 
 **Primary path (in use now): Q4_0 GGUF via GenieX.**
