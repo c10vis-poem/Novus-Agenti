@@ -17,9 +17,7 @@ import com.horizons.core.shell.TaskerBridge
 import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatHistoryStore
 import com.horizons.core.state.SavedCommandStore
-import com.horizons.core.stt.MoonshineModelManager
-import com.horizons.core.stt.MoonshineSetupState
-import com.horizons.core.stt.MoonshineSttEngine
+import com.horizons.core.stt.DaemonSttClient
 import com.horizons.core.voice.KokoroModelManager
 import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
@@ -90,9 +88,8 @@ class HorizonsApplication : Application() {
     // -- Shared AudioRecorder --
     val audioRecorder: AudioRecorder by lazy { AudioRecorder(this) }
 
-    // -- Moonshine STT -- our own system-level transcription, model-independent --
-    val moonshineManager: MoonshineModelManager by lazy { MoonshineModelManager(this, scope) }
-    val stt: MoonshineSttEngine by lazy { MoonshineSttEngine(moonshineManager.modelDir) }
+    // -- STT via the media daemon (Whisper) -- never in-process; models run detached --
+    val stt: DaemonSttClient by lazy { DaemonSttClient(appState) }
 
     // -- Pending screen capture (dock button -> stored here -> chat ask) --
     val pendingScreenJpeg = MutableStateFlow<ByteArray?>(null)
@@ -126,8 +123,8 @@ class HorizonsApplication : Application() {
             recorder = audioRecorder,
             tts = tts,
             engineStreamAudio = { pcm ->
-                // VAD → Moonshine STT (ours) → LLM (text reasoning) → TTS.
-                // STT is model-independent; the LLM only ever sees text.
+                // VAD → media-daemon STT (Whisper) → LLM (text reasoning) → TTS.
+                // STT runs in the daemon, not here; the LLM only ever sees text.
                 flow {
                     val text = transcribeAudio(pcm, AudioRecorder.SAMPLE_RATE)
                     if (text.isNotBlank()) emitAll(llmRuntime.stream(text))
@@ -255,15 +252,15 @@ class HorizonsApplication : Application() {
     }
 
     /**
-     * Voice STT: PCM -> Moonshine (our system-level STT), model-independent.
-     * Falls back to the active LLM's audio path only if our STT isn't ready and
-     * a model that accepts audio is loaded.
+     * Voice STT: PCM -> media daemon (Whisper), never in-process, model-independent.
+     * Falls back to the active LLM's audio path only if the media daemon is down
+     * and a model that accepts audio is loaded.
      */
     suspend fun transcribeAudio(pcm: ShortArray, sampleRate: Int): String {
-        if (stt.ready.value) {
-            val text = stt.transcribe(pcm, sampleRate)
-            if (text.isNotBlank()) return text
-        }
+        // Media daemon (Whisper) first; returns "" if the daemon isn't reachable.
+        val text = stt.transcribe(pcm, sampleRate)
+        if (text.isNotBlank()) return text
+        // Fallback only if the media daemon is down and an audio-capable LLM is active.
         val wav = pcmToWav(pcm, sampleRate)
         var result = ""
         llmRuntime.streamAudio(wav, "Transcribe the audio accurately.").collect { result += it }
@@ -334,26 +331,8 @@ class HorizonsApplication : Application() {
                 }
             }
 
-            // -- Moonshine STT: download model, init our system STT when ready --
-            try {
-                moonshineManager.ensureReady()
-                com.horizons.core.diag.Breadcrumb.drop("moonshine_ensure_ready_called")
-            } catch (e: Throwable) {
-                com.horizons.core.diag.Breadcrumb.drop("moonshine_ensure_ready_failed: ${e.javaClass.simpleName}: ${e.message}")
-            }
-            scope.launch {
-                moonshineManager.state.collect { state ->
-                    if (state is MoonshineSetupState.Ready) {
-                        com.horizons.core.diag.Breadcrumb.drop("moonshine_state_ready")
-                        try {
-                            withContext(Dispatchers.IO) { stt.init() }
-                            com.horizons.core.diag.Breadcrumb.drop("stt_inited")
-                        } catch (e: Throwable) {
-                            com.horizons.core.diag.Breadcrumb.drop("stt_init_failed: ${e.javaClass.simpleName}: ${e.message}")
-                        }
-                    }
-                }
-            }
+            // -- STT: probe the media daemon so stt.ready reflects connectivity --
+            scope.launch { runCatching { stt.probe() } }
 
             scope.launch { ttsVoiceId.collect { id -> tts.voiceId = id; appState.put(AppStateStore.KEY_TTS_VOICE, id) } }
             scope.launch { ttsSpeed.collect  { sp -> tts.speed   = sp; appState.put(AppStateStore.KEY_TTS_SPEED, sp.toString()) } }
