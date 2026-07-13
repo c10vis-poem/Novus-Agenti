@@ -38,14 +38,20 @@ never actually created in this repo.)
     and gone the moment a session goes quiet past its TTL. Carry over the
     *source text* between sessions/days, not the cache itself; re-send it
     to re-warm.
-11. **1h TTL — automatic on this operator's Claude subscription, no
-    command needed.** Claude Code requests the 1-hour TTL for the main
-    session by itself when running on a subscription (only drops to 5m if
-    the plan's usage limit is exceeded and it falls to paid credits). The
-    env var `ENABLE_PROMPT_CACHING_1H=1` only matters on API-key/Bedrock/
-    GCP/Foundry auth, which defaults to 5m. `FORCE_PROMPT_CACHING_5M=1`
-    overrides to 5m regardless of auth. See `wiki/PROMPT-CACHING.md` for
-    the full mechanics.
+11. **1h TTL — Anthropic's docs claim it's automatic on a Claude
+    subscription; don't trust that claim blindly.** Real, dated GitHub
+    issues confirm it doesn't reliably hold: `anthropics/claude-code#46829`
+    reports a silent regression to 5-minute starting March 6–8, 2026
+    (closed "not planned," never confirmed as bug vs new default), and
+    `anthropics/claude-code#45381` (filed Apr 8, 2026) confirms
+    `DISABLE_TELEMETRY=1` / `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
+    silently downgrades 1h to 5m even when a session would otherwise
+    qualify. **Verify, don't assume**: check
+    `usage.cache_creation.ephemeral_1h_input_tokens` vs
+    `.ephemeral_5m_input_tokens` in the API response for which TTL is
+    actually active. On API-key/Bedrock/GCP/Foundry auth (5m by default
+    regardless), `ENABLE_PROMPT_CACHING_1H=1` opts into 1h;
+    `FORCE_PROMPT_CACHING_5M=1` forces 5m. See `wiki/PROMPT-CACHING.md`.
 12. **Scope note — two different "sub-agent" systems in this repo.**
     Rules #3 and #5 (pre-warm, 1h TTL for fan-out) apply when **Omni
     Claw's own code calls the Anthropic API directly** (e.g. a future

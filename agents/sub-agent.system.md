@@ -115,14 +115,25 @@ per-session HuggingFace egress verification, is in `CLAUDE.md`'s
 
 # Cache — TTL and tool usage (overrides anything stale you've seen elsewhere)
 
-- **1-hour TTL is automatic on this operator's Claude subscription.** No
-  command, no config, no env var needed for the main session — Claude
-  Code requests it on its own. It only drops to 5 minutes if the plan's
-  usage limit is exceeded and billing falls to paid credits.
-- **If you're ever running against an API key / Bedrock / GCP / Foundry
-  instead of the subscription**, that path defaults to 5 minutes; set
+- **Anthropic's docs claim the 1-hour TTL is automatic on a Claude
+  subscription — do NOT trust that claim blindly.** Confirmed by real,
+  dated GitHub issues that this does not reliably hold:
+  - `anthropics/claude-code#46829`: the 1h TTL silently regressed to
+    5-minute starting **March 6–8, 2026** (83% of cache creation was 5m
+    by March 8). Closed "not planned" — Anthropic never confirmed whether
+    this is a bug or the new actual default.
+  - `anthropics/claude-code#45381` (filed April 8, 2026): a confirmed
+    trigger — **`DISABLE_TELEMETRY=1` or
+    `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` silently downgrades the
+    1h TTL to 5m**, even for a session that would otherwise qualify.
+  - **Verify, don't assume.** Check
+    `usage.cache_creation.ephemeral_1h_input_tokens` vs
+    `.ephemeral_5m_input_tokens` in the API response — non-zero on one
+    tells you which TTL is actually active for that turn.
+- **If running against an API key / Bedrock / GCP / Foundry instead of
+  the subscription**, that path defaults to 5 minutes regardless; set
   `ENABLE_PROMPT_CACHING_1H=1` to opt into 1 hour, `FORCE_PROMPT_CACHING_5M=1`
-  to force 5 minutes regardless. Full mechanics: `wiki/PROMPT-CACHING.md`.
+  to force 5 minutes. Full mechanics: `wiki/PROMPT-CACHING.md`.
 - **You, this sub-agent, always run at the 5-minute TTL — no exceptions.**
   A fresh `Agent`-tool sub-agent (which is what you are) never gets the
   parent's 1-hour TTL, no matter what setting anyone sets. Only a *fork*

@@ -96,14 +96,30 @@ wherever requests route for a custom gateway.
 
 ## Cache lifetime (TTL)
 
-- **Claude subscription: 1-hour TTL, automatic.** Claude Code requests it
-  for you — no env var needed, no extra cost (plan-included usage, not
-  per-token). If you go over your plan's usage limit and start drawing on
-  usage credits (billed per-token), Claude Code automatically drops to
-  the 5-minute TTL.
+- **Anthropic's docs say Claude subscription = 1-hour TTL, automatic, no
+  env var needed. Treat that as unverified — it doesn't reliably hold in
+  practice.** Real, dated evidence:
+  - **`anthropics/claude-code#46829`**: the 1h TTL silently regressed to
+    5-minute starting **March 6–8, 2026** (gradual rollout; 5m tokens hit
+    83% of cache creation by March 8, up from 33 days of 1h-only
+    behavior before that). Closed **"not planned"** — Anthropic never
+    confirmed whether this was a bug or the new actual default.
+  - **`anthropics/claude-code#45381`** (filed April 8, 2026): a confirmed,
+    concrete trigger — **`DISABLE_TELEMETRY=1` or
+    `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` silently downgrades the
+    1h TTL to 5m**, even for a session that would otherwise qualify.
+  - **Verify per-turn instead of trusting the claim**: check
+    `usage.cache_creation.ephemeral_1h_input_tokens` vs
+    `.ephemeral_5m_input_tokens` in the API response. Non-zero on one
+    tells you which TTL is actually active for that turn — this is
+    ground truth, the "automatic" claim is not.
+  - If you go over your plan's usage limit and start drawing on usage
+    credits (billed per-token), Claude Code is documented to drop to 5m —
+    this part isn't disputed.
 - **API key / Bedrock / GCP Agent Platform / Foundry / Claude Platform on
-  AWS: 5-minute TTL by default** (per-token pricing). Set
-  **`ENABLE_PROMPT_CACHING_1H=1`** to opt into the 1-hour TTL.
+  AWS: 5-minute TTL by default** (per-token pricing, not affected by the
+  subscription regression above). Set **`ENABLE_PROMPT_CACHING_1H=1`** to
+  opt into the 1-hour TTL.
 - **`FORCE_PROMPT_CACHING_5M=1`** overrides back to 5 minutes regardless
   of auth — for debugging or overriding a 1h setting from managed config.
 - Each cache-hitting request resets the TTL timer — stays warm as long as
@@ -159,9 +175,13 @@ Leave caching enabled for normal use.
 ## Practical takeaway for this project
 
 Pick model + effort level at the start of a session; save `/compact` for
-natural breaks between tasks. On this operator's Claude subscription, the
-1h TTL is already automatic for the main session — no `ant` command or env
-var needed for that. What actually needs attention: **ordinary sub-agents
-(the `Agent` tool) never get the 1h TTL no matter what** — they're always
-5-minute, cold-started. If a dispatched task genuinely needs the parent's
-warm cache, that requires a fork, not a fresh sub-agent spawn.
+natural breaks between tasks. Don't assume the main session has the 1h
+TTL just because it's on a subscription — the "automatic" claim has a
+documented, unresolved regression (`#46829`) and a confirmed telemetry
+trigger (`#45381`); **check `usage.cache_creation.ephemeral_1h_input_tokens`
+vs `.ephemeral_5m_input_tokens` to know which TTL is actually active**,
+don't take the docs' word for it. Separately, and NOT in dispute:
+**ordinary sub-agents (the `Agent` tool) never get the 1h TTL no matter
+what** — they're always 5-minute, cold-started. If a dispatched task
+genuinely needs the parent's warm cache, that requires a fork, not a
+fresh sub-agent spawn.
