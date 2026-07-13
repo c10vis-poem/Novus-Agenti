@@ -116,6 +116,7 @@ int main(int argc, char** argv) {
         req.prompt = extract_string("prompt");
         req.temperature = extract_float("temperature", 0.7f);
         req.max_tokens = extract_int("max_tokens", 2048);
+        req.image_b64 = extract_string("image_b64");
         return req;
     };
 

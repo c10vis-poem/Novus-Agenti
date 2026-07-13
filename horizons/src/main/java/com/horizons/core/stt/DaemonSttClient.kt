@@ -15,19 +15,22 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * STT via the media/voice **daemon** — NOT in-process.
+ * STT via the media **daemon** — NOT in-process.
  *
- * The media models (Whisper STT, Silero VAD, Kokoro TTS, vision) run in a
- * detached system-level daemon so they never load into the Kotlin UI process
- * (which would OOM/crash it). This class is just the client: it ships 16-bit
- * PCM (as WAV) to the daemon's `/stt` endpoint and returns the transcript.
+ * The media daemon hosts STT (Moonshine small, CPU) and TTS (Kokoro/Sherpa-ONNX)
+ * as one detached process, separate from the LLM+vision daemon (see NpuClient —
+ * session-16 decision: vision shares the model's socket, STT/TTS do not). Keeping
+ * STT/TTS out of the Kotlin UI process avoids OOM/crash risk in-app.
+ * This class is just the STT client half; see DaemonTtsClient for the TTS half.
+ * It ships 16-bit PCM (as WAV) to the daemon's `/stt` endpoint and returns the
+ * transcript.
  *
  * Daemon contract (this client's side):
  *   POST {base}/stt   body: audio/wav   → 200, body = transcript text
  *   GET  {base}/health                  → 200 when the daemon + model are ready
  *
- * Base URL is configurable (default 127.0.0.1:8091); the LLM daemon and this
- * media daemon are separate processes behind the same loopback socket layer.
+ * Base URL is configurable (default 127.0.0.1:8091); the model+vision daemon and
+ * this media daemon are separate processes behind the same loopback socket layer.
  */
 class DaemonSttClient(private val appState: AppStateStore) : SttEngine {
 

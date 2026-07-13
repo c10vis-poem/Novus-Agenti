@@ -19,6 +19,12 @@ struct HttpServer::Impl {
     HealthHandler health_handler;
 
     void handle_connection(int client_fd) {
+        // KNOWN LIMITATION: single recv() into an 8KB buffer. Fine for text-only
+        // /api/v1/generate bodies, but the "image_b64" field NpuClient.kt now sends
+        // for vision (session 16) is typically 100KB+ and WILL be truncated here.
+        // Needs a real read-until-Content-Length loop before vision requests can
+        // actually round-trip; not done in this pass (contract-only scaffolding —
+        // see engine.h's GenerateRequest::image_b64 doc).
         char buf[8192];
         int n = recv(client_fd, buf, sizeof(buf) - 1, 0);
         if (n <= 0) { close(client_fd); return; }

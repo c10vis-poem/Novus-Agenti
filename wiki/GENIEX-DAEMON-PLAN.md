@@ -5,6 +5,16 @@
 > how GenieX replaces `ort_engine` behind the existing socket without
 > touching the watchdog or the crash-loop fix. See CLAUDE.md §Single-Path
 > Architecture and the QAIT>ORT decision block.
+>
+> **Session 16 reconfirmation:** vision stays co-located with the LLM in this
+> same daemon/socket (matches `libgeniex_vlm` being part of the same QAIRT
+> backend below) — STT/TTS are the separate process, not vision. `ort_engine`'s
+> wire contract now carries an optional `image_b64` field end-to-end
+> (`NpuClient.kt` → `main.cpp` → `Engine::generate`) as a scaffold ahead of
+> GenieX landing; see `NpuClient.kt`'s class doc and `engine.h`'s
+> `GenerateRequest::image_b64` for the current (stubbed, not yet decoding)
+> state, and `http_server.cpp`'s single-`recv()` 8KB-buffer limitation that
+> must be fixed before real image payloads can round-trip.
 
 ## What stays exactly the same
 

@@ -23,9 +23,16 @@ import java.net.URL
  * Launch via DaemonLauncher. Install binary via NativeBinaryInstaller.
  *
  * Wire protocol:
- *   POST /api/v1/generate   {"prompt":"…","temperature":0.7,"max_tokens":2048,"stream":true}
+ *   POST /api/v1/generate   {"prompt":"…","temperature":0.7,"max_tokens":2048,"stream":true,
+ *                             "image_b64":"…"}   ← image_b64 optional, base64 JPEG
  *   → chunked SSE:          data: {"token":"…","index":N}
  *   GET  /health            → 200 when ready
+ *
+ * Vision lives in THIS same daemon/process as the LLM (session-16 decision — model +
+ * vision share one socket; STT/TTS are a separate media daemon, see DaemonSttClient).
+ * ort_engine doesn't decode the image yet (VLM path pending GenieX's libgeniex_vlm),
+ * but the wire contract already carries it so the client side doesn't need to change
+ * again when that lands.
  *
  * Think-token shim: <think>…</think> blocks are collapsed to a single "[Thinking…]" emit.
  * The daemon may suppress them natively in future; this shim is a Kotlin-side safety net.
@@ -38,11 +45,20 @@ class NpuClient : LlmRuntime {
     private val _perfMetrics = MutableStateFlow<LlmRuntime.PerfMetrics?>(null)
     override val perfMetrics: StateFlow<LlmRuntime.PerfMetrics?> = _perfMetrics.asStateFlow()
 
-    override fun stream(prompt: String): Flow<String> {
+    override fun stream(prompt: String): Flow<String> = timed(rawStream(prompt, null))
+
+    /** Vision request — same daemon/socket as text (see class doc). */
+    override fun streamImage(jpeg: ByteArray, prompt: String): Flow<String> {
+        val imageB64 = android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP)
+        val q = prompt.ifBlank { "What is on this screen?" }
+        return timed(rawStream(q, imageB64))
+    }
+
+    private fun timed(source: Flow<String>): Flow<String> {
         val startNanos = System.nanoTime()
         var firstTokenNanos = -1L
         var tokenCount = 0
-        return rawStream(prompt).onEach {
+        return source.onEach {
             tokenCount++
             if (firstTokenNanos < 0) firstTokenNanos = System.nanoTime()
             val elapsedSec = (System.nanoTime() - firstTokenNanos) / 1_000_000_000.0
@@ -54,7 +70,7 @@ class NpuClient : LlmRuntime {
         }
     }
 
-    private fun rawStream(prompt: String): Flow<String> = flow {
+    private fun rawStream(prompt: String, imageB64: String?): Flow<String> = flow {
         when (daemonHealthCode()) {
             200 -> { /* ready — fall through to the generate request below */ }
             503 -> {
@@ -85,6 +101,7 @@ class NpuClient : LlmRuntime {
                 put("temperature", 0.7)
                 put("max_tokens",  2048)
                 put("stream",      true)
+                if (imageB64 != null) put("image_b64", imageB64)
             }.toString().toByteArray()
             conn.outputStream.use { it.write(body) }
 

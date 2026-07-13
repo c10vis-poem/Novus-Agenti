@@ -10,10 +10,13 @@
 >   - COMPILE track (ONNX export, QAI Hub, Job 8): branch
 >     claude/project-scope-review-lf615p, PR #4
 >   - APP track (Android app, daemon, UI, knowledge layer): branch
->     claude/on-device-inference-openwiki-sae7cy, PR #15 — CURRENT app
->     work (session 15: daemon crash-loop fix, in-app browser, knowledge/
->     corpus). PR #8 (claude/horizons-closeout-hf-review-ycjkm3) already
->     MERGED to main — do not reuse it.
+>     claude/on-device-inference-openwiki-sae7cy, PR #15 — MERGED to main
+>     as of session 16 (PR #17). Do not reuse it.
+>   - UI-FORK track (new local-first UI, model+vision/media daemon split):
+>     branch claude/notice-agent-ui-local-xa14op — CURRENT app work
+>     (session 16: LocalHomeActivity fork, NpuClient vision wiring,
+>     DaemonTtsClient scaffold). This is now the active app-track branch;
+>     use it instead of the merged sae7cy branch above.
 >
 > READ THESE IN ORDER BEFORE ANY ACTION:
 >   1. CLAUDE.md (full read, all sections)
@@ -91,8 +94,8 @@ If this file and a handoff disagree, **this file wins**.
 Every sub-agent prompt must include:
 - Repo: `c10vis-poem/Novus-Agenti`, and the correct branch for the track
   (`claude/project-scope-review-lf615p` for compile work, PR #4;
-  `claude/on-device-inference-openwiki-sae7cy` for app work — see the
-  resume prompt above for the current PR number; PR #8 is merged)
+  `claude/notice-agent-ui-local-xa14op` for app/UI-fork work — see the
+  resume prompt above for the current PR number; sae7cy/PR #15 is merged)
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
@@ -132,8 +135,8 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 - Two active working branches, one per track — see the resume prompt at
   the top of this file for which one matches your task:
   `claude/project-scope-review-lf615p` (compile, PR #4) and
-  `claude/on-device-inference-openwiki-sae7cy` (app — see the resume
-  prompt above for the current PR number; PR #8 is merged).
+  `claude/notice-agent-ui-local-xa14op` (app/UI-fork — see the resume
+  prompt above for the current PR number; sae7cy/PR #15 is merged).
 
 ---
 
@@ -369,7 +372,7 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ---
 
-## State of the Union — 2026-07-11 (session 15)
+## State of the Union — 2026-07-13 (session 16)
 
 > **APP STATUS — read `wiki/APP-SOTU-AUDIT.md` first.** Device-grounded honest
 > audit (what's done / broken / priority order) + the operator's explicit
@@ -379,6 +382,44 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 > Q4_0 GGUF, HTP v79 libs). **STT model = Moonshine small**, runs in the media
 > daemon (CPU, no HTP). The voice/UI stack runs WITHOUT the on-device model —
 > HTP/GenieX is an optional backend, not a boot requirement.
+
+### Standing directive — session 16 — daemon split, CONFIRMED again this session
+- **Vision lives in the SAME daemon/process as the LLM** (model+vision share one
+  socket, `127.0.0.1:${DaemonLauncher.ENGINE_PORT}`). This matches the GenieX plan
+  (`libgeniex_vlm` is part of the same QAIRT backend) — session 16 re-confirms it
+  and wires the contract end-to-end: `NpuClient.kt` now sends an optional
+  `image_b64` field on `/api/v1/generate` and overrides `streamImage()` for real
+  (previously fell through to the `LlmRuntime` default stub). `ort_engine`'s
+  `GenerateRequest` gained `image_b64`; `Engine::generate` acknowledges it with an
+  honest "VLM decode not yet wired" note rather than silently dropping it — no
+  fake vision response.
+- **STT + TTS are a separate media daemon**, NOT the model+vision daemon. Fixed a
+  stale doc bug: `DaemonSttClient`'s comment used to list "vision" as one of the
+  media daemon's models — wrong per this directive, corrected. Added
+  `core/tts/DaemonTtsClient.kt` as TTS's daemon-client half (mirrors
+  `DaemonSttClient`, same `127.0.0.1:8091` base, new `/tts` endpoint) — contract
+  only, not yet wired as a caller; `SherpaOnnxTtsClient` still runs TTS in-process
+  today, migrating it is a follow-up.
+- **Known gap flagged, not fixed this session**: `daemon/src/http_server.cpp`
+  reads a single `recv()` into an 8KB buffer — fine for text prompts, but
+  `image_b64` payloads (100KB+) will be silently truncated. Needs a real
+  read-until-`Content-Length` loop before vision can actually round-trip.
+  Documented inline; do not assume vision works end-to-end from the contract
+  existing alone.
+- **New local UI fork**: `com.horizons.uilocal.LocalHomeActivity` +
+  `LocalHomeScreen.kt` — additive, does not touch `MainActivity`/`HomeGrid`.
+  Boots instantly with no gate on the model daemon ("skip loading the model" —
+  matches the daemon-side serve-first fix at the UI layer). Shows two
+  independently-polled, non-blocking status rows (model+vision daemon, media
+  daemon) and a chat surface wired straight to the real
+  `HorizonsApplication.llmRuntime`/`sendChat()`/`chatMessages` state — not a
+  mock. Registered as a second launcher activity
+  (`"Novus Agenti (Local)"`) in `AndroidManifest.xml` so both UIs install side
+  by side while this fork is under active development.
+- Scope of this pass was deliberately **contracts + UI scaffold, not full
+  GenieX/Moonshine/Kokoro daemon binaries** — those still need the GenieX fork
+  (`§GenieX facts` in `wiki/GENIEX-DAEMON-PLAN.md`) and a real media-daemon
+  binary, neither of which exist as a process yet.
 
 ### Done — session 15
 - **`knowledge/` corpus landed** (branch `claude/on-device-inference-openwiki-sae7cy`,
@@ -631,14 +672,18 @@ scripts/compile_qwen3_5_9b.py   PRIMARY
 wiki/
   GPT-DAEMON-REFERENCE.md         distilled daemon/architecture notes
   NPU-RUNTIME-PATHS.md            runtime formats + SDK distribution model
+  GENIEX-DAEMON-PLAN.md           GenieX runtime plan + model/vision daemon split
   FEATURE-SPEC.md                 UI tile spec
   FAILURE_LOG.md                  append-only strike/failure ledger
-  SESSION{5,6,8,9,10,11,12,13}-HANDOFF.md
+  SESSION{5,6,8,9,10,11,12,13,14,16}-HANDOFF.md
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
-  core/llm/NpuClient.kt
+  core/llm/NpuClient.kt          model+vision daemon client
+  core/stt/DaemonSttClient.kt    media daemon client (STT half)
+  core/tts/DaemonTtsClient.kt    media daemon client (TTS half, contract only)
   core/shell/DaemonLauncher.kt
   core/agent/AgentLoop.kt
+  uilocal/LocalHomeActivity.kt   local UI fork (session 16), additive
 .github/workflows/build-apk.yml
 release/debug.keystore           committed by design
 ```
