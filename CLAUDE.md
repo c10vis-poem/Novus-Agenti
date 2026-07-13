@@ -369,6 +369,15 @@ GameManager.getInstance(this).setGameMode(GameMode.PERFORMANCE)
 
 ## State of the Union — 2026-07-11 (session 15)
 
+> **APP STATUS — read `wiki/APP-SOTU-AUDIT.md` first.** Device-grounded honest
+> audit (what's done / broken / priority order) + the operator's explicit
+> remaining needs (cloud connectors, Chromium WebView socket, GCS/OpenRouter/
+> OmniRoute/QAIHub/HF/GitHub, Tailscale to home node, chat-history export) + the
+> real device inventory (QAIRT/Hexagon SDKs, GenieX-bench prebuilt w/ vision,
+> Q4_0 GGUF, HTP v79 libs). **STT model = Moonshine small**, runs in the media
+> daemon (CPU, no HTP). The voice/UI stack runs WITHOUT the on-device model —
+> HTP/GenieX is an optional backend, not a boot requirement.
+
 ### Done — session 15
 - **`knowledge/` corpus landed** (branch `claude/on-device-inference-openwiki-sae7cy`,
   PR #15). A **byte-faithful copy** of the operator's finished `Claude_master_wiki`
