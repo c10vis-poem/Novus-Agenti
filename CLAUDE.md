@@ -91,7 +91,8 @@ If this file and a handoff disagree, **this file wins**.
 Every sub-agent prompt must include:
 - Repo: `c10vis-poem/Novus-Agenti`, and the correct branch for the track
   (`claude/project-scope-review-lf615p` for compile work, PR #4;
-  `claude/horizons-closeout-hf-review-ycjkm3` for app work, PR #8)
+  `claude/on-device-inference-openwiki-sae7cy` for app work — see the
+  resume prompt above for the current PR number; PR #8 is merged)
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
@@ -131,7 +132,8 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 - Two active working branches, one per track — see the resume prompt at
   the top of this file for which one matches your task:
   `claude/project-scope-review-lf615p` (compile, PR #4) and
-  `claude/horizons-closeout-hf-review-ycjkm3` (app, PR #8).
+  `claude/on-device-inference-openwiki-sae7cy` (app — see the resume
+  prompt above for the current PR number; PR #8 is merged).
 
 ---
 

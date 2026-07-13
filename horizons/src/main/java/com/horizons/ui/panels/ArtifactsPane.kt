@@ -2,6 +2,8 @@ package com.horizons.ui.panels
 
 import android.content.Context
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +48,9 @@ import com.horizons.core.state.ChatSession
 import com.horizons.core.state.SavedCommand
 import com.horizons.ui.SlateStoneBackground
 import com.horizons.ui.theme.HorizonsColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -200,8 +204,73 @@ fun ArtifactsPane(
 
         SectionHeader("Export", HorizonsColors.TileArtifacts)
 
+        var exportStatus by remember { mutableStateOf<String?>(null) }
+
+        val exportLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument("application/json")
+        ) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            exportStatus = "Exporting…"
+            scope.launch {
+                try {
+                    val tempFile = File(app.cacheDir, "chat_history_export_${System.currentTimeMillis()}.json")
+                    val result = app.chatHistory.exportAll(tempFile)
+                    result.onSuccess { count ->
+                        withContext(Dispatchers.IO) {
+                            ctx.contentResolver.openOutputStream(uri)?.use { out ->
+                                tempFile.inputStream().use { input -> input.copyTo(out) }
+                            } ?: throw IllegalStateException("Cannot open output stream")
+                            tempFile.delete()
+                        }
+                        exportStatus = "Exported $count session${if (count == 1) "" else "s"}."
+                    }.onFailure { e ->
+                        exportStatus = "Export failed: ${e.message}"
+                    }
+                } catch (e: Exception) {
+                    exportStatus = "Export failed: ${e.message}"
+                }
+            }
+        }
+
+        Surface(
+            color = HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    exportStatus = null
+                    val name = "chat_history_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.json"
+                    exportLauncher.launch(name)
+                },
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text(
+                    "Export chat history (JSON) →",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = HorizonsColors.TileArtifacts,
+                )
+                Text(
+                    "Saves every stored session as one JSON array file wherever you choose.",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                )
+                exportStatus?.let { status ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        status,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = HorizonsColors.TileArtifacts.copy(alpha = 0.8f),
+                    )
+                }
+            }
+        }
+
         PlaceholderCard(
-            "Use the share buttons on chat archives and logs above to export via the Android share sheet."
+            "You can also use the share buttons on individual chat archives and logs above to export via the Android share sheet."
         )
 
         Spacer(Modifier.height(24.dp))
