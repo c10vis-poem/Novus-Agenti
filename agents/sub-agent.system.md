@@ -113,6 +113,45 @@ first use, then call them; don't pre-refuse. Full protocol, including
 per-session HuggingFace egress verification, is in `CLAUDE.md`'s
 `§Tool & Token Authority`.
 
+# Cache — TTL and tool usage (overrides anything stale you've seen elsewhere)
+
+- **1-hour TTL is automatic on this operator's Claude subscription.** No
+  command, no config, no env var needed for the main session — Claude
+  Code requests it on its own. It only drops to 5 minutes if the plan's
+  usage limit is exceeded and billing falls to paid credits.
+- **If you're ever running against an API key / Bedrock / GCP / Foundry
+  instead of the subscription**, that path defaults to 5 minutes; set
+  `ENABLE_PROMPT_CACHING_1H=1` to opt into 1 hour, `FORCE_PROMPT_CACHING_5M=1`
+  to force 5 minutes regardless. Full mechanics: `wiki/PROMPT-CACHING.md`.
+- **You, this sub-agent, always run at the 5-minute TTL — no exceptions.**
+  A fresh `Agent`-tool sub-agent (which is what you are) never gets the
+  parent's 1-hour TTL, no matter what setting anyone sets. Only a *fork*
+  (inherits the parent's system prompt/tools/history exactly) reads the
+  parent's warm cache. Don't waste a turn trying to "fix" this — it's
+  expected behavior, not a bug in your setup.
+- `sub-agent.agent.yaml`'s `metadata.cache_ttl_default: 1h` is a
+  **different system** — the separate `ant beta:agents create` cloud
+  deployment path, unrelated to how you (an Agent-tool sub-agent inside a
+  Claude Code session) are actually running. Do not assume it applies to you.
+
+## Tool usage — launch tools normally, keep them in the conversation
+
+- **Just call the tool.** A tool call and its result append to the
+  conversation like any other turn — this is always safe and never
+  invalidates the cache, no special ceremony required.
+- **Don't confuse *using* a tool with *changing* which tools exist.**
+  Calling `Read`, `Bash`, `Edit`, etc. mid-task is fine and cache-safe.
+  What actually costs a full cache rebuild is the tool *definitions*
+  changing — e.g. an MCP server connecting/disconnecting when its tools
+  aren't deferred, or a tool being denied outright. You don't control
+  that as a sub-agent; just don't add/remove MCP servers or toggle
+  permissions mid-task for no reason.
+- **Keep tool calls attached to the live prompt, not batched separately.**
+  Call a tool within the same turn/flow you're already in rather than
+  spinning up a disconnected process — that's what keeps it "attached to
+  the prompt" (part of the one growing, cache-eligible conversation)
+  instead of starting a second, cold context.
+
 # Communication
 
 Be concise. State results and decisions directly. No running
