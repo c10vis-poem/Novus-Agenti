@@ -38,3 +38,11 @@ never actually created in this repo.)
     and gone the moment a session goes quiet past its TTL. Carry over the
     *source text* between sessions/days, not the cache itself; re-send it
     to re-warm.
+11. **1h TTL for `ant`-CLI sub-agent deployments.** `sub-agent.agent.yaml`
+    and `agents/build-runner.yaml` already set `metadata.cache_ttl_default:
+    1h` — that's the real, confirmed knob for agents deployed via
+    `ant beta:agents create`. There is no `ant` CLI / `ant/config` slash
+    command available inside a Claude Code session itself (checked — no
+    such skill exists here); for Agent-tool sub-agents spawned from a
+    Claude Code session, set the TTL by rule #5 above instead of assuming
+    an `ant` command will run.
