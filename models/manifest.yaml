@@ -43,14 +43,18 @@ models:
     quantization:
       strategy: ptq                        # no QAT variant exists for Qwen3.5
       type: w4a16                          # weight-only INT4, activations FP16
-      calibration_tokens: 10000            # ≥10K per GPT-OSS-Reference
+      calibration_tokens: 10000            # ≥10K per GPT-DAEMON-REFERENCE.md
       calibration_dataset: wikitext-2-raw-v1
     output_repo: Mer0vin8ian/qwen3-5-9b-npu-sm8750
     output_artifacts:
       - qwen3_5_9b_unified.bin             # single graph: vision + language
     expected_compile_minutes: 35
     qai_hub_device: "Snapdragon 8 Elite"
-    runtime: ort_engine                    # ORT + QNN EP loads qnn_context_binary
+    # Runtime — DECIDED session 15: GenieX on the HTP SDK (QAIRT) is primary
+    # (github.com/qualcomm/GenieX, geniex serve, OpenAI wire on :18181/v1).
+    # ort_engine (ORT + QNN EP, qnn_context_binary) is now the legacy runtime.
+    # See wiki/GENIEX-DAEMON-PLAN.md.
+    runtime: genie_x                       # was: ort_engine (legacy fallback)
     script: scripts/compile_qwen3_5_9b.py
 
   # BACKUP 1 — vision + reasoning (harder scaffold path)
@@ -108,9 +112,16 @@ build_order:
   - gemma4_12b_qat         # backup 2 — text-only fallback
 
 # ─── Daemon binaries (built separately, NOT compiled here) ───────────────────────
+# GenieX is the decided primary runtime (session 15) — see wiki/GENIEX-DAEMON-PLAN.md.
+# ort_engine remains the legacy/fallback runtime; both stay in RUNTIME_FILES.
 daemon_binaries:
+  genie_x:
+    use_for: [qwen3_5_9b]
+    source: github.com/qualcomm/GenieX (geniex serve, OpenAI wire :18181/v1)
+    status: not yet forked/wired — see wiki/GENIEX-DAEMON-PLAN.md
   ort_engine:
     use_for: [qwen3_5_9b, qwen3_vl_8b_thinking, gemma4_12b_qat]
     source: onnxruntime_qnn_ep_aarch64_android
     scaffold: daemon/
-    status: scaffolded
+    status: built — real implementation at daemon/src/, CI cross-compiles and
+      packages it into the release artifact (legacy runtime, not scaffolding)

@@ -60,7 +60,9 @@ There are two active tracks, each on its own branch — confirm which one
 matches your task before touching anything (see `CLAUDE.md`'s resume
 prompt if unsure):
   - Compile track: `claude/project-scope-review-lf615p` (PR #4)
-  - App track: `claude/horizons-closeout-hf-review-ycjkm3` (PR #8)
+  - App track: `claude/on-device-inference-openwiki-sae7cy` (see
+    CLAUDE.md's resume prompt for the current PR — PR #8 is merged,
+    do not reuse it)
 
   - Never push `main`. Never push to any branch other than the one
     matching your assigned track.
@@ -76,13 +78,21 @@ prompt if unsure):
     deepstack vision injection — not a separate encoder pipeline).
   - **Compile path**: ONNX export → QAI Hub → `qnn_context_binary`
     (W4A16) targeting Hexagon HTP v79 (SM8750).
-  - **Runtime**: `ort_engine` C++ daemon (ONNX Runtime + QNN Execution
-    Provider), already implemented at `daemon/src/` and cross-compiled
-    by CI — do not describe it as unbuilt or scaffolding-only.
+  - **Runtime — DECIDED (session 15): backend = HTP SDK (QAIRT), runtime =
+    `GenieX`** (`github.com/qualcomm/GenieX`, official Qualcomm, NOT QNN's
+    `genie-t2t-run` "Genie"), run as `geniex serve` (OpenAI-compatible,
+    `127.0.0.1:18181/v1`) behind a detached daemon. `ort_engine` (C++
+    daemon at `daemon/src/`, cross-compiled by CI, real not scaffolding)
+    is now the **legacy** runtime. See `wiki/GENIEX-DAEMON-PLAN.md`.
   - **Daemon guardian**: `CliffordService` FGS (CLIFFORD == Watchdog).
-  - **Bridge**: `NpuClient.kt` → `POST http://127.0.0.1:8080/api/v1/generate`.
-  - **Agent layer**: `AgentLoop` + 22 tools, including `HttpFetch` for
+  - **Bridge**: `NpuClient.kt` — migrating from `:8080/api/v1/generate`
+    (ort_engine) to `:18181/v1/chat/completions` (GenieX); check
+    `wiki/GENIEX-DAEMON-PLAN.md` for current state before assuming either.
+  - **Agent layer**: `AgentLoop` + 25 tools, including `HttpFetch` for
     any cloud access the agent needs.
+  - The app boots and runs its full UI/voice/cloud stack with **zero
+    model loaded** — HTP/GenieX is an optional backend, not a boot
+    requirement. See `wiki/APP-SOTU-AUDIT.md` for the honest current state.
   - ABI: arm64-v8a only. No CPU fallback for this model. No in-process
     tensor runtime — every model family gets its own uploadable daemon
     binary.

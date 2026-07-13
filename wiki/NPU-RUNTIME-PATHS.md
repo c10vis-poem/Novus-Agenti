@@ -8,7 +8,7 @@
 > Verified against primary sources: Qualcomm SDK distribution mechanics,
 > `ghcr.io/snapdragon-toolchain/arm64-android` (tag existence confirmed via
 > the GHCR registry API), and QAI Hub's documented compile flow.
-> Last updated: 2026-07-02 (session `horizons-closeout-hf-review-ycjkm3`)
+> Last updated: 2026-07-12 (session 15, branch `on-device-inference-openwiki-sae7cy`)
 
 ---
 
@@ -67,7 +67,23 @@ Each model format has its own daemon binary. The app doesn't care which
 format is loaded — it talks HTTP to `127.0.0.1:8080`. `CliffordService`
 launches whatever binary is installed in `filesDir`.
 
-### Path 1: QNN Context Binary → `ort_engine` (PRIMARY, Qwen3.5-9B)
+### Path 0: GenieX on the HTP SDK (QAIRT) — PRIMARY, decided session 15
+
+```
+HF model (GGUF, e.g. Q4_0) or QAI Hub bundle → GenieX (`geniex serve`,
+  OpenAI-compatible, 127.0.0.1:18181/v1) → HTP SDK / QAIRT (NPU-only) or
+  GGML backend (NPU/GPU/CPU) → Hexagon HTP v79
+```
+
+`github.com/qualcomm/GenieX` — real, official Qualcomm repo (NOT the same as
+QNN's `genie-t2t-run` "Genie"). Ships two backends: GGML/llama.cpp (runs
+today via Q4_0 GGUF) and Qualcomm AI Engine Direct/QAIRT (NPU-only, max
+perf — currently gated on BYOM-compiling the 9B via QAI Hub, since
+Qualcomm's prebuilt library only ships smaller Qwen variants). See
+`wiki/GENIEX-DAEMON-PLAN.md` for the full contract and open questions.
+`ort_engine` (Path 1 below) is now the **legacy** runtime.
+
+### Path 1: QNN Context Binary → `ort_engine` (legacy, Qwen3.5-9B)
 
 ```
 HF model → ONNX export (RoPE fold, static shapes) → QAI Hub compile
@@ -77,7 +93,8 @@ HF model → ONNX export (RoPE fold, static shapes) → QAI Hub compile
 
 No local/CI SDK needed for the compile step — QAI Hub does it. `ort_engine`
 itself still needs to be built once (CI, QNN SDK on the build host) before
-it can load the resulting `.bin`.
+it can load the resulting `.bin`. This daemon is already built and
+CI-packaged (not scaffolding) — see the status table below.
 
 ### Path 2: GGUF → `llama-server` (llama.cpp + `GGML_HEXAGON`)
 
@@ -171,8 +188,9 @@ job.download_target_model(output_path)
 | Component | Status |
 |---|---|
 | Compile script (Qwen3.5-9B) | Written, all fixes committed, Job 8 not yet triggered |
-| `ort_engine` daemon | Not built |
+| GenieX daemon | Decision locked (primary runtime); not yet forked/built — see `wiki/GENIEX-DAEMON-PLAN.md` |
+| `ort_engine` daemon | Built — real implementation at `daemon/src/`, CI cross-compiles and packages it (legacy runtime) |
 | `llama-server` daemon | CI workflow drafted, not built |
 | `tflite_engine` / `snpe_engine` / `executorch_engine` | Not started |
-| Horizons app | Built, CI green |
+| Horizons app | Built, CI green — model/runtime-agnostic, boots with zero model loaded (see `wiki/APP-SOTU-AUDIT.md`) |
 | `CliffordService` | Built, needs NpuManager + GameManager perf locks |

@@ -20,8 +20,10 @@ name: Novus Agenti Sub-Agent Booster
 description: |
   Reusable sub-agent template for Novus Agenti / Omni Claw build/review
   work: compiling Mer0vin8ian/Qwen3.5-9B to a qnn_context_binary via QAI
-  Hub, and the on-device Android app (com.horizons) that serves it
-  through the ort_engine daemon on Hexagon HTP v79. Inherits the same
+  Hub, and the on-device Android app (com.horizons) that serves it via a
+  detached daemon on Hexagon HTP v79 — GenieX on the QAIRT/HTP SDK is the
+  decided runtime (session 15); ort_engine is now the legacy fallback.
+  See wiki/GENIEX-DAEMON-PLAN.md. Inherits the same
   scope as the parent Builder (agents/neuralmash-builder.system.md) via
   the shared horizons-wiki skill, but is sized for short-lived at-bat
   tasks: implement a layer, then archive. Use a fresh session per at-bat
@@ -81,7 +83,7 @@ skills: []
 metadata:
   wiki_stable: CLAUDE.md
   wiki_reference: wiki/GPT-DAEMON-REFERENCE.md,wiki/NPU-RUNTIME-PATHS.md
-  working_branch: claude/horizons-closeout-hf-review-ycjkm3
+  working_branch: claude/on-device-inference-openwiki-sae7cy
   cache_ttl_default: 1h
   parent_agent_id: UNSET-see-description-note-above
   role: at-bat-subagent

@@ -705,5 +705,5 @@ runtime binaries; this table is not a constraint on future runtimes.
 | LiteRT / LiteRT-LM (for Qwen3.5-9B) | ort_engine daemon |
 | genie_engine (for Qwen3.5-9B) | ort_engine (ORT + QNN EP) |
 | Separate Watchdog | CliffordService (CLIFFORD == Watchdog) |
-| Nexa SDK, OmniNeural, Moonshine | dead |
+| Nexa SDK, OmniNeural | dead |
 | Cloud failover in app LLM | HttpFetch agent tool |

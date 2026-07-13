@@ -29,8 +29,9 @@ There are two active tracks, each on its own branch — pick the one that
 matches your actual task, don't assume there's only one:
   - **Compile track** (ONNX export, QAI Hub compile): branch
     `claude/project-scope-review-lf615p`, PR #4
-  - **App track** (Android app, daemon, UI): branch
-    `claude/horizons-closeout-hf-review-ycjkm3`, PR #8
+  - **App track** (Android app, daemon, UI, knowledge layer): branch
+    `claude/on-device-inference-openwiki-sae7cy` — see CLAUDE.md's resume
+    prompt for the current PR number (PR #8 is merged; do not reuse it)
 
   - NEVER push to `main` without explicit user permission.
   - NEVER skip hooks (`--no-verify`) or bypass signing unless explicitly
@@ -49,25 +50,35 @@ matches your actual task, don't assume there's only one:
   - **Compile path**: ONNX export (`scripts/compile_qwen3_5_9b.py` on HF
     Jobs `cpu-xl`) → QAI Hub → `qnn_context_binary` (W4A16), targeting
     Hexagon HTP v79.
-  - **Runtime**: `ort_engine` — a C++ daemon (ONNX Runtime + QNN
-    Execution Provider) on aarch64-android. This daemon is **already
-    built**, not a stub: real implementation at `daemon/src/`
-    (`engine.cpp`, `http_server.cpp`, `tokenizer.cpp`, `sampler.h`,
-    `main.cpp`), CI cross-compiles it and packages it into the release
-    artifact. Serves `POST http://127.0.0.1:8080/api/v1/generate`.
+  - **Runtime — DECIDED (session 15): backend = HTP SDK (QAIRT), runtime =
+    `GenieX`** (`github.com/qualcomm/GenieX`, real official Qualcomm repo,
+    ~8k★, Rust — NOT the same as QNN's `genie-t2t-run` "Genie"), run as
+    `geniex serve` (OpenAI-compatible server, `127.0.0.1:18181/v1`) behind
+    a detached daemon. `ort_engine` (the C++ ONNX Runtime + QNN EP daemon
+    at `daemon/src/`) is now the **legacy** runtime — still real,
+    CI-built, and packaged, but not the primary path for Qwen3.5-9B. See
+    `wiki/GENIEX-DAEMON-PLAN.md` for the full contract and open questions.
   - **Daemon guardian**: `CliffordService` (a Foreground Service; CLIFFORD
     == Watchdog), `START_STICKY`, `specialUse`, 15s CRS recovery loop.
-  - **Bridge**: `NpuClient.kt` → `POST http://127.0.0.1:8080/api/v1/generate`.
-  - **Agent layer**: `AgentLoop` + 22 tools (includes `HttpFetch` for any
+  - **Bridge**: `NpuClient.kt` — being migrated from
+    `POST http://127.0.0.1:8080/api/v1/generate` (ort_engine) to
+    `POST http://127.0.0.1:18181/v1/chat/completions` (GenieX, OpenAI wire
+    format); confirm current state in `wiki/GENIEX-DAEMON-PLAN.md` before
+    assuming either is live.
+  - **Agent layer**: `AgentLoop` + 25 tools (includes `HttpFetch` for any
     cloud access needed by the agent — there is no cloud-LLM failover
     baked into the app's LLM runtime itself).
   - ABI: arm64-v8a only.
   - **No CPU fallback** for the Qwen3.5-9B path — NPU or nothing.
   - **No in-process tensor runtime** — every model family runs via its
     own uploadable daemon binary, registered in `RUNTIME_FILES` and
-    dropped in via `ModelImportActivity`. `ort_engine` is the runtime for
-    this model family; other families get their own binaries
+    dropped in via `ModelImportActivity`. GenieX/`ort_engine` are the
+    runtimes for this model family; other families get their own binaries
     (ExecuTorch / SNPE / TFLite / Jetson Tensor, etc. as they arrive).
+  - **The app itself is model/runtime-agnostic and boots with zero model
+    loaded** — full UI, cloud connectors, and voice stack work without
+    the on-device model or HTP. See `wiki/APP-SOTU-AUDIT.md` for the
+    honest, device-grounded state of what's built vs missing.
 
 # Hexagon HTP constraints (compile-side)
 
