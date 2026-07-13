@@ -89,14 +89,19 @@ models:
     script: scripts/compile_qwen3_vl.py
 
   # BACKUP 2 — text + reasoning (no re-quant, QAT pre-aligned)
-  # Google did QAT at training time → q4_0 weights ready for INT4 pack at QAI Hub.
+  # Google did QAT at training time -> already ships as a Q4_0 GGUF
+  # (gguf_repo/gguf_filename below), so like qwen3_5_9b this can run
+  # straight through GenieX's GGML backend -- no QAI Hub compile needed.
+  # The compile fields below (output_artifacts, runtime: ort_engine,
+  # script) are the FALLBACK path only, same disclaimer as qwen3_5_9b --
+  # see wiki/NPU-RUNTIME-PATHS.md.
   gemma4_12b_qat:
     hf_repo: google/gemma-4-12B-it-qat-q4_0-unquantized
     hf_revision: main
     architecture: gemma4_unified
     params: 11959700000
     gguf_repo: google/gemma-4-12b-it-qat
-    gguf_filename: gemma-4-12b-it-qat-Q4_0.gguf
+    gguf_filename: gemma-4-12b-it-qat-Q4_0.gguf   # PRIMARY: run this via GenieX directly
     max_seq_len: 8192
     quantization:
       strategy: qat
@@ -108,7 +113,7 @@ models:
       - gemma4_12b_qat_htp.dlc
     expected_compile_minutes: 40
     qai_hub_device: "Snapdragon 8 Elite"
-    runtime: ort_engine
+    runtime: ort_engine                    # fallback only -- see gguf_filename above
     script: scripts/compile_gemma_qairt.py
 
 # ─── Build order ────────────────────────────────────────────────────────────────────────

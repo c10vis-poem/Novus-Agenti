@@ -35,6 +35,20 @@ Mer0vin8ian/Qwen3.5-9B → ONNX export (RoPE fold, static shapes) → QAI Hub
 - `ort_engine` (the daemon that loads the resulting `.bin`) is already
   built and CI-packaged — see `daemon/src/`.
 
+## Reference: other model formats, if one shows up
+
+We're not building any of these — just what you'd need if a future model
+only ships in one of these formats instead of GGUF/QAI-Hub-bundle.
+
+| Format | What's needed |
+|---|---|
+| **GGUF** (any) | Nothing extra — `geniex serve` loads it directly (GGML backend). This is the format we use now. |
+| **QAI Hub bundle** | `geniex serve` loads it too (QAIRT/AI-Engine-Direct backend, NPU-only). If the model isn't in Qualcomm's prebuilt AI Hub library, you BYOM-compile it first via QAI Hub (the fallback pipeline above). |
+| **ONNX** | Compile to `qnn_context_binary` via QAI Hub, then load with `ort_engine` (legacy) — or convert/quantize it to GGUF instead and use GenieX directly. |
+| **TFLite** | Needs a `tflite_engine` daemon (not built) + Hexagon delegate; requires INT8 quant for full NPU offload, FP16 falls back to CPU. |
+| **DLC** (SNPE, legacy Qualcomm format) | Needs `snpe-onnx-to-dlc` (host-only, part of the SNPE SDK) + a `snpe_engine` daemon (not built). |
+| **PTE** (ExecuTorch) | Needs an `executorch_engine` daemon (not built) with a QNN delegate; upstream API still moving. |
+
 ## Size envelope
 
 | | Size |
