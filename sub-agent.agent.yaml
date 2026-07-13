@@ -23,11 +23,9 @@ description: |
   Hub, and the on-device Android app (com.horizons) that serves it via a
   detached daemon on Hexagon HTP v79 — GenieX on the QAIRT/HTP SDK is the
   decided runtime (session 15); ort_engine is now the legacy fallback.
-  See wiki/GENIEX-DAEMON-PLAN.md. Inherits the same
-  scope as the parent Builder (agents/neuralmash-builder.system.md) via
-  the shared horizons-wiki skill, but is sized for short-lived at-bat
-  tasks: implement a layer, then archive. Use a fresh session per at-bat
-  to avoid the "polish own turd" failure loop.
+  See wiki/GENIEX-DAEMON-PLAN.md. Sized for short-lived at-bat tasks:
+  implement a layer, then archive. Use a fresh session per at-bat to
+  avoid the "polish own turd" failure loop.
   NOTE: `parent_agent_id` below is not tracked anywhere in this repo —
   if you deploy this template under a live managed-agent identity,
   replace it with that agent's real ID rather than trusting the

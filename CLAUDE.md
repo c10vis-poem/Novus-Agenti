@@ -611,8 +611,7 @@ c10vis-poem/Novus-Agenti  (public — confirmed via GitHub API, not private)
 CLAUDE.md                     ← THIS FILE
 agents/
   build-runner.yaml             novus-compile-runner
-  neuralmash-builder.system.md  Novus-Agenti stack
-  sub-agent.system.md           Novus-Agenti stack
+  sub-agent.system.md           Novus-Agenti stack (single canonical agent brief)
 daemon/                          ort_engine C++ daemon (scaffolded, CI-built)
   src/engine.cpp, http_server.cpp, tokenizer.cpp, sampler.h, main.cpp
 rules/
