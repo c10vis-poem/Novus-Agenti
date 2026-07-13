@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# Session warm-up rules (session 16) — printed on every session start so they
+# reach Claude's context before any work begins. Same two rules also live in
+# CLAUDE.md's "Cache Prompting + Sub-Agent Rules" section and must be copied
+# into every sub-agent brief this session spawns (see that section's template).
+echo "WARM-UP: 1h prompt-cache TTL — pace work to it, don't schedule busywork just to keep it warm." >&2
+echo "WARM-UP: lazy tool loading — do not preload tool schemas at session start; call ToolSearch for a tool only right before you use it, and again for any tool a spawned sub-agent needs." >&2
+
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi

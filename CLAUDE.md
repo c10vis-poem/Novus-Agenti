@@ -85,6 +85,30 @@ If this file and a handoff disagree, **this file wins**.
 
 ## Cache Prompting + Sub-Agent Rules
 
+### Prompt-cache TTL — 1 hour, pace work to it
+- This session's requests share a **1-hour prompt-cache TTL**. Every tool call
+  within that window keeps the cache warm for free — there is no cliff to
+  work around inside the hour, and no benefit to scheduling extra wakeups or
+  busywork just to "keep it warm." Don't do that.
+- Only schedule a wakeup/check-in for something you're actually waiting on
+  (CI, a background job, an external event). Match the delay to that thing,
+  not to the cache window.
+- If a session goes quiet long enough to fall out of the 1h window (or the
+  account enters usage overage, which drops the TTL to 5 minutes), that's a
+  cost to notice, not a problem to prevent — don't restructure work around
+  avoiding it.
+
+### Lazy tool loading — don't preload, request on demand
+- Tools are **not preloaded** at session start. MCP and other deferred tools
+  arrive as names only (in `<system-reminder>` deferred-tool lists); calling
+  one before loading its schema fails.
+- Load a tool's schema **only when you're about to use it**, via
+  `ToolSearch(query="select:<tool_name>")`. Don't speculatively resolve a
+  batch of tools "in case they're needed later" — that spends context for no
+  benefit before the work exists.
+- This applies for the whole session, not just at startup: if new work comes
+  up mid-session that needs a tool you haven't loaded, request it then.
+
 ### When to spawn
 - Open-ended exploration spanning more than 3 files → `Explore` agent
 - Independent background research that doesn't block current work → background agent
@@ -99,6 +123,11 @@ Every sub-agent prompt must include:
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
+- **The same warm-up rules as the parent session**: 1h prompt-cache TTL (pace
+  work to it, don't manufacture busywork to keep it warm) and lazy tool
+  loading (don't preload tool schemas — resolve one only when about to call
+  it). A sub-agent that preloads its whole toolbox up front burns exactly the
+  context budget these rules exist to protect.
 
 **Template:**
 ```
@@ -107,6 +136,9 @@ CLAUDE.md's resume prompt for which one>.
 Read CLAUDE.md fully before anything else.
 Task: [SPECIFIC TASK].
 Do NOT commit to main. Do NOT push to any branch other than the one above.
+Cache/tools: 1h prompt-cache TTL — don't schedule busywork to keep it warm.
+Load tool schemas on demand only (ToolSearch right before first use of each
+tool) — do not preload tools you don't immediately need.
 ```
 
 ### Context budget rules
