@@ -1,5 +1,11 @@
 # OmniClaw Compile Manifest — Single Source of Truth
 # Read by scripts/compile_*.py
+#
+# >>> FALLBACK ONLY — do not run pre-emptively. <<<
+# Primary path is the Q4_0 GGUF served by GenieX (geniex serve, GGML backend)
+# directly on Hexagon HTP — no compile needed. This manifest/pipeline only
+# matters if that GGUF fails to run acceptably via GenieX. Confirm that
+# failure first. See wiki/NPU-RUNTIME-PATHS.md.
 # (No notebooks/ directory exists in this repo — an earlier comment here
 #  referenced notebooks/compile_*.ipynb, which was never actually created.
 #  .github/workflows/stage-colab.yml also assumed a notebook that doesn't

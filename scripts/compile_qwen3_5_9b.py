@@ -2,7 +2,13 @@
 """
 compile_qwen3_5_9b.py — Qwen/Qwen3.5-9B (multimodal) → Hexagon HTP NPU binaries
 
-PRIMARY TARGET. First-ever compile of the Qwen3.5-9B native-multimodal architecture
+>>> FALLBACK ONLY — DO NOT RUN PRE-EMPTIVELY. <<<
+The primary path is the Q4_0 GGUF (Qwen_Qwen3.5-9B-Q4_0.gguf) served by
+GenieX (geniex serve, GGML backend) directly on Hexagon HTP — no compile
+needed. This script/pipeline is ONLY for the case where that GGUF fails to
+run acceptably via GenieX on-device. Confirm that failure first.
+
+First-ever compile of the Qwen3.5-9B native-multimodal architecture
 to Snapdragon 8 Elite Hexagon HTP. Produces chunked NPU artifacts:
 
     qwen3_5_9b_vision_encoder.bin         — vision tower (image patches → embeddings)
