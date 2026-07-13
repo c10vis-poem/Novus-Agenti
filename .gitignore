@@ -32,16 +32,13 @@ secrets.properties
 *.nexa
 *.gguf
 
-# Local-only AAR drops (sherpa-onnx etc.) — greenfield drops sherpa; if a
-# local build still pulls in an AAR, keep it out of the tree.
+# Local-only AAR drops — sherpa-onnx AAR fetched by the downloadSherpaAar
+# gradle task, never committed; keep any locally-built AAR out of the tree.
 horizons/libs/
 
 # OS
 .DS_Store
 Thumbs.db
-
-# sherpa-onnx AAR — fetched by the downloadSherpaAar gradle task, never committed
-horizons/libs/
 
 # Logs / build artifacts
 *.log
