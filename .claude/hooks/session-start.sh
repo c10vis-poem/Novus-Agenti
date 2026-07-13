@@ -8,6 +8,9 @@ set -euo pipefail
 echo "WARM-UP: 1h prompt-cache TTL — pace work to it, don't schedule busywork just to keep it warm." >&2
 echo "WARM-UP: lazy tool loading — do not preload tool schemas at session start; call ToolSearch for a tool only right before you use it, and again for any tool a spawned sub-agent needs." >&2
 
+latest_handoff="$(ls "$CLAUDE_PROJECT_DIR"/wiki/SESSION*-HANDOFF.md 2>/dev/null | sort -V | tail -1)"
+echo "WARM-UP: read CLAUDE.md IN FULL, then ${latest_handoff:-the latest wiki/SESSION*-HANDOFF.md} — before resuming or taking any action, not after." >&2
+
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
