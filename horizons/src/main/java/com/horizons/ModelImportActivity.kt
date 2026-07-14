@@ -110,7 +110,7 @@ class ModelImportActivity : ComponentActivity() {
                     importFile(
                         uri, canonical,
                         destDir = filesDir,
-                        executable = canonical == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY,
+                        executable = canonical in EXECUTABLE_RUNTIMES,
                         label = "Runtime component",
                     )
                 }
@@ -180,7 +180,10 @@ class ModelImportActivity : ComponentActivity() {
         // Tolerant match: handles download-dedupe suffixes ("ort_engine (1)"),
         // versioned QNN libs ("libQnnHtpV79Skel.so"), and case variations.
         if (lower.startsWith("ort_engine")) return true
+        if (lower.startsWith("media_daemon")) return true
+        if (lower.startsWith("geniex")) return true
         if (lower.startsWith("libonnxruntime") && lower.endsWith(".so")) return true
+        if (lower.startsWith("libsherpa-onnx") && lower.endsWith(".so")) return true
         if (lower.startsWith("libqnn") && lower.endsWith(".so")) return true
         return false
     }
@@ -190,7 +193,10 @@ class ModelImportActivity : ComponentActivity() {
         val lower = name.lowercase()
         return when {
             lower.startsWith("ort_engine") -> com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
+            lower.startsWith("media_daemon") -> MEDIA_DAEMON_BINARY
+            lower.startsWith("geniex") -> "geniex"
             lower.startsWith("libonnxruntime") -> "libonnxruntime.so"
+            lower.startsWith("libsherpa-onnx-c-api") -> "libsherpa-onnx-c-api.so"
             lower.startsWith("libqnnhtpv79skel") -> "libQnnHtpV79Skel.so"
             lower.startsWith("libqnnhtp") -> "libQnnHtp.so"
             lower.startsWith("libqnnsystem") -> "libQnnSystem.so"
@@ -219,10 +225,23 @@ class ModelImportActivity : ComponentActivity() {
             ".qnn",
         )
 
+        /** Media (STT/TTS) daemon binary — CI build output, serves 127.0.0.1:8091. */
+        const val MEDIA_DAEMON_BINARY = "media_daemon"
+
+        /** Runtime binaries that must be chmod +x after import. */
+        val EXECUTABLE_RUNTIMES = setOf(
+            com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY, // "ort_engine"
+            MEDIA_DAEMON_BINARY,
+            "geniex",
+        )
+
         // Native daemon runtime components — CI build outputs from build-apk.yml.
         val RUNTIME_FILES = setOf(
             com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY, // "ort_engine"
+            MEDIA_DAEMON_BINARY,
+            "geniex",
             "libonnxruntime.so",
+            "libsherpa-onnx-c-api.so",
             "libQnnHtp.so",
             "libQnnSystem.so",
             "libQnnHtpV79Skel.so",

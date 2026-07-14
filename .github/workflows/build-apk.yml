@@ -82,6 +82,42 @@ jobs:
           cmake --build daemon/build --config Release -j$(nproc)
           file daemon/build/ort_engine
 
+      # ── media_daemon (Moonshine STT + Kokoro TTS on :8091) ──────────────
+      # sherpa-onnx is built once and cached; media_daemon links its C API.
+      - name: Cache sherpa-onnx android install
+        id: sherpa-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/sherpa-install
+          key: sherpa-onnx-android-arm64-capi-v1
+
+      - name: Build sherpa-onnx (arm64-android, C API)
+        if: steps.sherpa-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/c10vis-poem/sherpa-onnx /tmp/sherpa-onnx
+          cd /tmp/sherpa-onnx
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          export SHERPA_ONNX_ENABLE_C_API=ON
+          export SHERPA_ONNX_ENABLE_JNI=OFF
+          export SHERPA_ONNX_ENABLE_TTS=ON
+          export SHERPA_ONNX_ENABLE_BINARY=OFF
+          export BUILD_SHARED_LIBS=ON
+          ./build-android-arm64-v8a.sh
+          mkdir -p /opt/sherpa-install
+          cp -r build-android-arm64-v8a/install/* /opt/sherpa-install/
+
+      - name: Build media_daemon (arm64-v8a)
+        run: |
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          cmake -S media-daemon -B media-daemon/build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-31 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSHERPA_ONNX_ROOT=/opt/sherpa-install
+          cmake --build media-daemon/build --config Release -j$(nproc)
+          file media-daemon/build/media_daemon
+
       - name: Build Horizons debug APK
         run: ./gradlew :horizons:assembleDebug -PnexaEnabled=false --no-daemon --stacktrace
 
@@ -91,6 +127,8 @@ jobs:
           cp horizons/build/outputs/apk/debug/horizons-debug.apk out/horizons.apk
           cp daemon/build/ort_engine out/ort_engine
           cp /opt/ort-android/jni/arm64-v8a/libonnxruntime.so out/libonnxruntime.so
+          cp media-daemon/build/media_daemon out/media_daemon
+          cp /opt/sherpa-install/lib/libsherpa-onnx-c-api.so out/libsherpa-onnx-c-api.so
           ls -la out
 
       - name: Upload artifacts (Actions tab)
@@ -108,9 +146,14 @@ jobs:
           body: |
             Auto-built from ${{ github.sha }} on ${{ github.ref_name }}.
             ort_engine + libonnxruntime.so go to /data/local/tmp/ on device.
+            media_daemon + libsherpa-onnx-c-api.so: import via the app
+            (Open with → Horizons), launch with
+            `media_daemon --port 8091 --stt-dir <moonshine> --tts-dir <kokoro>`.
           files: |
             out/horizons.apk
             out/ort_engine
             out/libonnxruntime.so
+            out/media_daemon
+            out/libsherpa-onnx-c-api.so
           prerelease: true
           make_latest: false

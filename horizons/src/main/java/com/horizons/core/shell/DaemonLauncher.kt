@@ -106,5 +106,7 @@ class DaemonLauncher(
         private const val TAG    = "DaemonLauncher"
         const val ENGINE_BINARY  = "ort_engine"
         const val ENGINE_PORT    = 8080
+        /** Media (STT/TTS) daemon port — must match DaemonSttClient.DEFAULT_BASE. */
+        const val MEDIA_PORT     = 8091
     }
 }

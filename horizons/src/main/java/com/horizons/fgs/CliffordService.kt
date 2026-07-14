@@ -43,6 +43,7 @@ class CliffordService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var crsJob: Job? = null
     private var launcher: DaemonLauncher? = null
+    private var mediaLauncher: DaemonLauncher? = null
     private var npuPerfLock: AutoCloseable? = null
 
     private enum class DaemonState(val label: String) {
@@ -104,9 +105,10 @@ class CliffordService : Service() {
         crsJob = scope.launch {
             val app = applicationContext as? HorizonsApplication
 
-            // Phase 1: install + launch daemon from THIS FGS context.
-            // Daemon inherits this process's oom_score_adj (~-200 to -400).
+            // Phase 1: install + launch daemons from THIS FGS context.
+            // They inherit this process's oom_score_adj (~-200 to -400).
             ensureDaemonRunning()
+            ensureMediaDaemonRunning()
 
             // Phase 2: CRS heartbeat.
             // Key rule that breaks the crash loop: a LIVE process is NEVER relaunched,
@@ -119,6 +121,10 @@ class CliffordService : Service() {
                     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     nm.notify(NOTIF_ID, buildNotification())
                 }
+
+                // Media daemon is optional and serve-first (503s over bad models,
+                // never crash-loops) — just make sure it's up if its binary exists.
+                ensureMediaDaemonRunning()
 
                 // Terminal state: we gave up relaunching. Sit idle until the model
                 // changes (user imported a new/valid one), then re-arm.
@@ -200,6 +206,45 @@ class CliffordService : Service() {
                     Log.e(TAG, "CRS: daemon launch failed", it)
                 }
         }
+    }
+
+    /**
+     * Launch the media (STT/TTS) daemon if its binary has been imported and it
+     * isn't already running. Deliberately simpler than the model daemon's state
+     * machine: media_daemon is serve-first (binds :8091 immediately, 503s until
+     * models load, never exits over a bad model), so process liveness is the
+     * only thing to guard. Model dirs are discovered by marker file —
+     * preprocess.onnx = Moonshine, voices.bin = Kokoro — under the app's
+     * models/ dir first, then /Download.
+     */
+    private suspend fun ensureMediaDaemonRunning() {
+        val binary = java.io.File(filesDir, MEDIA_DAEMON_BINARY)
+        if (!binary.canExecute()) return  // not imported yet — optional daemon
+        val l = mediaLauncher ?: DaemonLauncher(this, MEDIA_DAEMON_BINARY)
+            .also { mediaLauncher = it }
+        if (l.isRunning()) return
+
+        fun findModelDir(marker: String): String? {
+            val roots = listOf(
+                java.io.File(filesDir, "models"),
+                java.io.File("/storage/emulated/0/Download"),
+            )
+            for (root in roots) {
+                if (java.io.File(root, marker).canRead()) return root.absolutePath
+                root.listFiles()?.filter { it.isDirectory }?.forEach { dir ->
+                    if (java.io.File(dir, marker).canRead()) return dir.absolutePath
+                }
+            }
+            return null
+        }
+
+        val args = mutableListOf("--port", DaemonLauncher.MEDIA_PORT.toString())
+        findModelDir("preprocess.onnx")?.let { args += listOf("--stt-dir", it) }
+        findModelDir("voices.bin")?.let { args += listOf("--tts-dir", it) }
+
+        l.launch(args)
+            .onSuccess { Log.i(TAG, "CRS: media daemon launched PID=${it.pid} args=$args") }
+            .onFailure { Log.w(TAG, "CRS: media daemon launch failed", it) }
     }
 
     /**
@@ -298,6 +343,8 @@ class CliffordService : Service() {
         // Consecutive dead-process relaunches before we give up and idle in Failed
         // state (re-armed automatically when the model file changes).
         private const val MAX_LAUNCH_FAILURES = 5
+
+        private const val MEDIA_DAEMON_BINARY = "media_daemon"
 
         const val ACTION_STOP = "com.horizons.clifford.STOP"
 
