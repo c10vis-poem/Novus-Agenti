@@ -12,10 +12,10 @@
    - Operator action item: uncheck Settings → General → "Automatically
      delete head branches" in GitHub.
 5. **One commit per logical change.** Don't squash multi-agent edits to
-   shared coordination docs (e.g. `wiki/SESSION{N}-HANDOFF.md`, or
-   CLAUDE.md's `## State of the Union` section) — the commit log is the
-   coordination layer. (There is no `EXECUTION_BOARD.md` in this repo;
-   that name is a leftover from an earlier project structure.)
+   shared coordination docs (CLAUDE.md's `## State of the Union` section,
+   or `wiki/JOB_EXECUTION_LOG.md`) — the commit log is the coordination
+   layer. There is no per-session handoff file or `EXECUTION_BOARD.md` in
+   this repo; those names are leftovers from an earlier project structure.
 6. **Commit message style:** lowercase scope, imperative mood, line ≤72c.
    Examples:
    - `chore(handoff): G2 claimed by main`

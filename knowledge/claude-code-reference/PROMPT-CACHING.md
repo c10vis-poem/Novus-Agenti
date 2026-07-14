@@ -3,8 +3,10 @@
 > Condensed from Anthropic's official docs (`code.claude.com/docs/en/prompt-caching`).
 > Covers Claude Code's own session-level caching behavior. For the
 > lower-level Anthropic API `cache_control` mechanics (breakpoints, TTL
-> pricing, 20-block lookback), see `rules/CACHE_PROMPT_RULES.md` — that
-> file is the hard-rules contract for this project; this file is reference.
+> pricing, 20-block lookback), see `CLAUDE.md`'s "Cache Prompting +
+> Sub-Agent Rules" section — that's the hard-rules contract for this
+> project (moved there from a former standalone rules file, session 16);
+> this file is reference/explanatory only.
 
 ## How the cache is organized
 

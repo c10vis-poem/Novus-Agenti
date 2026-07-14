@@ -1,54 +1,65 @@
 ---
 name: project-memory
 description: |
-  Quick-load Horizons project memory — just the SOTU section of CLAUDE.md
-  plus the latest session handoff. Use when the at-bat is a narrow isolated
-  change (single-file fix, lint cleanup, one-off CI fix) that doesn't need
-  the full architecture wiki. For anything touching multiple subsystems or
-  requiring architecture/design context, use the `horizons-wiki` skill
-  instead — it loads CLAUDE.md in full plus the runtime-paths reference.
+  The project's actual memory layer: the hand-distilled knowledge/ corpus
+  (project definition, NPU/daemon research, QAIRT reference, proofs, etc.),
+  not a shortcut to re-read CLAUDE.md. Use when a task needs grounding in
+  accumulated project knowledge — architecture rationale, prior research
+  findings, SDK reference detail — beyond what the current session already
+  has in context.
 allowed-tools:
   - Read
   - Grep
   - Glob
 ---
 
-# Project memory — Horizons (quick variant)
+# Project memory — the knowledge/ corpus as a real memory skill
 
-This skill is the **lightweight session pickup**. It loads only the SOTU
-section of `CLAUDE.md` plus the latest `wiki/SESSION{N}-HANDOFF.md` — not
-the full architecture bundle. If the task needs more than that, stop and
-use the `horizons-wiki` skill instead.
+CLAUDE.md's `## State of the Union` section is current state; that's
+already surfaced by the SessionStart hook at the top of every session, so
+this skill does not repeat it. This skill is specifically about
+`knowledge/` — the ~18-hour hand-distilled corpus that exists precisely so
+it can be ingested as memory. A skill named "project-memory" that doesn't
+touch that corpus isn't project memory, it's a doc-loading shortcut with
+the wrong name. This is the fix for that.
 
-There is no separate `SOTU.md`, `PROMPT_PREFIX.md`, `EXECUTION_BOARD.md`,
-or `CLAUDE_AT_HORIZONS.md` in this repo — those file names are leftovers
-from an earlier project structure. The real SOTU lives inline in
-`CLAUDE.md` under `## State of the Union`.
+## Two-tier model
 
-## What to read (in this order)
+1. **Always read:** `knowledge/omni-claw-defined/` in full. Every session
+   needs "what is Novus Agenti / Omni Claw, what are we actually building"
+   grounded from the source, not inferred from scattered mentions.
+2. **Retrieve on demand, don't preload:** everything else in `knowledge/`
+   (`research-npu/`, `proofs/`, `fragmented-qat/`, `google-dev-docs/`,
+   `gemini-query/`, `qairt-sdk/`, `daemon-reference/`). Use `Grep`/`Glob`
+   against the relevant topic's `.jsonl` for what the current task actually
+   touches — e.g. a QAIRT backend-config question greps
+   `knowledge/qairt-sdk/htp.jsonl` for the relevant section, it doesn't
+   load the whole 6000-line source. Loading a whole topic wholesale
+   defeats the reason the corpus is chunked into JSONL in the first place.
 
-1. `CLAUDE.md` — read the `## State of the Union` section specifically
-   (search for that heading; don't re-read the whole file for a narrow fix)
-2. Latest `wiki/SESSION{N}-HANDOFF.md` — find the highest N in `wiki/`
+## How to retrieve
 
-## What this skill is for
+```
+Grep(pattern="<keyword from the task>", path="knowledge/<topic>/", glob="*.jsonl")
+```
 
-- Fresh agent landing in the repo for a small, contained task.
-- One-off CI fix — SOTU + the failing CI log is enough.
-- Doc-only edits that don't touch architecture.
+Then `Read` just the matched entries' surrounding context if the JSONL
+snippet alone isn't enough. Don't `Read` a full `.md` companion unless the
+JSONL retrieval genuinely didn't surface what's needed.
 
 ## What this skill is NOT for
 
-- Multi-file coordination, architecture decisions, or anything touching
-  the compile pipeline, daemon design, or UI spec — use `horizons-wiki`.
+- Reloading CLAUDE.md's SOTU or session state — that's the SessionStart
+  hook's job, already done before this skill would ever be invoked.
+- A narrow single-file fix that doesn't touch project history or SDK
+  reference material — just do the fix, no skill needed.
 
 ## Maintenance protocol
 
-- The skill itself doesn't get edited per-session. `CLAUDE.md`'s SOTU
-  section and the latest handoff file do.
-- If you arrive in a session and the SOTU date is older than the most
-  recent commit date, flag it — the prior session skipped close-out.
-- Before trusting anything the SOTU or a handoff says about network
-  reachability (HuggingFace, etc.), re-verify — see CLAUDE.md's
-  `§HuggingFace Access` section. That kind of claim goes stale fast and
-  is scoped per remote-session container, not project-wide.
+- New Drive-sourced distillations land as a new `knowledge/<topic>/`
+  folder (see `knowledge/README.md`'s Drive-mirror rule) — this skill
+  doesn't need editing when that happens, the retrieval pattern above
+  already covers any new topic folder.
+- If a topic folder is missing its `.jsonl` companion (markdown-only),
+  retrieval degrades to `Grep` over the `.md` directly — still usable,
+  just less structured. Flag it rather than silently working around it.

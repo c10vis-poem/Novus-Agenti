@@ -5,7 +5,8 @@
 # Primary path is the Q4_0 GGUF served by GenieX (geniex serve, GGML backend)
 # directly on Hexagon HTP — no compile needed. This manifest/pipeline only
 # matters if that GGUF fails to run acceptably via GenieX. Confirm that
-# failure first. See wiki/NPU-RUNTIME-PATHS.md.
+# failure first. See knowledge/daemon-reference/NPU-RUNTIME-PATHS.md and
+# wiki/COMPILE-PIPELINE.md.
 # (No notebooks/ directory exists in this repo — an earlier comment here
 #  referenced notebooks/compile_*.ipynb, which was never actually created.
 #  .github/workflows/stage-colab.yml also assumed a notebook that doesn't
@@ -21,7 +22,7 @@ target:
   qai_hub_device_qwenvl:  "Snapdragon 8 Elite QRD"  # Qwen3-VL backup
   qai_hub_device_gemma:   "Snapdragon 8 Elite"      # Gemma 4 12B backup
 
-# Hard caps from wiki/GPT-DAEMON-REFERENCE.md
+# Hard caps from knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
 # Hexagon v69/v79 require static shapes; max_seq_len cannot change at runtime.
 hexagon_constraints:
   rope_fold: true                          # bake Q/K rotations into weights at export
@@ -49,7 +50,7 @@ models:
     quantization:
       strategy: ptq                        # no QAT variant exists for Qwen3.5
       type: w4a16                          # weight-only INT4, activations FP16
-      calibration_tokens: 10000            # ≥10K per GPT-DAEMON-REFERENCE.md
+      calibration_tokens: 10000            # ≥10K per knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
       calibration_dataset: wikitext-2-raw-v1
     output_repo: Mer0vin8ian/qwen3-5-9b-npu-sm8750
     output_artifacts:
@@ -61,7 +62,7 @@ models:
     # ort_engine (ORT + QNN EP, qnn_context_binary) is now the legacy runtime.
     # See wiki/GENIEX-DAEMON-PLAN.md.
     runtime: genie_x                       # was: ort_engine (legacy fallback)
-    script: scripts/compile_qwen3_5_9b.py
+    script: compile/compile_qwen3_5_9b.py
 
   # BACKUP 1 — vision + reasoning (harder scaffold path)
   # Higher MMMU reasoning (69.6%) vs Instruct; generates hidden thinking tokens.
@@ -86,7 +87,7 @@ models:
     expected_compile_minutes: 35
     qai_hub_device: "Snapdragon 8 Elite QRD"
     runtime: genie_engine
-    script: scripts/compile_qwen3_vl.py
+    script: compile/compile_qwen3_vl.py
 
   # BACKUP 2 — text + reasoning (no re-quant, QAT pre-aligned)
   # Google did QAT at training time -> already ships as a Q4_0 GGUF
@@ -94,7 +95,7 @@ models:
   # straight through GenieX's GGML backend -- no QAI Hub compile needed.
   # The compile fields below (output_artifacts, runtime: ort_engine,
   # script) are the FALLBACK path only, same disclaimer as qwen3_5_9b --
-  # see wiki/NPU-RUNTIME-PATHS.md.
+  # see knowledge/daemon-reference/NPU-RUNTIME-PATHS.md.
   gemma4_12b_qat:
     hf_repo: google/gemma-4-12B-it-qat-q4_0-unquantized
     hf_revision: main
@@ -114,7 +115,7 @@ models:
     expected_compile_minutes: 40
     qai_hub_device: "Snapdragon 8 Elite"
     runtime: ort_engine                    # fallback only -- see gguf_filename above
-    script: scripts/compile_gemma_qairt.py
+    script: compile/compile_gemma_qairt.py
 
 # ─── Build order ────────────────────────────────────────────────────────────────────────
 build_order:

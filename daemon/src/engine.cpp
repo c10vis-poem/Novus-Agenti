@@ -84,6 +84,14 @@ void Engine::generate(const GenerateRequest& req, TokenCallback cb) {
         return;
     }
 
+    // Vision is co-located in this daemon (session-16 decision: model + vision share
+    // one process/socket, STT/TTS are a separate media daemon). ort_engine has no VLM
+    // decode path yet — acknowledge the image and fall through to text-only reasoning
+    // rather than silently dropping it. GenieX's libgeniex_vlm replaces this stub.
+    if (!req.image_b64.empty()) {
+        cb("[vision: image received, VLM decode not yet wired in ort_engine — reasoning over text only] ", 0, false);
+    }
+
     auto token_ids = d.tokenizer.encode(req.prompt);
     if (token_ids.empty()) {
         cb("[empty prompt]", 0, true);
