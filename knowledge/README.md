@@ -15,12 +15,13 @@ Two kinds of content live here, clearly separated:
    missing its `.jsonl` companion — e.g. `qairt-sdk/htp.jsonl` — had that
    companion generated in-repo from the existing `.md`, since that's
    completing the triplet, not re-processing a finished one.)
-2. **`daemon-reference/`** and **`claude-code-reference/`** — repo-native
-   reference material (not Drive content). Written and maintained directly
-   in this repo, or condensed from external docs. Kept alongside the
-   Drive-mirrored folders because it's the same kind of "stable reference,
-   not day-to-day state" material, not because either pretends to be a
-   Drive mirror.
+2. **`daemon-reference/`**, **`claude-code-reference/`**, and
+   **`device-inventory/`** — repo-native reference material (not Drive
+   content). Written and maintained directly in this repo, condensed from
+   external docs, or a recovered on-device audit snapshot. Kept alongside
+   the Drive-mirrored folders because it's the same kind of "stable
+   reference, not day-to-day state" material, not because any of them
+   pretend to be a Drive mirror.
 
 Each topic ships as a triplet where applicable:
 - `*.md` — clean Markdown reconstruction (human-readable reference)
@@ -51,6 +52,7 @@ Each topic ships as a triplet where applicable:
 | `qairt-sdk/` | `#QAIRT/` | Qualcomm AI Engine Direct (QNN) HTP backend reference manual (`htp.md`, 6100+ lines: API specializations, backend extensions, profiling, op-writing guidelines, multi-graph switching) |
 | `daemon-reference/` | *(none — repo-native)* | `GPT-DAEMON-REFERENCE.md` (distilled daemon/architecture patterns, what to keep vs. discard from early GPT-generated guides), `NPU-RUNTIME-PATHS.md` (runtime formats + SDK distribution model) — moved here from `wiki/` since they're stable reference material, not session-to-session state |
 | `claude-code-reference/` | *(none — condensed from Anthropic's public docs)* | `PROMPT-CACHING.md` — how Claude Code's own session-level caching works; general Claude Code knowledge, not project-specific, moved here from `wiki/` (session 16). The hard-rules contract for `cache_control` mechanics lives in `CLAUDE.md` itself, not here — this file is reference/explanation only. |
+| `device-inventory/` | *(none — recovered on-device audit)* | `DEVICE-INVENTORY.md` — point-in-time (2026-07-13) snapshot of what's actually on the Razr Ultra 2025 (SDK versions, model files, Termux toolchain). Recovered session 16 from the deleted `wiki/APP-SOTU-AUDIT.md`; re-verify on-device before trusting exact versions/sizes for anything time-sensitive. |
 
 `repo-fork-asset-list-source.md` is the original operator Google Doc
 ("REPO FORK ASSET LIST DO NOT SKIP THIS") that `repo-fork-asset-list.md`

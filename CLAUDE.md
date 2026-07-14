@@ -490,6 +490,11 @@ log, don't expect it copy-pasted in this file.
   file). `models/` + `scripts/` merged into `compile/` (same dormant-pipeline
   domain). Top-level folder count: 13 → 12 (`compile/` absorbed two).
   `RESOURCE-DOCS-WIKI.md` (402KB duplicate of the knowledge/ corpus) deleted.
+  `knowledge/device-inventory/DEVICE-INVENTORY.md` recovered from the
+  deleted `wiki/APP-SOTU-AUDIT.md` — that file bundled a real device
+  inventory (SDKs, model files, Termux toolchain, 2026-07-13 snapshot)
+  together with a now-stale status narrative; only the factual inventory
+  was worth keeping, so it's preserved here rather than lost entirely.
 
 ### Standing decisions — LAW, not to re-litigate
 
@@ -569,6 +574,10 @@ knowledge/                       project knowledge corpus (see README.md)
   claude-code-reference/          general Claude Code knowledge (moved from wiki/):
                                   PROMPT-CACHING.md — reference only, hard rules are in
                                   this file's Cache Prompting section, not there
+  device-inventory/               recovered on-device audit snapshot (2026-07-13):
+                                  DEVICE-INVENTORY.md — SDKs, model files, Termux
+                                  toolchain actually on the Razr Ultra; re-verify
+                                  before trusting exact versions/sizes
 compile/                        dormant compile-pipeline domain (was models/ + scripts/,
                                   merged since both only ever served this one pipeline)
   manifest.yaml                  FALLBACK ONLY — see its own header
