@@ -17,12 +17,20 @@
 > backend, no compile needed) hits a hard failure on real hardware. See
 > wiki/COMPILE-PIPELINE.md. Don't run Job 8 pre-emptively.
 >
-> READ THESE IN ORDER BEFORE ANY ACTION:
+> READ THESE IN ORDER BEFORE ANY ACTION — this list IS the `horizons-wiki`
+> skill's bundle (items 1, 3, 4) plus `project-memory`'s always-read tier
+> (item 2); load them now, from the start of the session, not on demand
+> partway through:
 >   1. CLAUDE.md (full read, all sections, including current State of the Union)
 >   2. knowledge/omni-claw-defined/ (always-read core project definition)
 >   3. knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
 >   4. knowledge/daemon-reference/NPU-RUNTIME-PATHS.md
 >   5. compile/manifest.yaml
+>
+> For anything beyond this initial bundle (compile-pipeline detail, QAIRT
+> SDK reference, prior research, device inventory) use `project-memory`'s
+> retrieval pattern — Grep/Glob the relevant `knowledge/*.jsonl` on demand,
+> don't preload the whole corpus.
 >
 > Use /memory slash command to reload full project context. There is no
 > separate per-session handoff file — CLAUDE.md's State of the Union IS
@@ -58,11 +66,32 @@ Type `/memory` in any Claude Code session to reload full project context.
 2. **State** — current SOTU and next action
 3. **Act** — check the priority tree below FIRST, before touching the
    general Pending list
-4. **Document** — before ending: update `## State of the Union` in this
+4. **Hygiene check** — before AND after every push (not a full repo audit
+   every session — see `§Hygiene Protocol` below for the actual scope)
+5. **Document** — before ending: update `## State of the Union` in this
    file **in place** (no separate handoff file — see `§Cache Prompting`'s
    file-edit-batching rule for when in the session this should happen),
    then commit AND push. A local-only commit is invisible to the next
    session.
+
+### Hygiene Protocol — lightweight, tied to every push, not a one-off audit
+
+This is NOT a mandate to re-run a full repo-wide audit every session — that
+was a one-time session-16 initiative. Going forward, hygiene is a small,
+continuous check tied to the normal commit/push cycle:
+
+- **Before every push:** check that whatever you just changed doesn't leave
+  a dangling reference elsewhere (a moved/deleted file's old path, a
+  renamed branch, a doc that now contradicts your own edit). Scope: the
+  files you touched and their direct cross-references — not the whole repo.
+- **After every CI push:** once CI results land, a quick sanity check that
+  nothing you assumed would work actually broke — not a fresh audit, just
+  closing the loop on what you just shipped.
+- **If you discover something stale, redundant, or contradictory at ANY
+  point — even outside these two checkpoints — STOP.** Do not silently fix
+  it, and do not silently ignore it and move on. Flag it to the operator
+  and get their read before taking any further action. This applies even
+  mid-task, even if it's not what you were asked to look at.
 
 ### Act — priority tree (check top to bottom, stop at the first match)
 
