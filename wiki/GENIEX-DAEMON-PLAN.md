@@ -138,25 +138,49 @@ So the wire seam is settled: **standard OpenAI `POST /v1/chat/completions`** on
   `choices[].delta.content` out), and point the readiness probe at
   `/v1/models`. This is a documented, stable contract — not a guess.
 
-### Still needs the repo source (fork → `add_repo` to read)
+### ANSWERED from source (session 17 — fork landed, `c10vis-poem/geniex` read)
 
-The README does **not** document these; they require reading the GenieX repo:
-- Exact `geniex serve` flags: **port override, bind/host, backend selector**
-  (QAIRT/AI-Engine-Direct NPU-only vs GGML), and **which model** to serve when
-  several are pulled.
-- Whether a dedicated `/health` (or `/readyz`) exists beyond `GET /v1/models`.
-- `geniex pull` syntax for a **specific HF GGUF** (vs the `ai-hub-models/...`
-  bundle shown) and how **Q4_0** is chosen ("pick Q4_0 when prompted").
-- **Android/aarch64 packaging as a detached binary.** The README only documents
-  the in-process Gradle SDK (`com.qualcomm.qti:geniex-android:0.3.1`) — which is
-  the rejected in-process path. Need to confirm a **standalone `geniex` CLI
-  binary** for arm64-android (prebuilt release vs Bazel build) to run it as the
-  detached daemon. Sample app lives in `qualcomm/ai-hub-apps`.
+The CLI is **Go** (cobra/gin/viper — not Rust as an earlier pass assumed;
+only parts of the SDK stack are), wrapping the SDK via the cgo binding in
+`bindings/go`. Confirmed against `cli/cmd/geniex/serve.go`,
+`cli/cmd/geniex/model.go`, `cli/server/route.go`,
+`.github/workflows/_build-cli.yml`, `notes/bench.md`, `docs/en/run/android/`:
 
-**Because of the above, `NpuClient`/`DaemonLauncher`/CI wiring is NOT written
-yet** — the OpenAI wire format is safe to implement, but the serve flags, the
-readiness endpoint, and the standalone-binary packaging must be confirmed
-against source first (audit-before-feature, per the app-pathway mandate).
+- **Serve flags**: `geniex serve --host 127.0.0.1:18181` (host:port in ONE
+  flag; env `GENIEX_HOST`) · `--compute cpu|gpu|npu|hybrid` (`GENIEX_COMPUTE`;
+  default hybrid for llama_cpp, npu for qairt) · `--nctx 4096` / `--ngl 999`
+  (llama_cpp defaults; per-request body fields override) · global
+  `--data-dir` (`GENIEX_DATADIR`) sets where models live. **No `--model`
+  flag** — the model is chosen per-request by the `"model"` body field,
+  loaded on demand from the data dir.
+- **Health**: NO dedicated `/health`/`readyz`. Routes: `GET /` (root
+  banner), `GET /v1/`, `POST /v1/completions`, `POST /v1/chat/completions`,
+  `GET /v1/models`, `GET /v1/models/*model`. So `GET /v1/models` IS the
+  readiness probe — exactly what `GenieXClient` already implements.
+- **Pull**: `geniex pull <model> --model-hub aihub|hf|docker|localfs
+  [--local-path <dir-or-zip>] [--model-type llm|vlm]`. **`localfs` imports a
+  model already on disk with no network** — the on-device Q4_0 GGUF in
+  /Download can be imported directly; no re-download.
+- **Android packaging — the catch**: upstream builds the standalone CLI for
+  **windows-arm64 and linux-arm64 ONLY** (`_build-cli.yml` matrix). Android
+  officially gets (a) the in-process Gradle SDK
+  (`com.qualcomm.qti:geniex-android:0.3.1`, arm64-v8a `.so`s in the AAR) —
+  the path this plan rejects for the UI process — and (b)
+  `geniex-bench-android-arm64` (the bundle already on the device), which is
+  the **benchmark tool, not the server**: it cannot `serve`, so it does NOT
+  satisfy the daemon role by itself (still useful to validate the GGUF runs
+  on HTP at all). **There is no upstream `geniex serve` binary for
+  Android.** Packaging options (operator decision pending):
+  1. Cross-compile the Go CLI for android/arm64 ourselves (GOOS=android +
+     NDK clang for cgo, linking the SDK's arm64-v8a libs) — truest to the
+     plan; cgo-on-bionic risk, real CI work.
+  2. A minimal separate daemon process hosting the official Android SDK
+     behind a thin HTTP shim speaking the same `/v1/chat/completions` +
+     `/v1/models` surface on :18181 — fastest, uses the supported artifact,
+     stays a detached process (the no-in-process rule bars tensors in the
+     UI process, and this isn't the UI process).
+  3. Test `geniex-bench` on-device first to validate the GGUF-on-HTP
+     premise before investing in either.
 
 ## Next steps (in order)
 
