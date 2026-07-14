@@ -170,17 +170,60 @@ only parts of the SDK stack are), wrapping the SDK via the cgo binding in
   the **benchmark tool, not the server**: it cannot `serve`, so it does NOT
   satisfy the daemon role by itself (still useful to validate the GGUF runs
   on HTP at all). **There is no upstream `geniex serve` binary for
-  Android.** Packaging options (operator decision pending):
-  1. Cross-compile the Go CLI for android/arm64 ourselves (GOOS=android +
-     NDK clang for cgo, linking the SDK's arm64-v8a libs) — truest to the
-     plan; cgo-on-bionic risk, real CI work.
-  2. A minimal separate daemon process hosting the official Android SDK
-     behind a thin HTTP shim speaking the same `/v1/chat/completions` +
-     `/v1/models` surface on :18181 — fastest, uses the supported artifact,
-     stays a detached process (the no-in-process rule bars tensors in the
-     UI process, and this isn't the UI process).
-  3. Test `geniex-bench` on-device first to validate the GGUF-on-HTP
-     premise before investing in either.
+  Android — but none is needed.** DECIDED (session 17, after the operator
+  pointed back at the QAIRT knowledge base): **build `geniex_daemon`, a
+  thin C++ HTTP daemon linking `libgeniex` directly** — same pattern as
+  `media-daemon/` (sherpa-onnx). Grounds, verified in the fork's source:
+  - `sdk/include/geniex.h` is a complete C API: `geniex_llm_create` /
+    `geniex_llm_generate` (streaming via `geniex_token_callback`) /
+    `geniex_llm_apply_chat_template`, KV-cache save/load, and
+    `geniex_vlm_create`/`geniex_vlm_generate` for vision.
+  - `sdk/plugins/` has both backends: `llama_cpp` (GGML — Q4_0 GGUF) and
+    `qairt` (HTP). `sdk/CMakePresets.json` ships an official
+    **`arm64-android-snapdragon` preset** (arm64-v8a, android-31) — the
+    SDK cross-compiles to Android out of the box; the on-device
+    `geniex-bench-android-arm64` bundle is built from exactly this stack.
+  The daemon serves `/v1/chat/completions` + `/v1/models` on `:18181`
+  (what `GenieXClient` already speaks), serve-first per
+  `wiki/BOOT-SEQUENCE.md`, launched by `DaemonLauncher`, guarded by
+  `CliffordService`, CI-built like `media_daemon`. The Go-CLI cross-compile
+  and the in-process Gradle-SDK path are both rejected. `geniex-bench`
+  on-device stays useful as pre-validation of GGUF-on-HTP performance.
+
+### QAIRT manual findings that shape the daemon (session 17 ingest)
+
+Read from `knowledge/qairt-sdk/` (overview, backend, HTP chunks via
+`htp.jsonl`) after the operator called for a full ingest — step 2 of the
+next-steps list is now genuinely done, and it changed the design:
+
+- **The perf-tuning seam is a JSON file in the model bundle, not daemon
+  code.** `sdk/plugins/qairt/src/llm.cpp` auto-loads
+  `htp_backend_ext_config.json` from the model dir — the QNN
+  *backend-extension config* documented in the manual. Perf profiles,
+  `O`-level, `soc_id`/`dsp_arch` all go there; `geniex_daemon` stays thin.
+- **`llm_decode_*` perf profiles: exact device match.** New in SDK 2.48,
+  HTP V79+ only — the device has QAIRT v2.48.0 + HTP v79 (see
+  DEVICE-INVENTORY). LLM decode is memory-bandwidth-bound; these profiles
+  drop HMX and scale DDR/HVX per tier for tokens-per-watt.
+  `llm_decode_burst` = max (adds DDR Perf Mode); `llm_decode_balanced` =
+  battery default. NOT for prefill/VLM encode — traditional `burst` there;
+  GenieX's pipeline manages stages, we just set the bundle config.
+- **Device config: vote SOC, not ARCH** (`QNN_HTP_DEVICE_CONFIG_OPTION_SOC`
+  wins over ARCH when both set; SOC recommended — SM8750).
+- **QNN perf votes vs the NpuManager lock (CliffordService)**: two
+  different layers — NpuManager is the BSP-level performance lock, QNN
+  perf-infra votes (DCVS_V3 + HMX + CENG, bundled in one setPowerConfig)
+  are per-client runtime votes the qairt plugin/backend-ext config
+  handles. Keep both; they're complementary, not duplicates.
+- **qairt plugin rejects `--nctx`/`--ngl`** (llama_cpp-only params) — the
+  daemon must not pass them on the QAIRT path.
+- **QAIRT bundle layout** (what `geniex_llm_create` wants for HTP):
+  `.bin` context shards + `tokenizer.json` + optional
+  `htp_backend_ext_config.json` + optional `forecast-prefix/` (SSD only).
+- **Native KV cache** (fallback compile path only): context length must be
+  a multiple of 256, head_dim multiple of 64, KV tensors uint8 symmetric,
+  ScatterElement not Concat — constraints on the QAI-Hub export if Job 8
+  ever runs. Current manifest max_seq_len 2048 OK (multiple of 256).
 
 ## Next steps (in order)
 
