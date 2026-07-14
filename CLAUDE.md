@@ -498,6 +498,14 @@ log, don't expect it copy-pasted in this file.
   Sibling infra lane (AESOP T3 bring-up: Tailscale → Jetson → Rubik Pi)
   was briefed to the operator separately — it lives in the `aesop` repo's
   orbit, NOT here; don't pick it up from this file.
+- **Pending 1 (GenieX) partially advanced, session 17**: the wire seam is
+  decided and implemented — additive `core/llm/GenieXClient.kt` (OpenAI
+  wire on :18181, model id discovered via /v1/models, alive≠ready
+  preserved; see GENIEX-DAEMON-PLAN.md step 3). The FORK itself is
+  **blocked on a one-click operator action**: session tooling cannot
+  fork or add cross-owner (`qualcomm/GenieX` → denied, re-confirmed).
+  Once `c10vis-poem/GenieX` exists, `add_repo` it and finish steps 4–5
+  (serve flags, packaging, activation swap).
 - **App/UI-fork track is the one active track** (session-16 work merged).
   Horizons app is code-complete UI (Compose, 6 panels, home grid, chat,
   terminal, browser tab); daemon/watchdog architecture (`CliffordService`,

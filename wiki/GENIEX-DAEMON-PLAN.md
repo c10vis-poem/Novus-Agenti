@@ -161,14 +161,26 @@ against source first (audit-before-feature, per the app-pathway mandate).
 ## Next steps (in order)
 
 1. Operator forks `qualcomm/GenieX` → `c10vis-poem/GenieX` (agent session is
-   scoped to `c10vis-poem` only; cross-owner fork/add is walled off). Once it's
-   under `c10vis-poem`, `add_repo c10vis-poem/GenieX` can pull it into a session
-   so the real source (exact `geniex serve` flags, health endpoint, GGUF vs
-   bundle loading, Android packaging) can be read directly.
+   scoped to `c10vis-poem` only; cross-owner fork/add is walled off —
+   RE-CONFIRMED session 17: both `fork_repository` and `add_repo` against
+   `qualcomm/GenieX` return scope/cross-tier denials, so this really is a
+   one-click operator action on github.com). Once it's under `c10vis-poem`,
+   `add_repo c10vis-poem/GenieX` pulls it into a session so the real source
+   (exact `geniex serve` flags, health endpoint, GGUF vs bundle loading,
+   Android packaging) can be read directly.
 2. Ingest Drive `#QAIRT/` (Context/Backend/Api/Graph/Tensor/HTP/Overview) into
    `knowledge/qairt-sdk/` as the HTP/AI-Engine-Direct reference.
-3. Decide the wire seam: adopt OpenAI format in `NpuClient.kt` (preferred) vs a
-   `:8080→:18181` shim.
+3. ~~Decide the wire seam~~ — DONE session 17, option (a): OpenAI format,
+   implemented as the ADDITIVE `core/llm/GenieXClient.kt` (NpuClient stays
+   the legacy :8080 client, untouched). GenieXClient speaks
+   `POST /v1/chat/completions` (streamed `choices[].delta.content`, OpenAI
+   image_url part for vision), discovers the model id from `GET /v1/models`
+   (no hardcoded model string, so serve-flag details stay out of the
+   client), and maps readiness as models-200-nonempty=ready /
+   port-open-else=loading / unreachable=offline — preserving alive≠ready
+   (BOOT-SEQUENCE.md I2). NOT yet activated: CliffordService still guards
+   ort_engine and activates NpuClient; the activation swap + DaemonLauncher
+   args + CI packaging remain gated on reading GenieX source (step 1).
 4. Get the Qwen3.5-9B **Q4_0 GGUF** (fits the ~5.5 GB envelope) and/or the AI
    Hub bundle; `geniex pull` / `geniex serve` on device.
 5. Package `geniex serve` as the runtime binary in `build-apk.yml`; keep
