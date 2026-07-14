@@ -515,11 +515,18 @@ log, don't expect it copy-pasted in this file.
 ### Pending — in order
 
 1. **GenieX fork + wire** — fork `qualcomm/GenieX` → `c10vis-poem/GenieX`,
-   then work `wiki/GENIEX-DAEMON-PLAN.md`'s next-steps list.
+   then work `wiki/GENIEX-DAEMON-PLAN.md`'s next-steps list. Per
+   `knowledge/device-inventory/DEVICE-INVENTORY.md`, the device already has
+   the prebuilt `geniex-bench-android-arm64 v0.3.14` (both GGML and QAIRT
+   backends) + the Q4_0 GGUF + HTP v79 libs sitting in
+   `/storage/emulated/0/Download/` as of 2026-07-13 — don't re-download,
+   re-verify what's there first. Once wired, update `compile/manifest.yaml`'s
+   `daemon_binaries.genie_x.status` (currently "not yet forked/wired").
 2. **Real media-daemon binary** — Moonshine STT + Kokoro/Sherpa TTS as a
    detached process on `127.0.0.1:8091`; currently only client-side
    contracts exist (`DaemonSttClient`, `DaemonTtsClient`), nothing binds
-   that port yet.
+   that port yet. Also update `compile/manifest.yaml` once this exists —
+   it's not currently listed there at all.
 3. **Fix `http_server.cpp`'s recv() truncation** before vision can actually
    round-trip end to end.
 4. **Define precise boot/loading-phase sequencing for the UI build** — the
