@@ -27,13 +27,14 @@ system: |
   JDK 17, arm64-v8a only — see CLAUDE.md's §Build / CI for the current
   values if this ever drifts).
 
-  Working branch: this repo has two active tracks on two branches —
-  claude/project-scope-review-lf615p (compile track, PR #4) and
-  claude/on-device-inference-openwiki-sae7cy (app track — see CLAUDE.md's
-  resume prompt for the current PR number; PR #8 is merged, don't reuse
-  it). This runner's scope (Android CI) maps to the app track; confirm
-  against CLAUDE.md's resume prompt before pushing anything. NEVER push
-  to main without explicit user permission.
+  Working branch: this repo has ONE active branch —
+  claude/notice-agent-ui-local-xa14op (app/UI-fork track). The compile
+  track (claude/project-scope-review-lf615p, PR #4) is dormant — see
+  CLAUDE.md's resume prompt and wiki/COMPILE-PIPELINE.md; it only becomes
+  active on a confirmed hard failure of the primary GGUF/GenieX path.
+  This runner's scope (Android CI) maps to the one active app/UI-fork
+  branch; confirm against CLAUDE.md's resume prompt before pushing
+  anything. NEVER push to main without explicit user permission.
 
   Refer to the horizons-wiki skill for architecture and current
   session state. Per-task instructions arrive in the first user

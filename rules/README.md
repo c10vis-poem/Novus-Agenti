@@ -4,10 +4,14 @@ Rules are the contract. **Rules > wiki guidance** when in conflict.
 
 | Rule file | Scope |
 |---|---|
-| `CACHE_PROMPT_RULES.md` | Anthropic prompt caching (TTL, breakpoint budget, edit cadence) |
 | `GIT_HYGIENE.md` | Branch policy, commit safety, branch preservation |
 | `AT_BAT_PROTOCOL.md` | How an agent claims, works, and hands off a milestone |
 | `AAR_DECOMPILE.md` | **ARCHIVED** — Nexa-specific AAR decompile procedure, not applicable to the current QNN/Hexagon HTP stack. Kept for the reusable javap technique only. Not an active rule. |
+
+Anthropic prompt-caching hard rules (`cache_control` mechanics — TTL,
+breakpoint budget, edit cadence) moved into `CLAUDE.md`'s "Cache Prompting
++ Sub-Agent Rules" section (session 16) — no separate `CACHE_PROMPT_RULES.md`
+file anymore.
 
 ## Precedence
 

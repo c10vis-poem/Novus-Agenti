@@ -24,7 +24,7 @@ legacy runtime) and, once wired, with GenieX on the HTP SDK/QAIRT (primary
 runtime, decided session 15 — see wiki/GENIEX-DAEMON-PLAN.md).
 
 Sources of truth (do not paraphrase elsewhere):
-  • wiki/GPT-DAEMON-REFERENCE.md      — Hexagon failure modes + mitigations
+  • knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md — Hexagon failure modes + mitigations
   • compile/manifest.yaml              — build order, target devices, expected sizes
 
 Hexagon constraints applied (per GPT-DAEMON-REFERENCE, §1-§3):

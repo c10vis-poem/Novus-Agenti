@@ -121,6 +121,55 @@ If this file and a handoff disagree, **this file wins**.
   the edits together at the end of the review — don't interleave edits
   throughout an open-ended review/discussion.
 
+### Hard rules — Anthropic API `cache_control` mechanics (moved here from
+### the former standalone `rules/CACHE_PROMPT_RULES.md`, session 16)
+
+These apply when code in this project calls the Anthropic API directly
+with explicit `cache_control` headers (e.g. a future orchestrator) — not
+to this Claude Code session's own tool-call mechanics, which the sections
+above already cover.
+
+1. Max 4 `cache_control` markers per request: tools → system block →
+   history-summary → reserved mid-conversation.
+2. `cache_control` lands on the last block of the prefix to cache —
+   everything before it is the key.
+3. Pre-warm before sub-agent fan-out: one `max_tokens: 1` call so the
+   cache is written before parallel reads begin — without it, agents
+   fired at the same millisecond all miss and all pay a full write.
+   Caches are workspace-scoped, not per-agent.
+4. Never edit the cached prefix mid-session — batch edits between
+   sessions (mid-session edits invalidate at 1.25x/5m TTL or 2x/1h TTL).
+5. TTL selection: 5m for single sessions ≤5 min between turns; 1h for
+   sub-agent fan-out or multi-turn over an hour. Below ~3 reads, 1h
+   doesn't pay back.
+6. Verify hits — check `lastUsage.cacheReadTokens > 0` after each call.
+7. Cache key minimum is 1024 tokens; below that, no cache activity even
+   with `cache_control` set.
+8. 20-block lookback — a miss walks back at most 20 blocks; a growing
+   conversation that outruns this needs a second breakpoint before the
+   first falls out of the window.
+9. Mixing TTLs in one prompt: longer-TTL blocks sit before shorter-TTL
+   blocks (1h segments at the top, 5m segments below).
+10. The cache is not portable — in-memory only, gone once a session goes
+    quiet past its TTL. Carry over the source text between
+    sessions/days, not the cache itself; re-send it to re-warm.
+11. **1h TTL is not guaranteed** even on a Claude subscription — verify
+    per-call which TTL actually applied (`usage.cache_creation
+    .ephemeral_1h_input_tokens` vs `.ephemeral_5m_input_tokens` in the
+    API response) rather than trusting it blindly. On API-key/Bedrock/
+    GCP/Foundry auth (5m by default), `ENABLE_PROMPT_CACHING_1H=1` opts
+    into 1h, `FORCE_PROMPT_CACHING_5M=1` forces 5m.
+12. **Three separate "sub-agent cache" systems in this repo — don't
+    conflate them:** (a) rules #3/#5 above apply only when this
+    project's own code calls the Anthropic API directly with its own
+    `cache_control` headers; (b) a Claude Code session's own `Agent`-tool
+    sub-agents always start a cold 5-minute-TTL cache regardless of the
+    parent session's TTL — no setting changes this, only a *fork*
+    (inherits the parent's exact system prompt/tools/history) reads the
+    parent's warm cache; (c) `sub-agent.agent.yaml`/`agents/build-runner.yaml`'s
+    `metadata.cache_ttl_default: 1h` is a third, unrelated system — the
+    separate `ant beta:agents create` deployment path's own knob.
+
 ### When to spawn
 - Open-ended exploration spanning more than 3 files → `Explore` agent
 - Independent background research that doesn't block current work → background agent
@@ -431,12 +480,16 @@ log, don't expect it copy-pasted in this file.
 - **Known gap**: `daemon/src/http_server.cpp` reads a single `recv()` into
   an 8KB buffer — image payloads (100KB+) will be truncated until it reads
   until Content-Length. Documented inline in that file.
-- **Doc/knowledge restructure (this session)**: `knowledge/daemon-reference/`
-  (moved from `wiki/`), `knowledge/qairt-sdk/htp.jsonl` (new — completes
-  that topic's triplet), `wiki/COMPILE-PIPELINE.md` and
+- **Doc/knowledge/folder restructure (this session)**: `knowledge/daemon-reference/`
+  + `knowledge/claude-code-reference/` (moved from `wiki/`), `knowledge/qairt-sdk/htp.jsonl`
+  (new — completes that topic's triplet), `wiki/COMPILE-PIPELINE.md` and
   `wiki/JOB_EXECUTION_LOG.md` (new, replacing several older files),
   `skills/project-memory/SKILL.md` redesigned around the knowledge/ corpus
-  instead of being a redundant CLAUDE.md/SOTU re-read.
+  instead of being a redundant CLAUDE.md/SOTU re-read. `rules/CACHE_PROMPT_RULES.md`
+  merged into this file's Cache Prompting section (no longer a separate
+  file). `models/` + `scripts/` merged into `compile/` (same dormant-pipeline
+  domain). Top-level folder count: 13 → 12 (`compile/` absorbed two).
+  `RESOURCE-DOCS-WIKI.md` (402KB duplicate of the knowledge/ corpus) deleted.
 
 ### Standing decisions — LAW, not to re-litigate
 
@@ -513,6 +566,9 @@ knowledge/                       project knowledge corpus (see README.md)
   qairt-sdk/                      Drive-mirrored (QNN HTP manual, .md + .jsonl)
   daemon-reference/               repo-native (moved from wiki/): GPT-DAEMON-REFERENCE.md,
                                   NPU-RUNTIME-PATHS.md
+  claude-code-reference/          general Claude Code knowledge (moved from wiki/):
+                                  PROMPT-CACHING.md — reference only, hard rules are in
+                                  this file's Cache Prompting section, not there
 compile/                        dormant compile-pipeline domain (was models/ + scripts/,
                                   merged since both only ever served this one pipeline)
   manifest.yaml                  FALLBACK ONLY — see its own header

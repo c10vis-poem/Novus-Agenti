@@ -112,12 +112,12 @@ dependencies {
     }
 
     // Silero VAD — lightweight ONNX signal-processing model, not STT/TTS.
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    implementation(libs.onnxruntime.android)
 
     // Sherpa-ONNX — on-device TTS runtime for Kokoro multi-lang v1.0 (28 English voices).
     // AAR downloaded by CI (see build-apk.yml); excluded from git via horizons/libs/.gitignore.
     implementation(files("libs/sherpa-onnx-1.13.2.aar"))
 
     // Apache Commons Compress — bzip2 extraction for the Kokoro model archive.
-    implementation("org.apache.commons:commons-compress:1.27.1")
+    implementation(libs.commons.compress)
 }

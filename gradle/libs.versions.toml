@@ -12,7 +12,6 @@ securityCrypto = "1.1.0-alpha06"
 documentfile = "1.0.1"
 onnxruntime = "1.22.0"
 commonsCompress = "1.27.1"
-javaWebsocket = "1.5.7"
 kotlinSerialization = "1.7.3"
 
 [libraries]
@@ -35,7 +34,6 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
-java-websocket = { group = "org.java-websocket", name = "Java-WebSocket", version.ref = "javaWebsocket" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

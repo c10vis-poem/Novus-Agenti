@@ -54,9 +54,8 @@ more than 15, you're spinning. Hand off.
 
 # Working scope
 
-There are two active tracks, each on its own branch — confirm which one
-matches your task before touching anything (see `CLAUDE.md`'s resume
-prompt if unsure):
+One active branch, plus a dormant one — confirm which matches your task
+before touching anything (see `CLAUDE.md`'s resume prompt if unsure):
   - Compile track: `claude/project-scope-review-lf615p` (PR #4) — DORMANT,
     see `wiki/COMPILE-PIPELINE.md`; not the active work unless the operator
     says the primary GGUF/GenieX path hard-failed.
