@@ -118,6 +118,58 @@ jobs:
           cmake --build media-daemon/build --config Release -j$(nproc)
           file media-daemon/build/media_daemon
 
+      # ── geniex_daemon (GenieX runtime, OpenAI wire on :18181) ───────────
+      # Builds the GenieX SDK bridge (libgeniex) + llama_cpp plugin (GGML —
+      # the primary Q4_0 GGUF path). QAIRT plugin OFF here for now: it needs
+      # the geniex-qairt submodule's prebuilts; the on-device official bundle
+      # already ships that backend.
+      - name: Cache GenieX android install
+        id: geniex-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/geniex-install
+          key: geniex-android-arm64-ggml-v1
+
+      - name: Build GenieX SDK (arm64-android, llama_cpp plugin)
+        if: steps.geniex-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --recurse-submodules --shallow-submodules \
+            https://github.com/c10vis-poem/geniex /tmp/geniex
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          cmake -S /tmp/geniex/sdk -B /tmp/geniex/build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-31 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGENIEX_PLUGIN_LLAMA_CPP=ON \
+            -DGENIEX_PLUGIN_QAIRT=OFF \
+            -DGENIEX_BENCHMARK=OFF
+          cmake --build /tmp/geniex/build --config Release -j$(nproc) \
+            --target geniex geniex_llama_cpp
+          mkdir -p /opt/geniex-install/include /opt/geniex-install/lib \
+                   /opt/geniex-install/plugins
+          cp /tmp/geniex/sdk/include/*.h /opt/geniex-install/include/
+          find /tmp/geniex/build -name 'libgeniex.so' -exec cp {} /opt/geniex-install/lib/ \;
+          # Preserve the plugin dir layout the registry dlopen expects
+          # (<GENIEX_PLUGIN_PATH>/<plugin_id>/libgeniex_plugin.so + deps).
+          find /tmp/geniex/build -name '*.so' ! -name 'libgeniex.so' | while read so; do
+            mkdir -p /opt/geniex-install/plugins/llama_cpp
+            cp "$so" /opt/geniex-install/plugins/llama_cpp/
+          done
+          ls -laR /opt/geniex-install
+
+      - name: Build geniex_daemon (arm64-v8a)
+        run: |
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          cmake -S geniex-daemon -B geniex-daemon/build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-31 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGENIEX_ROOT=/opt/geniex-install
+          cmake --build geniex-daemon/build --config Release -j$(nproc)
+          file geniex-daemon/build/geniex_daemon
+
       - name: Build Horizons debug APK
         run: ./gradlew :horizons:assembleDebug -PnexaEnabled=false --no-daemon --stacktrace
 
@@ -129,6 +181,9 @@ jobs:
           cp /opt/ort-android/jni/arm64-v8a/libonnxruntime.so out/libonnxruntime.so
           cp media-daemon/build/media_daemon out/media_daemon
           cp /opt/sherpa-install/lib/libsherpa-onnx-c-api.so out/libsherpa-onnx-c-api.so
+          cp geniex-daemon/build/geniex_daemon out/geniex_daemon
+          cp /opt/geniex-install/lib/libgeniex.so out/libgeniex.so
+          tar -C /opt/geniex-install -czf out/geniex-plugins-arm64.tar.gz plugins
           ls -la out
 
       - name: Upload artifacts (Actions tab)
@@ -155,5 +210,8 @@ jobs:
             out/libonnxruntime.so
             out/media_daemon
             out/libsherpa-onnx-c-api.so
+            out/geniex_daemon
+            out/libgeniex.so
+            out/geniex-plugins-arm64.tar.gz
           prerelease: true
           make_latest: false

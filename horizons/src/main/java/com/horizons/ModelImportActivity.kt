@@ -182,6 +182,7 @@ class ModelImportActivity : ComponentActivity() {
         if (lower.startsWith("ort_engine")) return true
         if (lower.startsWith("media_daemon")) return true
         if (lower.startsWith("geniex")) return true
+        if (lower.startsWith("libgeniex") && lower.endsWith(".so")) return true
         if (lower.startsWith("libonnxruntime") && lower.endsWith(".so")) return true
         if (lower.startsWith("libsherpa-onnx") && lower.endsWith(".so")) return true
         if (lower.startsWith("libqnn") && lower.endsWith(".so")) return true
@@ -194,6 +195,8 @@ class ModelImportActivity : ComponentActivity() {
         return when {
             lower.startsWith("ort_engine") -> com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
             lower.startsWith("media_daemon") -> MEDIA_DAEMON_BINARY
+            lower.startsWith("geniex_daemon") -> GENIEX_DAEMON_BINARY
+            lower.startsWith("libgeniex") -> "libgeniex.so"
             lower.startsWith("geniex") -> "geniex"
             lower.startsWith("libonnxruntime") -> "libonnxruntime.so"
             lower.startsWith("libsherpa-onnx-c-api") -> "libsherpa-onnx-c-api.so"
@@ -228,10 +231,14 @@ class ModelImportActivity : ComponentActivity() {
         /** Media (STT/TTS) daemon binary — CI build output, serves 127.0.0.1:8091. */
         const val MEDIA_DAEMON_BINARY = "media_daemon"
 
+        /** GenieX model daemon binary — CI build output, serves 127.0.0.1:18181/v1. */
+        const val GENIEX_DAEMON_BINARY = "geniex_daemon"
+
         /** Runtime binaries that must be chmod +x after import. */
         val EXECUTABLE_RUNTIMES = setOf(
             com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY, // "ort_engine"
             MEDIA_DAEMON_BINARY,
+            GENIEX_DAEMON_BINARY,
             "geniex",
         )
 
@@ -239,8 +246,10 @@ class ModelImportActivity : ComponentActivity() {
         val RUNTIME_FILES = setOf(
             com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY, // "ort_engine"
             MEDIA_DAEMON_BINARY,
+            GENIEX_DAEMON_BINARY,
             "geniex",
             "libonnxruntime.so",
+            "libgeniex.so",
             "libsherpa-onnx-c-api.so",
             "libQnnHtp.so",
             "libQnnSystem.so",
