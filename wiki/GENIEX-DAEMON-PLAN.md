@@ -97,7 +97,7 @@ C++ server needed.
     prebuilt AI Hub library only ships **smaller** Qwen variants right now (a
     Qwen3.5 variant + a 0.8B text-only), **not** the 9B — so the 9B on the QAIRT
     backend requires **BYOM-compiling it via the QAI Hub workbench**, i.e. the
-    existing `scripts/compile_qwen3_5_9b.py` compile track / Job 8 producing the
+    existing `compile/compile_qwen3_5_9b.py` compile track / Job 8 producing the
     AI Hub bundle GenieX loads. This is where the two tracks connect: the
     compile pipeline is NOT wasted — it's the prerequisite for the fast path.
 - **Q3 (quant)** → **Q4_0** for the GGUF route (GenieX's own recommendation);

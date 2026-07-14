@@ -28,8 +28,8 @@ Mer0vin8ian/Qwen3.5-9B → ONNX export (RoPE fold, static shapes) → QAI Hub
   (ORT + QNN EP) → Hexagon HTP v79
 ```
 
-- Compile script: `scripts/compile_qwen3_5_9b.py`. Manifest:
-  `models/manifest.yaml`.
+- Compile script: `compile/compile_qwen3_5_9b.py`. Manifest:
+  `compile/manifest.yaml`.
 - The Hexagon/QNN SDK is a **host-side cross-compile toolchain**, not
   something installed on the phone — QAI Hub does the compile server-side,
   so no local SDK is needed for this step.

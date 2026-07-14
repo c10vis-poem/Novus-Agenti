@@ -70,7 +70,7 @@ redline 7.0–7.2 GB).
 Qualcomm's prebuilt AI Hub library currently ships only smaller Qwen variants
 (a Qwen3.5 variant and a 0.8B text-only), **not** the 9B — so running the 9B on
 the QAIRT NPU backend means **BYOM-compiling it ourselves** through the QAI Hub
-workbench (the `scripts/compile_qwen3_5_9b.py` compile track / Job 8), which
+workbench (the `compile/compile_qwen3_5_9b.py` compile track / Job 8), which
 produces the AI Hub bundle GenieX then loads. Until that lands, the 9B runs on
 the GGML / Q4_0 path.
 
@@ -97,10 +97,9 @@ New surface = point a UI at the same `:18181/v1`, not build a new app.
 |---|---|
 | `horizons/` | the Android app (`com.horizons`) — UI, agent loop, NpuClient, CliffordService, DaemonLauncher |
 | `daemon/` | `ort_engine` C++ inference daemon (legacy runtime; CI-built) |
-| `scripts/compile_qwen3_5_9b.py` | ONNX export + QAI Hub compile pipeline |
-| `models/manifest.yaml` | compile-track target list (primary + backups, build order) — not an app model binding |
-| `knowledge/` | byte-faithful hand-distilled research corpus (frozen — see its README) |
-| `wiki/` | architecture notes, runtime plans, session handoffs |
+| `compile/` | the dormant ONNX/QAI-Hub compile pipeline — `compile_qwen3_5_9b.py`, `manifest.yaml` (target list, build order), `requirements-compile.txt` — not an app model binding |
+| `knowledge/` | hand-distilled reference corpus (Drive-mirrored + repo-native architecture notes — see its README) |
+| `wiki/` | active plans, compile-pipeline detail, job/failure log |
 | `rules/`, `agents/`, `skills/` | operating rules, sub-agent briefs, agent skills |
 | `.github/workflows/build-apk.yml` | builds the APK + daemon, publishes a debug release |
 
@@ -116,7 +115,8 @@ both to a `latest-debug` GitHub Release. Signing uses `release/debug.keystore`
 - App: **scaffolded** and building; UI, watchdog, and daemon bridge exist.
 - Daemon: `ort_engine` **builds in CI**; not yet verified on a physical
   HTP v79 device against a real compiled model.
-- Compile pipeline: ONNX export / QAI Hub compile (**Job 8**) pending.
+- Compile pipeline: **dormant** — fallback only, triggers if the primary
+  GGUF/GenieX path hard-fails. Job 8 is ready but not triggered.
 - GenieX runtime integration: **in progress** (planning + repo wiring; the
   on-device install/run is done via Termux on the target phone).
 
@@ -125,5 +125,5 @@ Not a shipping product yet — this is an active build.
 ## More context
 
 Everything an agent or contributor needs to resume is in **`CLAUDE.md`**
-(full project context + live state) and the **`wiki/`** handoffs. The
-canonical repo is `c10vis-poem/Novus-Agenti`.
+(full project context + live State of the Union — the single current-state
+doc, no separate handoff files). The canonical repo is `c10vis-poem/Novus-Agenti`.

@@ -22,7 +22,7 @@
 >   2. knowledge/omni-claw-defined/ (always-read core project definition)
 >   3. knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
 >   4. knowledge/daemon-reference/NPU-RUNTIME-PATHS.md
->   5. models/manifest.yaml
+>   5. compile/manifest.yaml
 >
 > Use /memory slash command to reload full project context. There is no
 > separate per-session handoff file — CLAUDE.md's State of the Union IS
@@ -44,7 +44,7 @@ Type `/memory` in any Claude Code session to reload full project context.
 2. Read `knowledge/omni-claw-defined/` (always-read core project definition)
 3. Read `knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md`
 4. Read `knowledge/daemon-reference/NPU-RUNTIME-PATHS.md`
-5. Read `models/manifest.yaml`
+5. Read `compile/manifest.yaml`
 6. For anything else (compile pipeline, QAIRT SDK detail, prior research),
    retrieve on demand from `knowledge/*.jsonl` per
    `skills/project-memory/SKILL.md` — don't preload it
@@ -513,8 +513,11 @@ knowledge/                       project knowledge corpus (see README.md)
   qairt-sdk/                      Drive-mirrored (QNN HTP manual, .md + .jsonl)
   daemon-reference/               repo-native (moved from wiki/): GPT-DAEMON-REFERENCE.md,
                                   NPU-RUNTIME-PATHS.md
-models/manifest.yaml            FALLBACK ONLY — see its own header
-scripts/compile_qwen3_5_9b.py   fallback compile script (dormant, see wiki/COMPILE-PIPELINE.md)
+compile/                        dormant compile-pipeline domain (was models/ + scripts/,
+                                  merged since both only ever served this one pipeline)
+  manifest.yaml                  FALLBACK ONLY — see its own header
+  compile_qwen3_5_9b.py          fallback compile script (dormant, see wiki/COMPILE-PIPELINE.md)
+  requirements-compile.txt       pip deps for the staged Colab compile
 wiki/
   COMPILE-PIPELINE.md            dormant fallback pipeline (Single-Path Architecture,
                                   Size Envelope, Hexagon HTP Constraints, Job 8 command)
@@ -522,6 +525,8 @@ wiki/
   JOB_EXECUTION_LOG.md           combined compile-job + strike/failure ledger
   FEATURE-SPEC.md                UI tile spec
   BUILD-ACTION-PLAN.md
+  research/                      reference notes on forked tools (android-reverse-engineering-skill,
+                                  claude-skills) — not project architecture, kept separate from knowledge/
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
   core/llm/NpuClient.kt          model+vision daemon client

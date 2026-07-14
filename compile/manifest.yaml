@@ -62,7 +62,7 @@ models:
     # ort_engine (ORT + QNN EP, qnn_context_binary) is now the legacy runtime.
     # See wiki/GENIEX-DAEMON-PLAN.md.
     runtime: genie_x                       # was: ort_engine (legacy fallback)
-    script: scripts/compile_qwen3_5_9b.py
+    script: compile/compile_qwen3_5_9b.py
 
   # BACKUP 1 — vision + reasoning (harder scaffold path)
   # Higher MMMU reasoning (69.6%) vs Instruct; generates hidden thinking tokens.
@@ -87,7 +87,7 @@ models:
     expected_compile_minutes: 35
     qai_hub_device: "Snapdragon 8 Elite QRD"
     runtime: genie_engine
-    script: scripts/compile_qwen3_vl.py
+    script: compile/compile_qwen3_vl.py
 
   # BACKUP 2 — text + reasoning (no re-quant, QAT pre-aligned)
   # Google did QAT at training time -> already ships as a Q4_0 GGUF
@@ -115,7 +115,7 @@ models:
     expected_compile_minutes: 40
     qai_hub_device: "Snapdragon 8 Elite"
     runtime: ort_engine                    # fallback only -- see gguf_filename above
-    script: scripts/compile_gemma_qairt.py
+    script: compile/compile_gemma_qairt.py
 
 # ─── Build order ────────────────────────────────────────────────────────────────────────
 build_order:

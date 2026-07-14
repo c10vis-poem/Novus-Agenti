@@ -25,7 +25,7 @@ runtime, decided session 15 — see wiki/GENIEX-DAEMON-PLAN.md).
 
 Sources of truth (do not paraphrase elsewhere):
   • wiki/GPT-DAEMON-REFERENCE.md      — Hexagon failure modes + mitigations
-  • models/manifest.yaml              — build order, target devices, expected sizes
+  • compile/manifest.yaml              — build order, target devices, expected sizes
 
 Hexagon constraints applied (per GPT-DAEMON-REFERENCE, §1-§3):
   • RoPE fold          precompute cos/sin to FP16 tables, replace rotary with Gather
@@ -59,6 +59,10 @@ Optional env:
     JOB_ID_DECODER_*      re-download ids for decoder chunks (JOB_ID_DECODER_0, etc.)
 
 Run on HF Jobs (cpu-xl, ~$1/hr, 124GB RAM — no GPU needed, compile is server-side):
+    # NOTE: the URL below points at the `lf615p` branch's pre-reorg
+    # `scripts/` path (this branch's models/+scripts/ -> compile/ merge was
+    # never applied there). Verify the path is still correct on that branch
+    # before actually triggering this — don't assume it's current.
     hf jobs uv run --flavor cpu-xl --timeout 2h \\
         --with torch --with transformers --with onnx --with onnxruntime \\
         --with qai-hub --with datasets --with numpy --with huggingface_hub \\
