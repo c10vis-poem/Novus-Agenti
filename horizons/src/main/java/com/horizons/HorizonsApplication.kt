@@ -369,6 +369,11 @@ class HorizonsApplication : Application() {
             if (n.startsWith("ggml-tiny") || n.startsWith("ggml-base") ||
                 n.startsWith("ggml-small") || n.startsWith("ggml-medium") ||
                 n.startsWith("ggml-large") || n.contains("whisper")) return false
+            // Aux/media models are not LLMs: VAD, Moonshine STT parts, Kokoro TTS.
+            if (n.contains("silero") || n.contains("vad") ||
+                n.contains("moonshine") || n.startsWith("preprocess") ||
+                n.startsWith("encode") || n.contains("decode") ||
+                n.contains("kokoro") || n == "model.onnx") return false
             return true
         }
         modelsDir.listFiles()
