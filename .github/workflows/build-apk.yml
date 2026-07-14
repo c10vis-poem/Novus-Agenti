@@ -133,9 +133,14 @@ jobs:
       - name: Build GenieX SDK (arm64-android, llama_cpp plugin)
         if: steps.geniex-cache.outputs.cache-hit != 'true'
         run: |
+          # The SDK's model-manager is Rust, cross-compiled by its CMake via
+          # cargo --target aarch64-linux-android with the linker taken from
+          # $ANDROID_NDK_ROOT (see sdk/CMakeLists.txt) — both must exist.
+          rustup target add aarch64-linux-android
           git clone --depth 1 --recurse-submodules --shallow-submodules \
             https://github.com/c10vis-poem/geniex /tmp/geniex
           export ANDROID_NDK=/opt/android-ndk-r27c
+          export ANDROID_NDK_ROOT=/opt/android-ndk-r27c
           cmake -S /tmp/geniex/sdk -B /tmp/geniex/build \
             -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
