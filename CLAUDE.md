@@ -498,14 +498,35 @@ log, don't expect it copy-pasted in this file.
   Sibling infra lane (AESOP T3 bring-up: Tailscale → Jetson → Rubik Pi)
   was briefed to the operator separately — it lives in the `aesop` repo's
   orbit, NOT here; don't pick it up from this file.
-- **Pending 1 (GenieX) partially advanced, session 17**: the wire seam is
-  decided and implemented — additive `core/llm/GenieXClient.kt` (OpenAI
-  wire on :18181, model id discovered via /v1/models, alive≠ready
-  preserved; see GENIEX-DAEMON-PLAN.md step 3). The FORK itself is
-  **blocked on a one-click operator action**: session tooling cannot
-  fork or add cross-owner (`qualcomm/GenieX` → denied, re-confirmed).
-  Once `c10vis-poem/GenieX` exists, `add_repo` it and finish steps 4–5
-  (serve flags, packaging, activation swap).
+- **Pending 1 (GenieX) NEARLY DONE, session 17**: operator forked
+  `c10vis-poem/geniex`; source read; QAIRT manual ingested (per operator
+  directive — findings in GENIEX-DAEMON-PLAN.md). Shipped and CI-GREEN:
+  `core/llm/GenieXClient.kt` (OpenAI wire, /v1/models readiness) +
+  **`geniex-daemon/`** (thin C++ over libgeniex's C API — SSE streaming
+  via token callback, chat template, serve-first) + CI building the
+  GenieX SDK from the fork (llama_cpp/GGML plugin ON, qairt OFF in CI —
+  device bundle already has that backend; Rust model-manager needs
+  rustup android target + ANDROID_NDK_ROOT, fixed). Artifacts on
+  latest-debug: `geniex_daemon`, `libgeniex.so`,
+  `geniex-plugins-arm64.tar.gz`. REMAINING: on-device run (operator) +
+  activation swap (CliffordService/HorizonsApplication still guard/
+  activate ort_engine+NpuClient — swap after on-device verification).
+- **Pending 2 (media daemon) BUILT, session 17, CI-GREEN**:
+  `media-daemon/` — sherpa-onnx C API daemon (Moonshine STT + Kokoro
+  TTS) on :8091 serving the existing DaemonSttClient/DaemonTtsClient
+  contract; serve-first; Content-Length-safe HTTP. CI builds sherpa-onnx
+  from `c10vis-poem/sherpa-onnx` (cached) + `media_daemon`;
+  CliffordService launches/guards it (marker-file model-dir discovery).
+  REMAINING: on-device run against the kokoro-multi-lang +
+  moonshine-base-int8 bundles.
+- **"Make the app work" pass (operator directive, session 17)**: Termux
+  terminal mode (`TermuxRunner` — RUN_COMMAND, bash -lc, hard timeout;
+  ShellTab toggle) so the on-device openwiki/node toolchain runs from
+  the app; Silero VAD actually wired (model resolves from models//
+  Download — the asset was never shipped, RMS fallback was silently
+  active; drop `silero_vad.onnx` in /Download to activate); cloud-key
+  saves refresh backend status; LLM-model scanner excludes aux models
+  (vad/moonshine/kokoro); ModelImportActivity knows all new binaries.
 - **App/UI-fork track is the one active track** (session-16 work merged).
   Horizons app is code-complete UI (Compose, 6 panels, home grid, chat,
   terminal, browser tab); daemon/watchdog architecture (`CliffordService`,
