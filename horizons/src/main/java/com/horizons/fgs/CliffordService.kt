@@ -126,6 +126,16 @@ class CliffordService : Service() {
                 // never crash-loops) — just make sure it's up if its binary exists.
                 ensureMediaDaemonRunning()
 
+                // Auto-report main-process crashes to GitHub (this process
+                // survives them). No-op without a stored GitHub token; each
+                // crash uploads once. See core/diag/CrashReporter.
+                runCatching {
+                    com.horizons.core.diag.CrashReporter.maybeUpload(
+                        this@CliffordService,
+                        app?.appState?.get(com.horizons.core.state.AppStateStore.KEY_GITHUB_TOKEN),
+                    )
+                }
+
                 // Terminal state: we gave up relaunching. Sit idle until the model
                 // changes (user imported a new/valid one), then re-arm.
                 if (state == DaemonState.Failed) {

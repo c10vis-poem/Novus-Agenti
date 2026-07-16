@@ -19,7 +19,6 @@ import com.horizons.core.state.ChatHistoryStore
 import com.horizons.core.state.SavedCommandStore
 import com.horizons.core.stt.DaemonSttClient
 import com.horizons.core.voice.KokoroModelManager
-import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
 import com.horizons.provider.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -31,7 +30,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -308,28 +306,18 @@ class HorizonsApplication : Application() {
                 com.horizons.core.diag.Breadcrumb.drop("cloud_refresh_failed: ${e.javaClass.simpleName}: ${e.message}")
             }
 
-            try {
-                kokoroManager.ensureReady()
-                com.horizons.core.diag.Breadcrumb.drop("kokoro_ensure_ready_called")
-            } catch (e: Throwable) {
-                com.horizons.core.diag.Breadcrumb.drop("kokoro_ensure_ready_failed: ${e.javaClass.simpleName}: ${e.message}")
-            }
-
-            scope.launch {
-                kokoroManager.state.collect { state ->
-                    if (state is KokoroSetupState.Ready) {
-                        com.horizons.core.diag.Breadcrumb.drop("kokoro_state_ready")
-                        try {
-                            tts.voiceId = ttsVoiceId.value
-                            tts.speed   = ttsSpeed.value
-                            withContext(Dispatchers.IO) { tts.init() }
-                            com.horizons.core.diag.Breadcrumb.drop("tts_inited")
-                        } catch (e: Throwable) {
-                            com.horizons.core.diag.Breadcrumb.drop("tts_init_failed: ${e.javaClass.simpleName}: ${e.message}")
-                        }
-                    }
-                }
-            }
+            // In-process Kokoro/Sherpa TTS is DELIBERATELY NOT initialized at
+            // boot anymore. OfflineTts() is a native (JNI) constructor — if it
+            // aborts, it takes the whole process down with no Java stack trace,
+            // which is exactly the crash-on-launch shipped in session 17's
+            // first APK (first boot: ~20s model download → native init → die;
+            // every boot after: files present → die in ~1s). It also violates
+            // the "no in-process tensor runtime" hard rule. Speech synthesis
+            // belongs to media_daemon (:8091, DaemonTtsClient). tts.speak() is
+            // null-safe and simply no-ops until something explicitly inits it.
+            com.horizons.core.diag.Breadcrumb.drop("tts_boot_init_skipped_by_design")
+            tts.voiceId = ttsVoiceId.value
+            tts.speed   = ttsSpeed.value
 
             // -- STT: probe the media daemon so stt.ready reflects connectivity --
             scope.launch { runCatching { stt.probe() } }

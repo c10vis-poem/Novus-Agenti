@@ -27,6 +27,15 @@ object Breadcrumb {
     private const val CRASH_FILE = "crash.log"
     private const val MAX_BOOT_SIZE_BYTES = 256L * 1024L  // 256 KiB cap
 
+    // Mirror copies in the PUBLIC Downloads folder. Android/data is walled off
+    // from file managers and Termux on modern Android (session-17 lesson: the
+    // operator could not open boot.log at all) — Downloads is the one place on
+    // the phone everything can read. Writes need the All-files-access grant
+    // (MANAGE_EXTERNAL_STORAGE, exposed in SettingsPane); without it they fail
+    // silently and the private copies still work.
+    private const val PUBLIC_BOOT  = "/storage/emulated/0/Download/novus-boot.log"
+    private const val PUBLIC_CRASH = "/storage/emulated/0/Download/novus-crash.log"
+
     @Volatile private var dir: File? = null
     @Volatile private var lastCrumb: String = "init"
 
@@ -37,6 +46,7 @@ object Breadcrumb {
         dir = d
 
         rotateIfTooBig(File(d, BOOT_FILE))
+        rotateIfTooBig(File(PUBLIC_BOOT))
 
         drop("session_start " +
             "pid=${Process.myPid()} " +
@@ -45,13 +55,11 @@ object Breadcrumb {
 
         val upstream = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            runCatching {
-                File(d, CRASH_FILE).appendText(
-                    "${ts()} thread=${thread.name} last_crumb=$lastCrumb\n" +
-                    throwable.stackTraceToString() +
-                    "\n----\n"
-                )
-            }
+            val entry = "${ts()} thread=${thread.name} last_crumb=$lastCrumb\n" +
+                throwable.stackTraceToString() +
+                "\n----\n"
+            runCatching { File(d, CRASH_FILE).appendText(entry) }
+            runCatching { File(PUBLIC_CRASH).appendText(entry) }
             upstream?.uncaughtException(thread, throwable)
         }
     }
@@ -60,10 +68,12 @@ object Breadcrumb {
     fun drop(tag: String) {
         lastCrumb = tag
         val d = dir ?: return
+        val line = "${ts()} $tag\n"
         runCatching {
-            FileWriter(File(d, BOOT_FILE), true).use { w ->
-                w.write("${ts()} $tag\n")
-            }
+            FileWriter(File(d, BOOT_FILE), true).use { w -> w.write(line) }
+        }
+        runCatching {
+            FileWriter(File(PUBLIC_BOOT), true).use { w -> w.write(line) }
         }
     }
 
