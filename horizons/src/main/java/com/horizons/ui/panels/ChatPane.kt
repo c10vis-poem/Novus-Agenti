@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +76,7 @@ import com.horizons.HorizonsApplication
 import com.horizons.ui.WaterDropletBackground
 import com.horizons.ui.theme.HorizonsColors
 import com.horizons.audio.AudioRecorder
+import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatSession
 import com.horizons.fgs.LiveChatService
 import com.horizons.fgs.ScreenShareService
@@ -108,6 +111,14 @@ fun ChatPane(modifier: Modifier = Modifier) {
     val snackbarHostState = remember { SnackbarHostState() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     var showPlusMenu by remember { mutableStateOf(false) }
+
+    // Pinch-to-zoom text scale (operator request) — persisted so it survives
+    // restarts. Clamped to keep bubbles readable/usable at either extreme.
+    var textScale by remember {
+        mutableStateOf(
+            app.appState.get(AppStateStore.KEY_CHAT_TEXT_SCALE)?.toFloatOrNull() ?: 1.0f
+        )
+    }
 
     val lastText = messages.lastOrNull()?.text ?: ""
     LaunchedEffect(lastText) {
@@ -306,13 +317,24 @@ fun ChatPane(modifier: Modifier = Modifier) {
             }
 
             // ── Message list (carbon tile bubbles) ────────────────────────────
+            // Pinch anywhere on the message list to zoom text size; persisted
+            // on each gesture so it's remembered next launch.
             LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, _, zoom, _ ->
+                            if (zoom == 1f) return@detectTransformGestures
+                            textScale = (textScale * zoom).coerceIn(0.75f, 2.5f)
+                            app.appState.put(AppStateStore.KEY_CHAT_TEXT_SCALE, textScale.toString())
+                        }
+                    },
                 state = listState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(messages) { msg -> CarbonBubble(msg) }
+                items(messages) { msg -> CarbonBubble(msg, textScale) }
             }
 
             // ── Attachment thumbnail strip ────────────────────────────────────
@@ -451,7 +473,7 @@ fun ChatPane(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CarbonBubble(msg: ChatMessage) {
+private fun CarbonBubble(msg: ChatMessage, textScale: Float = 1.0f) {
     val isUser = msg.role == "user"
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -469,6 +491,7 @@ private fun CarbonBubble(msg: ChatMessage) {
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Default,
+                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
                     ),
                     color = if (isUser) ChatAccent else Color.White.copy(alpha = 0.9f),
                 )

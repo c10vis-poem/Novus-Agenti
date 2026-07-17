@@ -62,5 +62,20 @@ class AppStateStore(context: Context) {
         // TTS (Sherpa-ONNX / Kokoro)
         const val KEY_TTS_VOICE         = "tts.voice_id"
         const val KEY_TTS_SPEED         = "tts.speed"
+
+        // UI
+        /** Pinch-to-zoom text scale for ChatPane message bubbles, persisted so
+         *  it survives app restarts. Range enforced at the call site. */
+        const val KEY_CHAT_TEXT_SCALE   = "ui.chat_text_scale"
+
+        /**
+         * Absolute path of the GGUF the operator explicitly chose to load via
+         * GenieX. THE ONLY thing that triggers geniex_daemon to launch/reload
+         * a model — the app must ship/run empty until this is set (operator
+         * hard requirement, session 17: auto-picking whatever GGUF landed in
+         * Downloads and silently launching it was exactly backwards). Empty/
+         * unset = no local LLM daemon runs, full stop.
+         */
+        const val KEY_ACTIVE_GENIEX_MODEL = "genie.active_model_path"
     }
 }

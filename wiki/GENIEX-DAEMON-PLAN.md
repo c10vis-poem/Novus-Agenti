@@ -138,37 +138,116 @@ So the wire seam is settled: **standard OpenAI `POST /v1/chat/completions`** on
   `choices[].delta.content` out), and point the readiness probe at
   `/v1/models`. This is a documented, stable contract — not a guess.
 
-### Still needs the repo source (fork → `add_repo` to read)
+### ANSWERED from source (session 17 — fork landed, `c10vis-poem/geniex` read)
 
-The README does **not** document these; they require reading the GenieX repo:
-- Exact `geniex serve` flags: **port override, bind/host, backend selector**
-  (QAIRT/AI-Engine-Direct NPU-only vs GGML), and **which model** to serve when
-  several are pulled.
-- Whether a dedicated `/health` (or `/readyz`) exists beyond `GET /v1/models`.
-- `geniex pull` syntax for a **specific HF GGUF** (vs the `ai-hub-models/...`
-  bundle shown) and how **Q4_0** is chosen ("pick Q4_0 when prompted").
-- **Android/aarch64 packaging as a detached binary.** The README only documents
-  the in-process Gradle SDK (`com.qualcomm.qti:geniex-android:0.3.1`) — which is
-  the rejected in-process path. Need to confirm a **standalone `geniex` CLI
-  binary** for arm64-android (prebuilt release vs Bazel build) to run it as the
-  detached daemon. Sample app lives in `qualcomm/ai-hub-apps`.
+The CLI is **Go** (cobra/gin/viper — not Rust as an earlier pass assumed;
+only parts of the SDK stack are), wrapping the SDK via the cgo binding in
+`bindings/go`. Confirmed against `cli/cmd/geniex/serve.go`,
+`cli/cmd/geniex/model.go`, `cli/server/route.go`,
+`.github/workflows/_build-cli.yml`, `notes/bench.md`, `docs/en/run/android/`:
 
-**Because of the above, `NpuClient`/`DaemonLauncher`/CI wiring is NOT written
-yet** — the OpenAI wire format is safe to implement, but the serve flags, the
-readiness endpoint, and the standalone-binary packaging must be confirmed
-against source first (audit-before-feature, per the app-pathway mandate).
+- **Serve flags**: `geniex serve --host 127.0.0.1:18181` (host:port in ONE
+  flag; env `GENIEX_HOST`) · `--compute cpu|gpu|npu|hybrid` (`GENIEX_COMPUTE`;
+  default hybrid for llama_cpp, npu for qairt) · `--nctx 4096` / `--ngl 999`
+  (llama_cpp defaults; per-request body fields override) · global
+  `--data-dir` (`GENIEX_DATADIR`) sets where models live. **No `--model`
+  flag** — the model is chosen per-request by the `"model"` body field,
+  loaded on demand from the data dir.
+- **Health**: NO dedicated `/health`/`readyz`. Routes: `GET /` (root
+  banner), `GET /v1/`, `POST /v1/completions`, `POST /v1/chat/completions`,
+  `GET /v1/models`, `GET /v1/models/*model`. So `GET /v1/models` IS the
+  readiness probe — exactly what `GenieXClient` already implements.
+- **Pull**: `geniex pull <model> --model-hub aihub|hf|docker|localfs
+  [--local-path <dir-or-zip>] [--model-type llm|vlm]`. **`localfs` imports a
+  model already on disk with no network** — the on-device Q4_0 GGUF in
+  /Download can be imported directly; no re-download.
+- **Android packaging — the catch**: upstream builds the standalone CLI for
+  **windows-arm64 and linux-arm64 ONLY** (`_build-cli.yml` matrix). Android
+  officially gets (a) the in-process Gradle SDK
+  (`com.qualcomm.qti:geniex-android:0.3.1`, arm64-v8a `.so`s in the AAR) —
+  the path this plan rejects for the UI process — and (b)
+  `geniex-bench-android-arm64` (the bundle already on the device), which is
+  the **benchmark tool, not the server**: it cannot `serve`, so it does NOT
+  satisfy the daemon role by itself (still useful to validate the GGUF runs
+  on HTP at all). **There is no upstream `geniex serve` binary for
+  Android — but none is needed.** DECIDED (session 17, after the operator
+  pointed back at the QAIRT knowledge base): **build `geniex_daemon`, a
+  thin C++ HTTP daemon linking `libgeniex` directly** — same pattern as
+  `media-daemon/` (sherpa-onnx). Grounds, verified in the fork's source:
+  - `sdk/include/geniex.h` is a complete C API: `geniex_llm_create` /
+    `geniex_llm_generate` (streaming via `geniex_token_callback`) /
+    `geniex_llm_apply_chat_template`, KV-cache save/load, and
+    `geniex_vlm_create`/`geniex_vlm_generate` for vision.
+  - `sdk/plugins/` has both backends: `llama_cpp` (GGML — Q4_0 GGUF) and
+    `qairt` (HTP). `sdk/CMakePresets.json` ships an official
+    **`arm64-android-snapdragon` preset** (arm64-v8a, android-31) — the
+    SDK cross-compiles to Android out of the box; the on-device
+    `geniex-bench-android-arm64` bundle is built from exactly this stack.
+  The daemon serves `/v1/chat/completions` + `/v1/models` on `:18181`
+  (what `GenieXClient` already speaks), serve-first per
+  `wiki/BOOT-SEQUENCE.md`, launched by `DaemonLauncher`, guarded by
+  `CliffordService`, CI-built like `media_daemon`. The Go-CLI cross-compile
+  and the in-process Gradle-SDK path are both rejected. `geniex-bench`
+  on-device stays useful as pre-validation of GGUF-on-HTP performance.
+
+### QAIRT manual findings that shape the daemon (session 17 ingest)
+
+Read from `knowledge/qairt-sdk/` (overview, backend, HTP chunks via
+`htp.jsonl`) after the operator called for a full ingest — step 2 of the
+next-steps list is now genuinely done, and it changed the design:
+
+- **The perf-tuning seam is a JSON file in the model bundle, not daemon
+  code.** `sdk/plugins/qairt/src/llm.cpp` auto-loads
+  `htp_backend_ext_config.json` from the model dir — the QNN
+  *backend-extension config* documented in the manual. Perf profiles,
+  `O`-level, `soc_id`/`dsp_arch` all go there; `geniex_daemon` stays thin.
+- **`llm_decode_*` perf profiles: exact device match.** New in SDK 2.48,
+  HTP V79+ only — the device has QAIRT v2.48.0 + HTP v79 (see
+  DEVICE-INVENTORY). LLM decode is memory-bandwidth-bound; these profiles
+  drop HMX and scale DDR/HVX per tier for tokens-per-watt.
+  `llm_decode_burst` = max (adds DDR Perf Mode); `llm_decode_balanced` =
+  battery default. NOT for prefill/VLM encode — traditional `burst` there;
+  GenieX's pipeline manages stages, we just set the bundle config.
+- **Device config: vote SOC, not ARCH** (`QNN_HTP_DEVICE_CONFIG_OPTION_SOC`
+  wins over ARCH when both set; SOC recommended — SM8750).
+- **QNN perf votes vs the NpuManager lock (CliffordService)**: two
+  different layers — NpuManager is the BSP-level performance lock, QNN
+  perf-infra votes (DCVS_V3 + HMX + CENG, bundled in one setPowerConfig)
+  are per-client runtime votes the qairt plugin/backend-ext config
+  handles. Keep both; they're complementary, not duplicates.
+- **qairt plugin rejects `--nctx`/`--ngl`** (llama_cpp-only params) — the
+  daemon must not pass them on the QAIRT path.
+- **QAIRT bundle layout** (what `geniex_llm_create` wants for HTP):
+  `.bin` context shards + `tokenizer.json` + optional
+  `htp_backend_ext_config.json` + optional `forecast-prefix/` (SSD only).
+- **Native KV cache** (fallback compile path only): context length must be
+  a multiple of 256, head_dim multiple of 64, KV tensors uint8 symmetric,
+  ScatterElement not Concat — constraints on the QAI-Hub export if Job 8
+  ever runs. Current manifest max_seq_len 2048 OK (multiple of 256).
 
 ## Next steps (in order)
 
 1. Operator forks `qualcomm/GenieX` → `c10vis-poem/GenieX` (agent session is
-   scoped to `c10vis-poem` only; cross-owner fork/add is walled off). Once it's
-   under `c10vis-poem`, `add_repo c10vis-poem/GenieX` can pull it into a session
-   so the real source (exact `geniex serve` flags, health endpoint, GGUF vs
-   bundle loading, Android packaging) can be read directly.
+   scoped to `c10vis-poem` only; cross-owner fork/add is walled off —
+   RE-CONFIRMED session 17: both `fork_repository` and `add_repo` against
+   `qualcomm/GenieX` return scope/cross-tier denials, so this really is a
+   one-click operator action on github.com). Once it's under `c10vis-poem`,
+   `add_repo c10vis-poem/GenieX` pulls it into a session so the real source
+   (exact `geniex serve` flags, health endpoint, GGUF vs bundle loading,
+   Android packaging) can be read directly.
 2. Ingest Drive `#QAIRT/` (Context/Backend/Api/Graph/Tensor/HTP/Overview) into
    `knowledge/qairt-sdk/` as the HTP/AI-Engine-Direct reference.
-3. Decide the wire seam: adopt OpenAI format in `NpuClient.kt` (preferred) vs a
-   `:8080→:18181` shim.
+3. ~~Decide the wire seam~~ — DONE session 17, option (a): OpenAI format,
+   implemented as the ADDITIVE `core/llm/GenieXClient.kt` (NpuClient stays
+   the legacy :8080 client, untouched). GenieXClient speaks
+   `POST /v1/chat/completions` (streamed `choices[].delta.content`, OpenAI
+   image_url part for vision), discovers the model id from `GET /v1/models`
+   (no hardcoded model string, so serve-flag details stay out of the
+   client), and maps readiness as models-200-nonempty=ready /
+   port-open-else=loading / unreachable=offline — preserving alive≠ready
+   (BOOT-SEQUENCE.md I2). NOT yet activated: CliffordService still guards
+   ort_engine and activates NpuClient; the activation swap + DaemonLauncher
+   args + CI packaging remain gated on reading GenieX source (step 1).
 4. Get the Qwen3.5-9B **Q4_0 GGUF** (fits the ~5.5 GB envelope) and/or the AI
    Hub bundle; `geniex pull` / `geniex serve` on device.
 5. Package `geniex serve` as the runtime binary in `build-apk.yml`; keep

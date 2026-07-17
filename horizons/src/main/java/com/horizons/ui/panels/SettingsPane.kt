@@ -107,7 +107,10 @@ fun SettingsPane(
         TokenField(
             label = "HuggingFace token",
             value = creds[AppStateStore.KEY_HF_TOKEN] ?: "",
-            onSave = { app.appState.put(AppStateStore.KEY_HF_TOKEN, it) },
+            onSave = {
+                app.appState.put(AppStateStore.KEY_HF_TOKEN, it)
+                app.cloudRuntime.refreshStatus()
+            },
         )
         TokenField(
             label = "GitHub token",
@@ -129,12 +132,18 @@ fun SettingsPane(
         TokenField(
             label = "SambaNova API key",
             value = creds[AppStateStore.KEY_API_SAMBANOVA] ?: "",
-            onSave = { app.appState.put(AppStateStore.KEY_API_SAMBANOVA, it) },
+            onSave = {
+                app.appState.put(AppStateStore.KEY_API_SAMBANOVA, it)
+                app.cloudRuntime.refreshStatus()
+            },
         )
         TokenField(
             label = "OpenRouter API key",
             value = creds[AppStateStore.KEY_API_OPENROUTER] ?: "",
-            onSave = { app.appState.put(AppStateStore.KEY_API_OPENROUTER, it) },
+            onSave = {
+                app.appState.put(AppStateStore.KEY_API_OPENROUTER, it)
+                app.cloudRuntime.refreshStatus()
+            },
         )
         TokenField(
             label = "QAI Hub API key",

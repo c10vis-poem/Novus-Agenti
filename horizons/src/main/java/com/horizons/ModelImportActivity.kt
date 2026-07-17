@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.horizons.core.shell.RuntimeFiles
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -92,7 +93,25 @@ class ModelImportActivity : ComponentActivity() {
         val fileName = resolveFileName(uri)
         Log.i(TAG, "handleIntent: action=${intent.action} uri=$uri resolved fileName='$fileName'")
         when {
-            isModelFile(fileName) -> {
+            RuntimeFiles.isGenieXPluginsArchive(fileName) -> {
+                statusText.value = "Extracting GenieX plugins…"
+                scope.launch { extractGenieXPlugins(uri) }
+            }
+            fileName.lowercase().let { it.startsWith("libonnxruntime-media") && it.endsWith(".so") } -> {
+                // media_daemon's own ONNX Runtime — must NOT land in filesDir
+                // root (would collide with ort_engine's differently-versioned
+                // libonnxruntime.so). See RuntimeFiles.MEDIA_ONNXRUNTIME_ARTIFACT.
+                statusText.value = "Installing media daemon's ONNX Runtime…"
+                scope.launch {
+                    importFile(
+                        uri, "libonnxruntime.so",
+                        destDir = File(filesDir, RuntimeFiles.MEDIA_LIBS_SUBDIR),
+                        executable = false,
+                        label = "Runtime component",
+                    )
+                }
+            }
+            RuntimeFiles.isModelFile(fileName) -> {
                 statusText.value = "Importing $fileName…"
                 scope.launch {
                     importFile(
@@ -103,19 +122,67 @@ class ModelImportActivity : ComponentActivity() {
                     )
                 }
             }
-            isRuntimeFile(fileName) -> {
-                val canonical = canonicalRuntimeName(fileName)
+            RuntimeFiles.isRuntimeFile(fileName) -> {
+                val canonical = RuntimeFiles.canonicalRuntimeName(fileName)
                 statusText.value = "Installing $canonical…"
                 scope.launch {
                     importFile(
                         uri, canonical,
                         destDir = filesDir,
-                        executable = canonical == com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY,
+                        executable = canonical in RuntimeFiles.EXECUTABLE_RUNTIMES,
                         label = "Runtime component",
                     )
                 }
             }
             else -> finishWithError("Unsupported file type: $fileName")
+        }
+    }
+
+    /**
+     * Unpacks geniex-plugins-arm64.tar.gz (CI output — see build-apk.yml)
+     * into filesDir/geniex-plugins/, preserving the tar's own layout
+     * (one directory per plugin id, each holding its .so files) so it
+     * matches GENIEX_PLUGIN_PATH's expected shape. geniex_daemon dlopen's
+     * these from its own process — no chmod +x needed, .so files just
+     * need to be readable.
+     */
+    private suspend fun extractGenieXPlugins(uri: Uri) {
+        try {
+            val count = withContext(Dispatchers.IO) {
+                val destRoot = File(filesDir, "geniex-plugins").apply { mkdirs() }
+                var n = 0
+                contentResolver.openInputStream(uri)?.use { raw ->
+                    org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(raw).use { gz ->
+                        org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gz).use { tar ->
+                            var entry = tar.nextEntry
+                            while (entry != null) {
+                                val out = File(destRoot, entry.name)
+                                if (entry.isDirectory) {
+                                    out.mkdirs()
+                                } else {
+                                    out.parentFile?.mkdirs()
+                                    out.outputStream().use { dst -> tar.copyTo(dst) }
+                                    n++
+                                }
+                                entry = tar.nextEntry
+                            }
+                        }
+                    }
+                } ?: throw IllegalStateException("Cannot open input stream")
+                Log.i(TAG, "Extracted $n GenieX plugin files -> ${destRoot.absolutePath}")
+                n
+            }
+
+            importing.value = false
+            statusText.value = "GenieX plugins installed ($count files)"
+            Toast.makeText(this@ModelImportActivity, "GenieX plugins installed", Toast.LENGTH_LONG).show()
+            startActivity(Intent(this@ModelImportActivity, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            finish()
+        } catch (e: Exception) {
+            Log.e(TAG, "GenieX plugin extraction failed", e)
+            finishWithError("Plugin extraction failed: ${e.message}")
         }
     }
 
@@ -170,34 +237,6 @@ class ModelImportActivity : ComponentActivity() {
         return uri.lastPathSegment ?: "unknown_model"
     }
 
-    private fun isModelFile(name: String): Boolean {
-        val lower = name.lowercase()
-        return MODEL_EXTENSIONS.any { lower.endsWith(it) }
-    }
-
-    private fun isRuntimeFile(name: String): Boolean {
-        val lower = name.lowercase()
-        // Tolerant match: handles download-dedupe suffixes ("ort_engine (1)"),
-        // versioned QNN libs ("libQnnHtpV79Skel.so"), and case variations.
-        if (lower.startsWith("ort_engine")) return true
-        if (lower.startsWith("libonnxruntime") && lower.endsWith(".so")) return true
-        if (lower.startsWith("libqnn") && lower.endsWith(".so")) return true
-        return false
-    }
-
-    /** Canonical filename to write to disk — strip Android's "(1)" download suffixes. */
-    private fun canonicalRuntimeName(name: String): String {
-        val lower = name.lowercase()
-        return when {
-            lower.startsWith("ort_engine") -> com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY
-            lower.startsWith("libonnxruntime") -> "libonnxruntime.so"
-            lower.startsWith("libqnnhtpv79skel") -> "libQnnHtpV79Skel.so"
-            lower.startsWith("libqnnhtp") -> "libQnnHtp.so"
-            lower.startsWith("libqnnsystem") -> "libQnnSystem.so"
-            else -> name
-        }
-    }
-
     private fun finishWithError(msg: String) {
         Log.w(TAG, msg)
         importing.value = false
@@ -208,24 +247,7 @@ class ModelImportActivity : ComponentActivity() {
     companion object {
         private const val TAG = "ModelImport"
 
-        val MODEL_EXTENSIONS = listOf(
-            ".serialized.bin",
-            ".bin",
-            ".onnx",
-            ".gguf",
-            ".tflite",
-            ".dlc",
-            ".pte",
-            ".qnn",
-        )
-
-        // Native daemon runtime components — CI build outputs from build-apk.yml.
-        val RUNTIME_FILES = setOf(
-            com.horizons.core.shell.DaemonLauncher.ENGINE_BINARY, // "ort_engine"
-            "libonnxruntime.so",
-            "libQnnHtp.so",
-            "libQnnSystem.so",
-            "libQnnHtpV79Skel.so",
-        )
+        /** @deprecated use [RuntimeFiles.MODEL_EXTENSIONS] — kept for external references. */
+        val MODEL_EXTENSIONS get() = RuntimeFiles.MODEL_EXTENSIONS
     }
 }
