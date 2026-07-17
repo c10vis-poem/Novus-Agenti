@@ -6,10 +6,12 @@
 > Project: Novus Agenti (Omni Claw) — fully on-device agentic AI assistant.
 > Canonical repo: c10vis-poem/Novus-Agenti.
 >
-> ONE ACTIVE BRANCH: claude/notice-agent-ui-local-xa14op (app/UI-fork work —
-> local-first UI, model+vision daemon / media daemon split). This is THE
-> current work. Earlier app-track branch (sae7cy/PR #15) is merged to main
-> (PR #17) — do not reuse it.
+> ONE ACTIVE TRACK: the app/UI-fork work (local-first UI, model+vision
+> daemon / media daemon split). As of session 17 all prior app-track
+> branches (sae7cy/PR #15, claude/notice-agent-ui-local-xa14op) are MERGED
+> to main — do not reuse them. Each new session works on the branch the
+> harness cut from main for it (session 17: mer0vin6ian/practical-bell-3t735g);
+> don't resurrect old branch names from this file's history.
 >
 > The compile pipeline (ONNX → QAI Hub, branch claude/project-scope-review-lf615p,
 > PR #4) is DORMANT — not a second parallel track to pick up by default. It
@@ -207,9 +209,9 @@ above already cover.
 ### How to brief every sub-agent
 Every sub-agent prompt must include:
 - Repo: `c10vis-poem/Novus-Agenti`, and the correct branch for the track
-  (`claude/project-scope-review-lf615p` for compile work, PR #4;
-  `claude/notice-agent-ui-local-xa14op` for app/UI-fork work — see the
-  resume prompt above for the current PR number; sae7cy/PR #15 is merged)
+  (`claude/project-scope-review-lf615p` for compile work, PR #4; for
+  app/UI-fork work, the CURRENT session's harness-cut branch — see the
+  resume prompt above; old app branches are merged, do not reuse)
 - Instruction to read CLAUDE.md before acting
 - The exact task (not open-ended)
 - What NOT to do (no commits to main, no pushing other branches)
@@ -255,10 +257,11 @@ App package: `com.horizons`. Codebase: **Omni Claw** banner.
 
 - **`c10vis-poem/Novus-Agenti`** — THE canonical repo. All commits, pushes, CI, artifacts go here.
 - **`M0DU14R-SYSx-inc/NeuroOmni.Vag-Agenti`** — REFERENCE-ONLY. Never push, commit, or modify.
-- **One active branch**: `claude/notice-agent-ui-local-xa14op` (app/UI-fork
-  work). `claude/project-scope-review-lf615p` (compile, PR #4) exists but is
-  dormant — see the resume prompt above and `wiki/COMPILE-PIPELINE.md`.
-  `sae7cy`/PR #15 is merged; do not reuse it.
+- **One active track**: app/UI-fork work, on the session's harness-cut
+  branch off main (see the resume prompt above — old branch names
+  `claude/notice-agent-ui-local-xa14op` and `sae7cy` are merged, do not
+  reuse). `claude/project-scope-review-lf615p` (compile, PR #4) exists but
+  is dormant — see `wiki/COMPILE-PIPELINE.md`.
 
 ---
 
@@ -477,7 +480,7 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-13 (session 16)
+## State of the Union — 2026-07-14 (session 17)
 
 This is the **only** current-state doc in this repo — updated in place
 each session, not accumulated as a new file per session. Historical
@@ -487,7 +490,44 @@ log, don't expect it copy-pasted in this file.
 
 ### Current state
 
-- **App/UI-fork track is the one active branch** (`claude/notice-agent-ui-local-xa14op`).
+- **Session 17**: session-16 branch merged to main; work continues on the
+  harness-cut branch `mer0vin6ian/practical-bell-3t735g`. **Boot/loading
+  sequence is now specified** — `wiki/BOOT-SEQUENCE.md` (was Pending 4):
+  process topology, 3 entry points, Phases 1–4, the liveness-vs-readiness
+  and serve-first invariants as a checklist for future boot-path changes.
+  Sibling infra lane (AESOP T3 bring-up: Tailscale → Jetson → Rubik Pi)
+  was briefed to the operator separately — it lives in the `aesop` repo's
+  orbit, NOT here; don't pick it up from this file.
+- **Pending 1 (GenieX) NEARLY DONE, session 17**: operator forked
+  `c10vis-poem/geniex`; source read; QAIRT manual ingested (per operator
+  directive — findings in GENIEX-DAEMON-PLAN.md). Shipped and CI-GREEN:
+  `core/llm/GenieXClient.kt` (OpenAI wire, /v1/models readiness) +
+  **`geniex-daemon/`** (thin C++ over libgeniex's C API — SSE streaming
+  via token callback, chat template, serve-first) + CI building the
+  GenieX SDK from the fork (llama_cpp/GGML plugin ON, qairt OFF in CI —
+  device bundle already has that backend; Rust model-manager needs
+  rustup android target + ANDROID_NDK_ROOT, fixed). Artifacts on
+  latest-debug: `geniex_daemon`, `libgeniex.so`,
+  `geniex-plugins-arm64.tar.gz`. REMAINING: on-device run (operator) +
+  activation swap (CliffordService/HorizonsApplication still guard/
+  activate ort_engine+NpuClient — swap after on-device verification).
+- **Pending 2 (media daemon) BUILT, session 17, CI-GREEN**:
+  `media-daemon/` — sherpa-onnx C API daemon (Moonshine STT + Kokoro
+  TTS) on :8091 serving the existing DaemonSttClient/DaemonTtsClient
+  contract; serve-first; Content-Length-safe HTTP. CI builds sherpa-onnx
+  from `c10vis-poem/sherpa-onnx` (cached) + `media_daemon`;
+  CliffordService launches/guards it (marker-file model-dir discovery).
+  REMAINING: on-device run against the kokoro-multi-lang +
+  moonshine-base-int8 bundles.
+- **"Make the app work" pass (operator directive, session 17)**: Termux
+  terminal mode (`TermuxRunner` — RUN_COMMAND, bash -lc, hard timeout;
+  ShellTab toggle) so the on-device openwiki/node toolchain runs from
+  the app; Silero VAD actually wired (model resolves from models//
+  Download — the asset was never shipped, RMS fallback was silently
+  active; drop `silero_vad.onnx` in /Download to activate); cloud-key
+  saves refresh backend status; LLM-model scanner excludes aux models
+  (vad/moonshine/kokoro); ModelImportActivity knows all new binaries.
+- **App/UI-fork track is the one active track** (session-16 work merged).
   Horizons app is code-complete UI (Compose, 6 panels, home grid, chat,
   terminal, browser tab); daemon/watchdog architecture (`CliffordService`,
   `DaemonLauncher`) is real and working; a new additive local-first UI fork
@@ -558,11 +598,9 @@ log, don't expect it copy-pasted in this file.
    it's not currently listed there at all.
 3. **Fix `http_server.cpp`'s recv() truncation** before vision can actually
    round-trip end to end.
-4. **Define precise boot/loading-phase sequencing for the UI build** — the
-   actual init order (daemon launch → health poll → UI activation →
-   voice/assist service registration → perf-lock acquisition) is implicit/
-   scattered across `CliffordService`/`DaemonLauncher`/`MainActivity`/
-   `LocalHomeActivity` rather than specified as one sequence.
+4. ~~Boot/loading-phase sequencing~~ — DONE session 17:
+   `wiki/BOOT-SEQUENCE.md` is the authoritative init-order contract.
+   Future boot-path changes check its invariants list.
 5. **Cloud connectors** — OpenRouter works; OmniRoute, GitHub, HuggingFace,
    QAI Hub, GCS still need wiring (`CloudLlmRuntime`, agent tools).
 6. **Tailscale** — route to home node, not yet installed/wired.
@@ -620,6 +658,7 @@ compile/                        dormant compile-pipeline domain (was models/ + s
   compile_qwen3_5_9b.py          fallback compile script (dormant, see wiki/COMPILE-PIPELINE.md)
   requirements-compile.txt       pip deps for the staged Colab compile
 wiki/
+  BOOT-SEQUENCE.md               authoritative boot/loading-phase contract (session 17)
   COMPILE-PIPELINE.md            dormant fallback pipeline (Single-Path Architecture,
                                   Size Envelope, Hexagon HTP Constraints, Job 8 command)
   GENIEX-DAEMON-PLAN.md          GenieX runtime plan + model/vision daemon split

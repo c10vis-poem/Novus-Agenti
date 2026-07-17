@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import com.horizons.HorizonsApplication
+import com.horizons.core.llm.GenieXClient
 import com.horizons.core.llm.NpuClient
 import com.horizons.core.shell.DaemonLauncher
 import com.horizons.core.shell.NativeBinaryInstaller
@@ -43,6 +44,7 @@ class CliffordService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var crsJob: Job? = null
     private var launcher: DaemonLauncher? = null
+    private var mediaLauncher: DaemonLauncher? = null
     private var npuPerfLock: AutoCloseable? = null
 
     private enum class DaemonState(val label: String) {
@@ -104,9 +106,15 @@ class CliffordService : Service() {
         crsJob = scope.launch {
             val app = applicationContext as? HorizonsApplication
 
-            // Phase 1: install + launch daemon from THIS FGS context.
-            // Daemon inherits this process's oom_score_adj (~-200 to -400).
+            // Phase 0: pull any recognized runtime files straight from
+            // Downloads into filesDir — no "Open with" step required.
+            runCatching { com.horizons.core.shell.AutoImport.sync(this@CliffordService) }
+
+            // Phase 1: install + launch daemons from THIS FGS context.
+            // They inherit this process's oom_score_adj (~-200 to -400).
             ensureDaemonRunning()
+            ensureMediaDaemonRunning()
+            ensureGenieDaemonRunning()
 
             // Phase 2: CRS heartbeat.
             // Key rule that breaks the crash loop: a LIVE process is NEVER relaunched,
@@ -118,6 +126,28 @@ class CliffordService : Service() {
                 runCatching {
                     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     nm.notify(NOTIF_ID, buildNotification())
+                }
+
+                runCatching { com.horizons.core.shell.AutoImport.sync(this@CliffordService) }
+
+                // Media + GenieX daemons are both optional and serve-first (503s
+                // over a bad/missing model, never crash-loops) — just make sure
+                // they're up if their binaries exist. NOTE: runtime ACTIVATION
+                // does not happen here at all — this service is a separate
+                // process (:clifford), so calling app.activate*Runtime() here
+                // only mutated clifford's own dead copy of the app singleton,
+                // never the UI's (root cause of "daemon healthy but chat still
+                // says no backend", present since the original ort_engine
+                // wiring). The MAIN process polls daemon ports and activates
+                // its own runtimes — see HorizonsApplication's runtime watcher.
+                ensureMediaDaemonRunning()
+                ensureGenieDaemonRunning()
+
+                // Auto-report main-process crashes to GitHub (this process
+                // survives them). No-op without a stored GitHub token; each
+                // crash uploads once. See core/diag/CrashReporter.
+                runCatching {
+                    com.horizons.core.diag.CrashReporter.maybeUpload(this@CliffordService)
                 }
 
                 // Terminal state: we gave up relaunching. Sit idle until the model
@@ -134,15 +164,15 @@ class CliffordService : Service() {
                 val processAlive = launcher?.isRunning() == true
 
                 if (processAlive) {
-                    // Process is up. Readiness decides activation; we do NOT relaunch.
+                    // Process is up. Readiness decides state (and the perf lock);
+                    // runtime activation is the MAIN process's job (see above).
                     consecutiveLaunchFailures = 0
                     when (daemonHealthCode()) {
                         200 -> {
                             updateState(DaemonState.Healthy)
-                            if (app != null && !app.isNpuActive) {
-                                app.activateNpuRuntime()
+                            if (npuPerfLock == null) {
                                 acquireNpuPerfLock()
-                                Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                                Log.i(TAG, "CRS: daemon healthy — perf lock acquired")
                             }
                         }
                         // 503 = alive but model still loading OR load failed. Either way the
@@ -200,6 +230,126 @@ class CliffordService : Service() {
                     Log.e(TAG, "CRS: daemon launch failed", it)
                 }
         }
+    }
+
+    /**
+     * Launch the media (STT/TTS) daemon if its binary has been imported and it
+     * isn't already running. Deliberately simpler than the model daemon's state
+     * machine: media_daemon is serve-first (binds :8091 immediately, 503s until
+     * models load, never exits over a bad model), so process liveness is the
+     * only thing to guard. Model dirs are discovered by marker file —
+     * preprocess.onnx = Moonshine, voices.bin = Kokoro — under the app's
+     * models/ dir first, then /Download.
+     */
+    private suspend fun ensureMediaDaemonRunning() {
+        val binary = java.io.File(filesDir, MEDIA_DAEMON_BINARY)
+        if (!binary.canExecute()) return  // not imported yet — optional daemon
+        val l = mediaLauncher ?: DaemonLauncher(this, MEDIA_DAEMON_BINARY)
+            .also { mediaLauncher = it }
+        if (l.isRunning()) return
+
+        fun findModelDir(marker: String): String? {
+            val roots = listOf(
+                java.io.File(filesDir, "models"),
+                java.io.File("/storage/emulated/0/Download"),
+            )
+            for (root in roots) {
+                if (java.io.File(root, marker).canRead()) return root.absolutePath
+                root.listFiles()?.filter { it.isDirectory }?.forEach { dir ->
+                    if (java.io.File(dir, marker).canRead()) return dir.absolutePath
+                }
+            }
+            return null
+        }
+
+        val args = mutableListOf("--port", DaemonLauncher.MEDIA_PORT.toString())
+        findModelDir("preprocess.onnx")?.let { args += listOf("--stt-dir", it) }
+        findModelDir("voices.bin")?.let { args += listOf("--tts-dir", it) }
+
+        // Its own ONNX Runtime copy (version-pinned separately from
+        // ort_engine's — see RuntimeFiles.MEDIA_ONNXRUNTIME_ARTIFACT) must be
+        // searched BEFORE filesDir root, or the mismatched shared copy wins.
+        val mediaLibsDir = java.io.File(filesDir, com.horizons.core.shell.RuntimeFiles.MEDIA_LIBS_SUBDIR)
+        l.launch(args, extraLibDirs = listOf(mediaLibsDir.absolutePath))
+            .onSuccess { Log.i(TAG, "CRS: media daemon launched PID=${it.pid} args=$args") }
+            .onFailure { Log.w(TAG, "CRS: media daemon launch failed", it) }
+    }
+
+    // ── GenieX daemon (:18181, OpenAI wire — see GenieXClient) ─────────────────
+    // Deliberately simpler than the legacy ort_engine state machine above:
+    // serve-first means liveness is the only thing to guard (no relaunch
+    // backoff needed — a bad model just means /v1/models never returns 200,
+    // which the CRS loop above polls for before activating GenieXClient).
+    //
+    // HARD RULE (operator, session 17): this daemon NEVER launches on its
+    // own just because a binary + GGUF happen to be present. It launches
+    // ONLY in response to AppStateStore.KEY_ACTIVE_GENIEX_MODEL being set —
+    // i.e. the operator explicitly picking a model in the Router UI. Ship
+    // empty, land empty, run empty, loaded on the operator's end. Picking a
+    // DIFFERENT model while one is already running stops the old process
+    // and relaunches with the new one — that's the whole hot-swap story for
+    // now (geniex_daemon loads one model per process; true per-request
+    // multi-model serving, which GenieX's real CLI supports, is a future
+    // upgrade, not required for "swap without a rebuild").
+
+    private var genieLauncher: DaemonLauncher? = null
+    private var genieLoadedModelPath: String? = null
+
+    private fun genieDaemonRunning(): Boolean = genieLauncher?.isRunning() == true
+
+    private suspend fun ensureGenieDaemonRunning() {
+        val app = applicationContext as? HorizonsApplication ?: return
+        val binary = java.io.File(filesDir, GENIEX_DAEMON_BINARY)
+        if (!binary.canExecute()) return  // not imported yet
+
+        // Read the selection from the cross-process file, NOT app.appState:
+        // this service runs in :clifford, whose AppStateStore is a separate
+        // stale copy of the main process's encrypted prefs (the original
+        // "tapped Load, nothing happened, no backend forever" bug).
+        val selected = java.io.File(filesDir, HorizonsApplication.ACTIVE_GENIEX_MODEL_FILE)
+            .takeIf { it.canRead() }?.readText()?.trim()?.takeIf { it.isNotBlank() }
+        val l = genieLauncher ?: DaemonLauncher(this, GENIEX_DAEMON_BINARY).also { genieLauncher = it }
+
+        if (selected == null) {
+            // Nothing selected (or the operator cleared the selection) — if
+            // a daemon happens to be running from a prior selection, stop it.
+            if (l.isRunning()) {
+                Log.i(TAG, "CRS: GenieX model deselected — stopping daemon")
+                l.stop()
+                genieLoadedModelPath = null
+            }
+            return
+        }
+
+        if (l.isRunning() && selected == genieLoadedModelPath) return  // already serving the right model
+
+        if (l.isRunning()) {
+            Log.i(TAG, "CRS: GenieX model swap $genieLoadedModelPath -> $selected — restarting daemon")
+            l.stop()
+            // Give the port a moment to free before rebinding.
+            kotlinx.coroutines.delay(500)
+        }
+
+        val pluginDir = java.io.File(java.io.File(filesDir, "geniex-plugins"), "plugins")
+        if (!pluginDir.isDirectory) {
+            Log.w(TAG, "CRS: GenieX plugins not extracted yet (import geniex-plugins-arm64.tar.gz) — waiting")
+            return
+        }
+
+        val args = listOf(
+            "--port", GenieXClient.DEFAULT_PORT.toString(),
+            "--model", selected,
+            "--plugin", "llama_cpp",
+            "--device", "npu",
+            "--plugin-dir", pluginDir.absolutePath,
+            "--model-name", java.io.File(selected).name,
+        )
+        l.launch(args)
+            .onSuccess {
+                genieLoadedModelPath = selected
+                Log.i(TAG, "CRS: GenieX daemon launched PID=${it.pid} model=$selected")
+            }
+            .onFailure { Log.w(TAG, "CRS: GenieX daemon launch failed", it) }
     }
 
     /**
@@ -298,6 +448,9 @@ class CliffordService : Service() {
         // Consecutive dead-process relaunches before we give up and idle in Failed
         // state (re-armed automatically when the model file changes).
         private const val MAX_LAUNCH_FAILURES = 5
+
+        private const val MEDIA_DAEMON_BINARY = "media_daemon"
+        private const val GENIEX_DAEMON_BINARY = "geniex_daemon"
 
         const val ACTION_STOP = "com.horizons.clifford.STOP"
 

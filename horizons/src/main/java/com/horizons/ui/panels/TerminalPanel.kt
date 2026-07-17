@@ -274,12 +274,21 @@ private fun ShellTab(
     var cmd by cmdState
     var running by remember { mutableStateOf(false) }
     val history = remember { mutableStateListOf<ShellEntry>() }
+    // Two real shells: the app-sandbox sh (toybox, app UID) and Termux's login
+    // bash (full $PREFIX PATH — openwiki/node/python/git). Default to Termux
+    // when it's installed; that's the shell that can actually drive the
+    // on-device toolchain.
+    var useTermux by remember { mutableStateOf(app.tasker.isTermuxInstalled()) }
 
     fun runCmd() {
         val command = cmd.trim().ifEmpty { return }
         running = true
         scope.launch {
-            val result = app.tasker.runShellCommand(command)
+            val result = if (useTermux) {
+                com.horizons.core.shell.TermuxRunner.run(app, command, timeoutMs = 60_000L)
+            } else {
+                app.tasker.runShellCommand(command)
+            }
             history.add(ShellEntry(command, result.stdout, result.stderr, result.exitCode))
             if (result.exitCode == 0) cmd = ""
             running = false
@@ -290,14 +299,39 @@ private fun ShellTab(
         Modifier.fillMaxSize().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (!app.tasker.isTermuxInstalled()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (useTermux) "shell: Termux (bash -lc)" else "shell: app sandbox (sh)",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = MatrixGreen.copy(alpha = 0.7f),
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedButton(
+                onClick = { useTermux = !useTermux },
+                enabled = app.tasker.isTermuxInstalled() || useTermux,
+            ) {
+                Text(
+                    if (useTermux) "→ app shell" else "→ Termux",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = MatrixGreen,
+                )
+            }
+        }
+
+        if (useTermux && !app.tasker.isTermuxInstalled()) {
             Surface(
                 color = Color(0xFF1A0000),
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    "Termux not installed — install from F-Droid and grant RUN_COMMAND permission.",
+                    "Termux not installed — install from F-Droid, set allow-external-apps=true " +
+                        "in ~/.termux/termux.properties, restart Termux.",
                     color = Color(0xFFFF6666),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,

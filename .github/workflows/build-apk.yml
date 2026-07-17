@@ -82,6 +82,99 @@ jobs:
           cmake --build daemon/build --config Release -j$(nproc)
           file daemon/build/ort_engine
 
+      # ── media_daemon (Moonshine STT + Kokoro TTS on :8091) ──────────────
+      # sherpa-onnx is built once and cached; media_daemon links its C API.
+      - name: Cache sherpa-onnx android install
+        id: sherpa-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/sherpa-install
+          key: sherpa-onnx-android-arm64-capi-v1
+
+      - name: Build sherpa-onnx (arm64-android, C API)
+        if: steps.sherpa-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/c10vis-poem/sherpa-onnx /tmp/sherpa-onnx
+          cd /tmp/sherpa-onnx
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          export SHERPA_ONNX_ENABLE_C_API=ON
+          export SHERPA_ONNX_ENABLE_JNI=OFF
+          export SHERPA_ONNX_ENABLE_TTS=ON
+          export SHERPA_ONNX_ENABLE_BINARY=OFF
+          export BUILD_SHARED_LIBS=ON
+          ./build-android-arm64-v8a.sh
+          mkdir -p /opt/sherpa-install
+          cp -r build-android-arm64-v8a/install/* /opt/sherpa-install/
+
+      - name: Build media_daemon (arm64-v8a)
+        run: |
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          cmake -S media-daemon -B media-daemon/build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-31 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSHERPA_ONNX_ROOT=/opt/sherpa-install
+          cmake --build media-daemon/build --config Release -j$(nproc)
+          file media-daemon/build/media_daemon
+
+      # ── geniex_daemon (GenieX runtime, OpenAI wire on :18181) ───────────
+      # Builds the GenieX SDK bridge (libgeniex) + llama_cpp plugin (GGML —
+      # the primary Q4_0 GGUF path). QAIRT plugin OFF here for now: it needs
+      # the geniex-qairt submodule's prebuilts; the on-device official bundle
+      # already ships that backend.
+      - name: Cache GenieX android install
+        id: geniex-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/geniex-install
+          key: geniex-android-arm64-ggml-v1
+
+      - name: Build GenieX SDK (arm64-android, llama_cpp plugin)
+        if: steps.geniex-cache.outputs.cache-hit != 'true'
+        run: |
+          # The SDK's model-manager is Rust, cross-compiled by its CMake via
+          # cargo --target aarch64-linux-android with the linker taken from
+          # $ANDROID_NDK_ROOT (see sdk/CMakeLists.txt) — both must exist.
+          rustup target add aarch64-linux-android
+          git clone --depth 1 --recurse-submodules --shallow-submodules \
+            https://github.com/c10vis-poem/geniex /tmp/geniex
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          export ANDROID_NDK_ROOT=/opt/android-ndk-r27c
+          cmake -S /tmp/geniex/sdk -B /tmp/geniex/build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-31 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGENIEX_PLUGIN_LLAMA_CPP=ON \
+            -DGENIEX_PLUGIN_QAIRT=OFF \
+            -DGENIEX_BENCHMARK=OFF
+          cmake --build /tmp/geniex/build --config Release -j$(nproc) \
+            --target geniex geniex_llama_cpp
+          mkdir -p /opt/geniex-install/include /opt/geniex-install/lib \
+                   /opt/geniex-install/plugins
+          cp /tmp/geniex/sdk/include/*.h /opt/geniex-install/include/
+          find /tmp/geniex/build -name 'libgeniex.so' -exec cp {} /opt/geniex-install/lib/ \;
+          # Preserve the plugin dir layout the registry dlopen expects
+          # (<GENIEX_PLUGIN_PATH>/<plugin_id>/libgeniex_plugin.so + deps).
+          find /tmp/geniex/build -name '*.so' ! -name 'libgeniex.so' | while read so; do
+            mkdir -p /opt/geniex-install/plugins/llama_cpp
+            cp "$so" /opt/geniex-install/plugins/llama_cpp/
+          done
+          ls -laR /opt/geniex-install
+
+      - name: Build geniex_daemon (arm64-v8a)
+        run: |
+          export ANDROID_NDK=/opt/android-ndk-r27c
+          cmake -S geniex-daemon -B geniex-daemon/build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-31 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGENIEX_ROOT=/opt/geniex-install
+          cmake --build geniex-daemon/build --config Release -j$(nproc)
+          file geniex-daemon/build/geniex_daemon
+
       - name: Build Horizons debug APK
         run: ./gradlew :horizons:assembleDebug -PnexaEnabled=false --no-daemon --stacktrace
 
@@ -91,6 +184,17 @@ jobs:
           cp horizons/build/outputs/apk/debug/horizons-debug.apk out/horizons.apk
           cp daemon/build/ort_engine out/ort_engine
           cp /opt/ort-android/jni/arm64-v8a/libonnxruntime.so out/libonnxruntime.so
+          cp media-daemon/build/media_daemon out/media_daemon
+          cp /opt/sherpa-install/lib/libsherpa-onnx-c-api.so out/libsherpa-onnx-c-api.so
+          # sherpa-onnx pins its OWN ONNX Runtime (1.24.3, community mirror) —
+          # different from ort_engine's official 1.22.0. Both are natively
+          # named libonnxruntime.so; publish this one under a distinct name so
+          # AutoImport can route it to its own directory instead of colliding
+          # with ort_engine's copy (see core/shell/RuntimeFiles.kt).
+          cp /opt/sherpa-install/lib/libonnxruntime.so out/libonnxruntime-media.so
+          cp geniex-daemon/build/geniex_daemon out/geniex_daemon
+          cp /opt/geniex-install/lib/libgeniex.so out/libgeniex.so
+          tar -C /opt/geniex-install -czf out/geniex-plugins-arm64.tar.gz plugins
           ls -la out
 
       - name: Upload artifacts (Actions tab)
@@ -108,9 +212,18 @@ jobs:
           body: |
             Auto-built from ${{ github.sha }} on ${{ github.ref_name }}.
             ort_engine + libonnxruntime.so go to /data/local/tmp/ on device.
+            media_daemon + libsherpa-onnx-c-api.so: import via the app
+            (Open with → Horizons), launch with
+            `media_daemon --port 8091 --stt-dir <moonshine> --tts-dir <kokoro>`.
           files: |
             out/horizons.apk
             out/ort_engine
             out/libonnxruntime.so
+            out/media_daemon
+            out/libsherpa-onnx-c-api.so
+            out/libonnxruntime-media.so
+            out/geniex_daemon
+            out/libgeniex.so
+            out/geniex-plugins-arm64.tar.gz
           prerelease: true
           make_latest: false
