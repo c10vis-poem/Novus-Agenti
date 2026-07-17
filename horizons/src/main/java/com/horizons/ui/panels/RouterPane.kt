@@ -547,6 +547,29 @@ fun RouterPane(
         // ── TTS Engine + Voice Picker ────────────────────────────────────────
         RouterSection("TTS Engine")
 
+        // LEGACY NOTICE: the in-process Kokoro engine below is not wired to
+        // playback right now — its one auto-init call site was removed
+        // (session 17) because a native init crash was killing the app on
+        // launch. Downloading/previewing here is currently a dead end; real
+        // TTS output is moving to the media daemon (:8091). Not silently
+        // hidden so this doesn't look like ANOTHER unexplained non-response.
+        Surface(
+            color = HorizonsColors.TileSettings.copy(alpha = 0.15f),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                "LEGACY — in-process engine, not wired to playback right now. " +
+                    "Preview/Download below won't produce audio. Real TTS is " +
+                    "moving to the media daemon.",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = HorizonsColors.TileSettings,
+                modifier = Modifier.padding(10.dp),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+
         Surface(
             color = HorizonsColors.Surface,
             shape = MaterialTheme.shapes.medium,

@@ -62,5 +62,10 @@ class AppStateStore(context: Context) {
         // TTS (Sherpa-ONNX / Kokoro)
         const val KEY_TTS_VOICE         = "tts.voice_id"
         const val KEY_TTS_SPEED         = "tts.speed"
+
+        // UI
+        /** Pinch-to-zoom text scale for ChatPane message bubbles, persisted so
+         *  it survives app restarts. Range enforced at the call site. */
+        const val KEY_CHAT_TEXT_SCALE   = "ui.chat_text_scale"
     }
 }
