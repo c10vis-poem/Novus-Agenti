@@ -19,6 +19,7 @@ import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatHistoryStore
 import com.horizons.core.state.SavedCommandStore
 import com.horizons.core.stt.DaemonSttClient
+import com.horizons.core.tts.DaemonTtsClient
 import com.horizons.core.voice.KokoroModelManager
 import com.horizons.core.voice.SherpaOnnxTtsClient
 import com.horizons.provider.SettingsStore
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -89,6 +91,10 @@ class HorizonsApplication : Application() {
 
     // -- STT via the media daemon (Whisper) -- never in-process; models run detached --
     val stt: DaemonSttClient by lazy { DaemonSttClient(appState) }
+
+    // -- TTS via the media daemon (Kokoro) -- replaces in-process SherpaOnnxTtsClient --
+    val daemonTts: DaemonTtsClient by lazy { DaemonTtsClient(appState) }
+    val autoSpeak = MutableStateFlow(false)
 
     // -- Pending screen capture (dock button -> stored here -> chat ask) --
     val pendingScreenJpeg = MutableStateFlow<ByteArray?>(null)
@@ -221,6 +227,9 @@ class HorizonsApplication : Application() {
                     list[assistantIdx] = ChatMessage("assistant", reply)
                     _chatMessages.value = list
                 }
+                if (reply.isNotBlank() && autoSpeak.value) {
+                    speakViaDaemon(reply.stripForTts())
+                }
             } finally {
                 _chatBusy.value = false
                 GameModeBoost.exitHotLoop(this@HorizonsApplication)
@@ -233,6 +242,34 @@ class HorizonsApplication : Application() {
         tts.stop()
         voiceLoop.stop()
         _chatBusy.value = false
+    }
+
+    suspend fun speakViaDaemon(text: String) {
+        val wav = daemonTts.synthesize(text, ttsVoiceId.value, ttsSpeed.value)
+        if (wav == null || wav.size <= 44) return
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val sr = 24_000
+                val dataSize = wav.size - 44
+                val pcm = ShortArray(dataSize / 2)
+                java.nio.ByteBuffer.wrap(wav, 44, dataSize)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    .asShortBuffer()
+                    .get(pcm)
+                val track = android.media.AudioTrack(
+                    android.media.AudioManager.STREAM_MUSIC, sr,
+                    android.media.AudioFormat.CHANNEL_OUT_MONO,
+                    android.media.AudioFormat.ENCODING_PCM_16BIT,
+                    pcm.size * 2, android.media.AudioTrack.MODE_STATIC,
+                )
+                track.write(pcm, 0, pcm.size)
+                track.play()
+                kotlinx.coroutines.delay(pcm.size.toLong() * 1000L / sr + 300L)
+                track.pause(); track.flush(); track.stop(); track.release()
+            } catch (e: Exception) {
+                android.util.Log.w("DaemonTTS", "playback failed: ${e.message}")
+            }
+        }
     }
 
     /** Screen Q&A: JPEG -> Qwen3.5-9B vision (ort_engine) -> streaming answer in chat. */
@@ -253,7 +290,9 @@ class HorizonsApplication : Application() {
                     list[assistantIdx] = ChatMessage("assistant", reply)
                     _chatMessages.value = list
                 }
-                if (reply.isNotBlank()) scope.launch { tts.speak(reply.stripForTts()) }
+                if (reply.isNotBlank() && autoSpeak.value) {
+                    speakViaDaemon(reply.stripForTts())
+                }
             } finally {
                 _chatBusy.value = false
                 GameModeBoost.exitHotLoop(this@HorizonsApplication)
@@ -332,8 +371,9 @@ class HorizonsApplication : Application() {
             tts.voiceId = ttsVoiceId.value
             tts.speed   = ttsSpeed.value
 
-            // -- STT: probe the media daemon so stt.ready reflects connectivity --
+            // -- Media daemon probes: STT + TTS connectivity --
             scope.launch { runCatching { stt.probe() } }
+            scope.launch { runCatching { daemonTts.probe() } }
 
             // -- Runtime watcher: THE activation path for local daemons --
             // CliffordService (:clifford process) launches/guards the native

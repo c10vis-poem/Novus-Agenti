@@ -600,24 +600,66 @@ fun RouterPane(
         // ── TTS Engine + Voice Picker ────────────────────────────────────────
         RouterSection("TTS Engine")
 
-        // LEGACY NOTICE: the in-process Kokoro engine below is not wired to
-        // playback right now — its one auto-init call site was removed
-        // (session 17) because a native init crash was killing the app on
-        // launch. Downloading/previewing here is currently a dead end; real
-        // TTS output is moving to the media daemon (:8091). Not silently
-        // hidden so this doesn't look like ANOTHER unexplained non-response.
+        // Daemon TTS status + auto-speak toggle
+        val daemonTtsReady by app.daemonTts.ready.collectAsState()
+        val isAutoSpeak by app.autoSpeak.collectAsState()
+
         Surface(
-            color = HorizonsColors.TileSettings.copy(alpha = 0.15f),
+            color = if (daemonTtsReady) HorizonsColors.StatusAsr.copy(alpha = 0.1f)
+                    else HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Media daemon TTS (Kokoro)",
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    StatusPill(
+                        if (daemonTtsReady) "CONNECTED" else "OFFLINE",
+                        active = daemonTtsReady,
+                    )
+                }
+                Text(
+                    "127.0.0.1:8091/tts · on-device, no network",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Auto-speak replies",
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    TextButton(onClick = { app.autoSpeak.value = !isAutoSpeak }) {
+                        Text(
+                            if (isAutoSpeak) "ON" else "OFF",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = if (isAutoSpeak) HorizonsColors.StatusAsr else Accent.copy(alpha = 0.5f),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+
+        // In-process Kokoro fallback (model download for offline use)
+        Surface(
+            color = HorizonsColors.TileSettings.copy(alpha = 0.08f),
             shape = MaterialTheme.shapes.small,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                "LEGACY — in-process engine, not wired to playback right now. " +
-                    "Preview/Download below won't produce audio. Real TTS is " +
-                    "moving to the media daemon.",
+                "In-process fallback below — downloads the Kokoro model for " +
+                    "offline use. Daemon TTS above is the primary path.",
                 fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                color = HorizonsColors.TileSettings,
+                fontSize = 9.sp,
+                color = HorizonsColors.TileSettings.copy(alpha = 0.6f),
                 modifier = Modifier.padding(10.dp),
             )
         }
@@ -683,10 +725,16 @@ fun RouterPane(
 
         // Voice picker
         Text(
-            "Voice: $currentVoiceId · Speed: ${"%.1f".format(currentSpeed)}x",
+            "Voice: $currentVoiceId",
             fontFamily = FontFamily.Monospace,
             fontSize = 11.sp,
             color = Accent.copy(alpha = 0.7f),
+        )
+        Text(
+            "Speed: ${"%.1f".format(currentSpeed)}x",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = Accent.copy(alpha = 0.5f),
         )
 
         Slider(
@@ -699,6 +747,12 @@ fun RouterPane(
                 activeTrackColor = Accent,
                 inactiveTrackColor = Accent.copy(alpha = 0.15f),
             ),
+        )
+        Text(
+            "Pitch: not yet supported by media daemon (Kokoro uses fixed pitch per voice)",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 9.sp,
+            color = Accent.copy(alpha = 0.3f),
         )
 
         SherpaOnnxTtsClient.ENGLISH_VOICES.forEach { voice ->
@@ -737,7 +791,9 @@ fun RouterPane(
                     }
                     TextButton(onClick = {
                         app.ttsVoiceId.value = voice.id
-                        scope.launch { app.tts.speak("Hello, I am ${voice.label.substringAfter("· ")}.") }
+                        scope.launch {
+                            app.speakViaDaemon("Hello, I am ${voice.label.substringAfter("· ")}.")
+                        }
                     }) {
                         Text("Preview", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = Accent)
                     }
@@ -750,25 +806,45 @@ fun RouterPane(
         // ── STT Engine ───────────────────────────────────────────────────────
         RouterSection("STT Engine")
 
+        val sttReady by app.stt.ready.collectAsState()
         Surface(
-            color = HorizonsColors.Surface,
+            color = if (sttReady) HorizonsColors.StatusAsr.copy(alpha = 0.1f)
+                    else HorizonsColors.Surface,
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.padding(16.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text("Qwen3.5-9B audio-direct", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                    StatusPill(if (npuReady) "ACTIVE" else "WAITING", active = npuReady)
+                    Text("Media daemon STT (Whisper)", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    StatusPill(if (sttReady) "CONNECTED" else "OFFLINE", active = sttReady)
                 }
                 Text(
-                    "PCM → WAV → ort_engine daemon · on-device, no network",
+                    "127.0.0.1:8091/stt · PCM → WAV → transcript · on-device",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                 )
+                if (npuReady) {
+                    Text(
+                        "Fallback: LLM audio-direct (Qwen3.5-9B)",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = {
+                        scope.launch { app.stt.probe() }
+                    }) {
+                        Text("Probe", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = Accent)
+                    }
+                }
             }
         }
 

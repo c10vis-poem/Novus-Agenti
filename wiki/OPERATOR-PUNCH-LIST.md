@@ -40,10 +40,13 @@
 5. **Zoom works nowhere** (pinch-zoom shipped only for chat bubbles; the
    operator expects it across panels). OPEN: app-wide text-scale.
 6. **STT/TTS layer decorative**: STT tab inert; NO TTS tab; voice pitch
-   selector missing (only speed); chat mic records but nothing types; OPEN
-   — depends on media_daemon actually running on-device (needs moonshine/
-   kokoro model dirs present) + wiring DaemonTtsClient into the speak path
-   (in-process TTS deliberately disabled after the launch crash).
+   selector missing (only speed); chat mic records but nothing types; PARTIAL
+   FIX: DaemonTtsClient wired into the speak path (sendChat + screenAsk),
+   auto-speak toggle added to Router TTS section, STT/TTS sections now show
+   actual media daemon connectivity status with probe buttons, Preview uses
+   daemon TTS. Pitch note added (Kokoro uses fixed pitch per voice). Chat
+   mic→input STT path was already wired. Still depends on media_daemon
+   actually running on-device (needs moonshine/kokoro model dirs present).
 7. **Live mode**: goes straight to single-app share (broken) instead of
    whole-screen capture. OPEN (MediaProjection config).
 8. **Home-screen chat bar opens the full Chat tile** instead of a 1/3
