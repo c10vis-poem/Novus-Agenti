@@ -106,6 +106,10 @@ class CliffordService : Service() {
         crsJob = scope.launch {
             val app = applicationContext as? HorizonsApplication
 
+            // Phase 0: pull any recognized runtime files straight from
+            // Downloads into filesDir — no "Open with" step required.
+            runCatching { com.horizons.core.shell.AutoImport.sync(this@CliffordService) }
+
             // Phase 1: install + launch daemons from THIS FGS context.
             // They inherit this process's oom_score_adj (~-200 to -400).
             ensureDaemonRunning()
@@ -123,6 +127,8 @@ class CliffordService : Service() {
                     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     nm.notify(NOTIF_ID, buildNotification())
                 }
+
+                runCatching { com.horizons.core.shell.AutoImport.sync(this@CliffordService) }
 
                 // Media + GenieX daemons are both optional and serve-first (503s
                 // over a bad/missing model, never crash-loops) — just make sure
@@ -264,7 +270,11 @@ class CliffordService : Service() {
         findModelDir("preprocess.onnx")?.let { args += listOf("--stt-dir", it) }
         findModelDir("voices.bin")?.let { args += listOf("--tts-dir", it) }
 
-        l.launch(args)
+        // Its own ONNX Runtime copy (version-pinned separately from
+        // ort_engine's — see RuntimeFiles.MEDIA_ONNXRUNTIME_ARTIFACT) must be
+        // searched BEFORE filesDir root, or the mismatched shared copy wins.
+        val mediaLibsDir = java.io.File(filesDir, com.horizons.core.shell.RuntimeFiles.MEDIA_LIBS_SUBDIR)
+        l.launch(args, extraLibDirs = listOf(mediaLibsDir.absolutePath))
             .onSuccess { Log.i(TAG, "CRS: media daemon launched PID=${it.pid} args=$args") }
             .onFailure { Log.w(TAG, "CRS: media daemon launch failed", it) }
     }

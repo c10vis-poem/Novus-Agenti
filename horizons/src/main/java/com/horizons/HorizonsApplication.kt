@@ -364,11 +364,20 @@ class HorizonsApplication : Application() {
     fun resolveGenieXModelPath(): String? {
         val modelsDir = java.io.File(filesDir, "models")
         val roots = listOf(modelsDir, java.io.File("/storage/emulated/0/Download"))
-        return roots.asSequence()
+        val candidates = roots.asSequence()
             .flatMap { it.listFiles()?.asSequence() ?: emptySequence() }
             .filter { it.isFile && it.name.endsWith(".gguf", ignoreCase = true) }
-            .maxByOrNull { it.lastModified() }
-            ?.absolutePath
+            .toList()
+        // Prefer the operator's actual target model (Qwen3.5-9B, per every
+        // planning doc in this repo) by filename if more than one GGUF is
+        // present. Was "most recently downloaded", which silently picked up
+        // an incidental smaller test file (Qwen3.5-2B) over the real 9B
+        // model (operator-caught, session 17) — newest-download is a bad
+        // proxy for "the model I actually want to run." Falls back to
+        // largest file (a small test/quantization scrap is very unlikely to
+        // be the biggest GGUF on device) when no name match exists.
+        return candidates.firstOrNull { it.name.contains("9b", ignoreCase = true) }?.absolutePath
+            ?: candidates.maxByOrNull { it.length() }?.absolutePath
     }
 
     fun resolveNpuModelPath(): String? {

@@ -186,6 +186,12 @@ jobs:
           cp /opt/ort-android/jni/arm64-v8a/libonnxruntime.so out/libonnxruntime.so
           cp media-daemon/build/media_daemon out/media_daemon
           cp /opt/sherpa-install/lib/libsherpa-onnx-c-api.so out/libsherpa-onnx-c-api.so
+          # sherpa-onnx pins its OWN ONNX Runtime (1.24.3, community mirror) —
+          # different from ort_engine's official 1.22.0. Both are natively
+          # named libonnxruntime.so; publish this one under a distinct name so
+          # AutoImport can route it to its own directory instead of colliding
+          # with ort_engine's copy (see core/shell/RuntimeFiles.kt).
+          cp /opt/sherpa-install/lib/libonnxruntime.so out/libonnxruntime-media.so
           cp geniex-daemon/build/geniex_daemon out/geniex_daemon
           cp /opt/geniex-install/lib/libgeniex.so out/libgeniex.so
           tar -C /opt/geniex-install -czf out/geniex-plugins-arm64.tar.gz plugins
@@ -215,6 +221,7 @@ jobs:
             out/libonnxruntime.so
             out/media_daemon
             out/libsherpa-onnx-c-api.so
+            out/libonnxruntime-media.so
             out/geniex_daemon
             out/libgeniex.so
             out/geniex-plugins-arm64.tar.gz

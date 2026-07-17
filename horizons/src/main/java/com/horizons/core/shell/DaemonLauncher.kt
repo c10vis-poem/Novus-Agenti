@@ -27,7 +27,19 @@ class DaemonLauncher(
 
     data class DaemonHandle(val pid: Int, val logPath: String)
 
-    suspend fun launch(engineArgs: List<String> = emptyList()): Result<DaemonHandle> =
+    /**
+     * @param extraLibDirs Additional directories searched BEFORE filesDir for
+     *   shared libs, highest-priority first. Needed when a daemon carries its
+     *   own copy of a library that also exists (at a different, incompatible
+     *   version) in filesDir for another daemon — e.g. media_daemon's sherpa-onnx
+     *   pins ONNX Runtime 1.24.3 while ort_engine ships 1.22.0; both are named
+     *   libonnxruntime.so, so they can't share one directory. See AutoImport's
+     *   media-libs/ handling.
+     */
+    suspend fun launch(
+        engineArgs: List<String> = emptyList(),
+        extraLibDirs: List<String> = emptyList(),
+    ): Result<DaemonHandle> =
         withContext(Dispatchers.IO) {
             val engine = File(context.filesDir, binaryName)
             if (!engine.exists()) {
@@ -45,7 +57,9 @@ class DaemonLauncher(
 
             // libonnxruntime.so is installed alongside the engine binary in filesDir
             // (via ModelImportActivity's runtime-file import), not under a system lib path.
-            val libDir = context.filesDir.absolutePath
+            // extraLibDirs are searched first so a daemon-specific lib copy wins
+            // over the shared filesDir one when names collide.
+            val libDir = (extraLibDirs + context.filesDir.absolutePath).joinToString(":")
 
             // mksh -T- detaches the child from the controlling tty, reparenting it
             // to init so it survives shell exit. Equivalent to nohup + setsid.
