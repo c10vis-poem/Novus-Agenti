@@ -7,6 +7,7 @@ import com.horizons.audio.AudioRecorder
 import com.horizons.audio.VadFactory
 import com.horizons.audio.VoiceLoopController
 import com.horizons.core.llm.CloudLlmRuntime
+import com.horizons.core.llm.GenieXClient
 import com.horizons.core.llm.LlmRuntime
 import com.horizons.core.llm.NpuClient
 import com.horizons.core.log.CrashRecorder
@@ -92,20 +93,32 @@ class HorizonsApplication : Application() {
     // -- Pending screen capture (dock button -> stored here -> chat ask) --
     val pendingScreenJpeg = MutableStateFlow<ByteArray?>(null)
 
-    // -- LLM runtimes -- daemon first, cloud fallback --
+    // -- LLM runtimes -- local daemons first, cloud fallback --
+    // GenieX is checked before the legacy ort_engine NpuClient: it's the
+    // decided primary runtime (wiki/GENIEX-DAEMON-PLAN.md) and the only one
+    // that can load GGUF, which is what actually sits in /Download today.
+    @Volatile private var _genieXClient: GenieXClient? = null
     @Volatile private var _npuClient: NpuClient? = null
     val cloudRuntime: CloudLlmRuntime by lazy { CloudLlmRuntime(appState) }
 
     val llmRuntime: LlmRuntime get() {
+        _genieXClient?.let { return it }
         _npuClient?.let { return it }
         if (cloudRuntime.isConfigured) return cloudRuntime
         return _fallbackRuntime
     }
 
+    val isGenieXActive: Boolean get() = _genieXClient != null
     val isNpuActive: Boolean get() = _npuClient != null
 
     private val _fallbackRuntime = object : LlmRuntime {
-        override val backendStatus = MutableStateFlow("Adreno 830 · no backend")
+        // Deliberately does NOT start with "Adreno 830" or "Hexagon HTP" —
+        // those prefixes are the app-wide "a real backend is ready" signal
+        // (see LlmRuntime.backendStatus doc). This text used to be
+        // "Adreno 830 · no backend", which impersonated that exact signal —
+        // every ready-check in the app (HomeGrid, RouterPane) showed a false
+        // green "ACTIVE" badge with zero backend running (operator-caught).
+        override val backendStatus = MutableStateFlow("Offline · no backend configured")
         override fun stream(prompt: String) = flow<String> {
             emit("[No inference backend available — start the on-device daemon or add a cloud API key in Settings]")
         }
@@ -334,6 +347,28 @@ class HorizonsApplication : Application() {
 
     fun activateNpuRuntime() {
         if (_npuClient == null) _npuClient = NpuClient()
+    }
+
+    fun activateGenieXRuntime() {
+        if (_genieXClient == null) _genieXClient = GenieXClient()
+    }
+
+    /**
+     * GGUF specifically — the format GenieX's llama_cpp plugin loads.
+     * Separate from [resolveNpuModelPath] on purpose: that resolver is
+     * format-agnostic (any MODEL_EXTENSIONS match) and feeds ort_engine,
+     * which can ONLY load qnn_context_binary/.onnx — never GGUF. Handing a
+     * GGUF to ort_engine silently fails to load and stalls in 503 forever
+     * (operator-caught, session 17). GenieX is GGUF's actual runtime.
+     */
+    fun resolveGenieXModelPath(): String? {
+        val modelsDir = java.io.File(filesDir, "models")
+        val roots = listOf(modelsDir, java.io.File("/storage/emulated/0/Download"))
+        return roots.asSequence()
+            .flatMap { it.listFiles()?.asSequence() ?: emptySequence() }
+            .filter { it.isFile && it.name.endsWith(".gguf", ignoreCase = true) }
+            .maxByOrNull { it.lastModified() }
+            ?.absolutePath
     }
 
     fun resolveNpuModelPath(): String? {

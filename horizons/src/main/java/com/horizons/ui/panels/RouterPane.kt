@@ -76,8 +76,14 @@ fun RouterPane(
     val currentVoiceId by app.ttsVoiceId.collectAsState()
     val currentSpeed by app.ttsSpeed.collectAsState()
 
-    val modelPath = app.resolveNpuModelPath()
+    // GenieX (GGUF) and ort_engine (qnn_context_binary/.onnx) are different
+    // runtimes for different model formats — show whichever actually has a
+    // model available, preferring GenieX since it's the decided primary path.
+    val genieXModelPath = app.resolveGenieXModelPath()
+    val modelPath = genieXModelPath ?: app.resolveNpuModelPath()
     val modelExists = modelPath != null
+    val runtimeLabel = if (genieXModelPath != null) "geniex_daemon · Hexagon HTP v79"
+                        else "ort_engine · Hexagon HTP v79"
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
     val perf by app.llmRuntime.perfMetrics.collectAsState()
     val isCloudBackend = backendStatus.contains("Cloud")
@@ -132,7 +138,7 @@ fun RouterPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "ort_engine · Hexagon HTP v79",
+                        runtimeLabel,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurface,

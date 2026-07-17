@@ -92,6 +92,10 @@ class ModelImportActivity : ComponentActivity() {
         val fileName = resolveFileName(uri)
         Log.i(TAG, "handleIntent: action=${intent.action} uri=$uri resolved fileName='$fileName'")
         when {
+            isGenieXPluginsArchive(fileName) -> {
+                statusText.value = "Extracting GenieX plugins…"
+                scope.launch { extractGenieXPlugins(uri) }
+            }
             isModelFile(fileName) -> {
                 statusText.value = "Importing $fileName…"
                 scope.launch {
@@ -116,6 +120,56 @@ class ModelImportActivity : ComponentActivity() {
                 }
             }
             else -> finishWithError("Unsupported file type: $fileName")
+        }
+    }
+
+    private fun isGenieXPluginsArchive(name: String): Boolean =
+        name.lowercase().let { it.startsWith("geniex-plugins") && it.endsWith(".tar.gz") }
+
+    /**
+     * Unpacks geniex-plugins-arm64.tar.gz (CI output — see build-apk.yml)
+     * into filesDir/geniex-plugins/, preserving the tar's own layout
+     * (plugins/<plugin_id>/*.so) so it matches GENIEX_PLUGIN_PATH's expected
+     * shape. geniex_daemon dlopen's these from its own process — no chmod
+     * +x needed, .so files just need to be readable.
+     */
+    private suspend fun extractGenieXPlugins(uri: Uri) {
+        try {
+            val count = withContext(Dispatchers.IO) {
+                val destRoot = File(filesDir, "geniex-plugins").apply { mkdirs() }
+                var n = 0
+                contentResolver.openInputStream(uri)?.use { raw ->
+                    org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(raw).use { gz ->
+                        org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gz).use { tar ->
+                            var entry = tar.nextEntry
+                            while (entry != null) {
+                                val out = File(destRoot, entry.name)
+                                if (entry.isDirectory) {
+                                    out.mkdirs()
+                                } else {
+                                    out.parentFile?.mkdirs()
+                                    out.outputStream().use { dst -> tar.copyTo(dst) }
+                                    n++
+                                }
+                                entry = tar.nextEntry
+                            }
+                        }
+                    }
+                } ?: throw IllegalStateException("Cannot open input stream")
+                Log.i(TAG, "Extracted $n GenieX plugin files -> ${destRoot.absolutePath}")
+                n
+            }
+
+            importing.value = false
+            statusText.value = "GenieX plugins installed ($count files)"
+            Toast.makeText(this@ModelImportActivity, "GenieX plugins installed", Toast.LENGTH_LONG).show()
+            startActivity(Intent(this@ModelImportActivity, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            finish()
+        } catch (e: Exception) {
+            Log.e(TAG, "GenieX plugin extraction failed", e)
+            finishWithError("Plugin extraction failed: ${e.message}")
         }
     }
 

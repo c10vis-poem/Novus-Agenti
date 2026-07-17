@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import com.horizons.HorizonsApplication
+import com.horizons.core.llm.GenieXClient
 import com.horizons.core.llm.NpuClient
 import com.horizons.core.shell.DaemonLauncher
 import com.horizons.core.shell.NativeBinaryInstaller
@@ -109,6 +110,7 @@ class CliffordService : Service() {
             // They inherit this process's oom_score_adj (~-200 to -400).
             ensureDaemonRunning()
             ensureMediaDaemonRunning()
+            ensureGenieDaemonRunning()
 
             // Phase 2: CRS heartbeat.
             // Key rule that breaks the crash loop: a LIVE process is NEVER relaunched,
@@ -122,9 +124,19 @@ class CliffordService : Service() {
                     nm.notify(NOTIF_ID, buildNotification())
                 }
 
-                // Media daemon is optional and serve-first (503s over bad models,
-                // never crash-loops) — just make sure it's up if its binary exists.
+                // Media + GenieX daemons are both optional and serve-first (503s
+                // over a bad/missing model, never crash-loops) — just make sure
+                // they're up if their binaries exist. GenieX readiness also
+                // needs polling here (unlike media_daemon, its 200 activates a
+                // runtime, so llmRuntime picks it up over the cloud/fallback).
                 ensureMediaDaemonRunning()
+                ensureGenieDaemonRunning()
+                if (genieDaemonRunning() && app != null && !app.isGenieXActive) {
+                    if (geniexModelsReady()) {
+                        app.activateGenieXRuntime()
+                        Log.i(TAG, "CRS: GenieX daemon healthy — GenieXClient activated")
+                    }
+                }
 
                 // Auto-report main-process crashes to GitHub (this process
                 // survives them). No-op without a stored GitHub token; each
@@ -257,6 +269,56 @@ class CliffordService : Service() {
             .onFailure { Log.w(TAG, "CRS: media daemon launch failed", it) }
     }
 
+    // ── GenieX daemon (:18181, OpenAI wire — see GenieXClient) ─────────────────
+    // Deliberately simpler than the legacy ort_engine state machine above:
+    // serve-first means liveness is the only thing to guard (no relaunch
+    // backoff needed — a bad model just means /v1/models never returns 200,
+    // which the CRS loop above polls for before activating GenieXClient).
+
+    private var genieLauncher: DaemonLauncher? = null
+
+    private fun genieDaemonRunning(): Boolean = genieLauncher?.isRunning() == true
+
+    private suspend fun ensureGenieDaemonRunning() {
+        val app = applicationContext as? HorizonsApplication ?: return
+        val binary = java.io.File(filesDir, GENIEX_DAEMON_BINARY)
+        if (!binary.canExecute()) return  // not imported yet — optional daemon
+
+        val l = genieLauncher ?: DaemonLauncher(this, GENIEX_DAEMON_BINARY).also { genieLauncher = it }
+        if (l.isRunning()) return
+
+        val modelPath = app.resolveGenieXModelPath() ?: return  // no GGUF yet
+        val pluginDir = java.io.File(java.io.File(filesDir, "geniex-plugins"), "plugins")
+        if (!pluginDir.isDirectory) {
+            Log.w(TAG, "CRS: GenieX plugins not extracted yet (import geniex-plugins-arm64.tar.gz) — waiting")
+            return
+        }
+
+        val args = listOf(
+            "--port", GenieXClient.DEFAULT_PORT.toString(),
+            "--model", modelPath,
+            "--plugin", "llama_cpp",
+            "--device", "npu",
+            "--plugin-dir", pluginDir.absolutePath,
+            "--model-name", java.io.File(modelPath).name,
+        )
+        l.launch(args)
+            .onSuccess { Log.i(TAG, "CRS: GenieX daemon launched PID=${it.pid} model=$modelPath") }
+            .onFailure { Log.w(TAG, "CRS: GenieX daemon launch failed", it) }
+    }
+
+    /** GET :18181/v1/models — 200 + non-empty data[] means a model is loaded. */
+    private fun geniexModelsReady(): Boolean = try {
+        val conn = java.net.URL(
+            "http://127.0.0.1:${GenieXClient.DEFAULT_PORT}/v1/models"
+        ).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 1_000
+        conn.requestMethod = "GET"
+        val ready = conn.responseCode == 200
+        conn.disconnect()
+        ready
+    } catch (_: Exception) { false }
+
     /**
      * HTTP status from the daemon's /health, or -1 if the port didn't respond at all.
      * 200 = ready · 503 = alive but model not ready (loading or load-failed) · -1 = unreachable.
@@ -355,6 +417,7 @@ class CliffordService : Service() {
         private const val MAX_LAUNCH_FAILURES = 5
 
         private const val MEDIA_DAEMON_BINARY = "media_daemon"
+        private const val GENIEX_DAEMON_BINARY = "geniex_daemon"
 
         const val ACTION_STOP = "com.horizons.clifford.STOP"
 
