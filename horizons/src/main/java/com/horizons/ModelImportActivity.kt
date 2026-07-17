@@ -129,9 +129,10 @@ class ModelImportActivity : ComponentActivity() {
     /**
      * Unpacks geniex-plugins-arm64.tar.gz (CI output — see build-apk.yml)
      * into filesDir/geniex-plugins/, preserving the tar's own layout
-     * (plugins/<plugin_id>/*.so) so it matches GENIEX_PLUGIN_PATH's expected
-     * shape. geniex_daemon dlopen's these from its own process — no chmod
-     * +x needed, .so files just need to be readable.
+     * (one directory per plugin id, each holding its .so files) so it
+     * matches GENIEX_PLUGIN_PATH's expected shape. geniex_daemon dlopen's
+     * these from its own process — no chmod +x needed, .so files just
+     * need to be readable.
      */
     private suspend fun extractGenieXPlugins(uri: Uri) {
         try {
