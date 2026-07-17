@@ -63,6 +63,7 @@ fun HomeGrid(
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
 
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
+    val anyBackendReady = npuReady || backendStatus.startsWith("Cloud API ·") && !backendStatus.contains("not configured")
 
     val stars = remember { generateStars(120) }
     var goatTaps by remember { mutableIntStateOf(0) }
@@ -265,7 +266,7 @@ fun HomeGrid(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         StatusDot("ASR", HorizonsColors.StatusAsr, active = true)
-                        StatusDot("LLM", HorizonsColors.StatusLlm, active = npuReady)
+                        StatusDot("LLM", HorizonsColors.StatusLlm, active = anyBackendReady)
                         StatusDot("TTS", HorizonsColors.StatusTts, active = true)
                         StatusDot("MLLM", HorizonsColors.StatusMllm, active = false)
                         StatusDot("VAG", HorizonsColors.StatusVag, active = false)
@@ -273,7 +274,35 @@ fun HomeGrid(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
+
+            // ── Quick Start Guide ──────────────────────────────────────────
+            Surface(
+                color = HorizonsColors.Surface.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        "// QUICK START",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 8.sp,
+                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Router → load a model  ·  Chat → talk to it  ·  Monitor → system status",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.6f),
+                        lineHeight = 13.sp,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
 
             // ── Input bar ───────────────────────────────────────────────────
             Surface(
@@ -818,23 +847,12 @@ private fun TileCard(
             }
 
             HorizontalDivider(color = color.copy(alpha = 0.12f))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    cmdHint,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 8.sp,
-                    color = color.copy(alpha = 0.5f),
-                )
-                Text(
-                    "⚙",
-                    fontSize = 10.sp,
-                    color = color.copy(alpha = 0.3f),
-                )
-            }
+            Text(
+                cmdHint,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 8.sp,
+                color = color.copy(alpha = 0.5f),
+            )
         }
     }
 }

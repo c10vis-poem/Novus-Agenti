@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
@@ -41,7 +42,7 @@ class LocalHomeActivity : ComponentActivity() {
                 onSurface = Color.White,
                 onPrimary = Color.Black,
             )) {
-                Surface(modifier = Modifier.fillMaxSize().imePadding()) {
+                Surface(modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
                     LocalHomeScreen(modifier = Modifier.fillMaxSize())
                 }
             }

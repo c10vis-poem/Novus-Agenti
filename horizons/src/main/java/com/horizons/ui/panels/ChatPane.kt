@@ -1,6 +1,9 @@
 package com.horizons.ui.panels
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -9,7 +12,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +81,7 @@ import com.horizons.HorizonsApplication
 import com.horizons.ui.WaterDropletBackground
 import com.horizons.ui.theme.HorizonsColors
 import com.horizons.audio.AudioRecorder
+import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatSession
 import com.horizons.fgs.LiveChatService
 import com.horizons.fgs.ScreenShareService
@@ -108,6 +116,14 @@ fun ChatPane(modifier: Modifier = Modifier) {
     val snackbarHostState = remember { SnackbarHostState() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     var showPlusMenu by remember { mutableStateOf(false) }
+
+    // Pinch-to-zoom text scale (operator request) — persisted so it survives
+    // restarts. Clamped to keep bubbles readable/usable at either extreme.
+    var textScale by remember {
+        mutableStateOf(
+            app.appState.get(AppStateStore.KEY_CHAT_TEXT_SCALE)?.toFloatOrNull() ?: 1.0f
+        )
+    }
 
     val lastText = messages.lastOrNull()?.text ?: ""
     LaunchedEffect(lastText) {
@@ -306,13 +322,24 @@ fun ChatPane(modifier: Modifier = Modifier) {
             }
 
             // ── Message list (carbon tile bubbles) ────────────────────────────
+            // Pinch anywhere on the message list to zoom text size; persisted
+            // on each gesture so it's remembered next launch.
             LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, _, zoom, _ ->
+                            if (zoom == 1f) return@detectTransformGestures
+                            textScale = (textScale * zoom).coerceIn(0.75f, 2.5f)
+                            app.appState.put(AppStateStore.KEY_CHAT_TEXT_SCALE, textScale.toString())
+                        }
+                    },
                 state = listState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(messages) { msg -> CarbonBubble(msg) }
+                items(messages) { msg -> CarbonBubble(msg, textScale, snackbarHostState) }
             }
 
             // ── Attachment thumbnail strip ────────────────────────────────────
@@ -450,9 +477,25 @@ fun ChatPane(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CarbonBubble(msg: ChatMessage) {
+private fun CarbonBubble(
+    msg: ChatMessage,
+    textScale: Float = 1.0f,
+    snackbarHostState: SnackbarHostState? = null,
+) {
     val isUser = msg.role == "user"
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun copyToClipboard() {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
+        snackbarHostState?.let { host ->
+            scope.launch { host.showSnackbar("Copied to clipboard") }
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -461,17 +504,43 @@ private fun CarbonBubble(msg: ChatMessage) {
             shape = MaterialTheme.shapes.medium,
             color = if (isUser) CarbonCard else HorizonsColors.Surface,
             shadowElevation = 2.dp,
-            modifier = Modifier.widthIn(max = 300.dp),
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { copyToClipboard() },
+                ),
         ) {
-            SelectionContainer {
-                Text(
-                    text = msg.text,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Default,
-                    ),
-                    color = if (isUser) ChatAccent else Color.White.copy(alpha = 0.9f),
-                )
+            Column {
+                SelectionContainer {
+                    Text(
+                        text = msg.text,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Default,
+                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
+                        ),
+                        color = if (isUser) ChatAccent else Color.White.copy(alpha = 0.9f),
+                    )
+                }
+                if (!isUser) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        Text(
+                            text = "[ copy ]",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = ChatAccent.copy(alpha = 0.4f),
+                            modifier = Modifier
+                                .clickable { copyToClipboard() }
+                                .padding(4.dp),
+                        )
+                    }
+                }
             }
         }
     }

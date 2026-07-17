@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
+import com.horizons.Panel
 import com.horizons.core.llm.CloudLlmRuntime
 import com.horizons.core.state.AppStateStore
 import com.horizons.core.voice.KokoroSetupState
@@ -64,6 +65,7 @@ private val Accent = HorizonsColors.TileRouter
 @Composable
 fun RouterPane(
     onBack: () -> Unit,
+    onNavigate: (Panel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
@@ -76,8 +78,12 @@ fun RouterPane(
     val currentVoiceId by app.ttsVoiceId.collectAsState()
     val currentSpeed by app.ttsSpeed.collectAsState()
 
-    val modelPath = app.resolveNpuModelPath()
-    val modelExists = modelPath != null
+    // GenieX model selection is explicit, operator-driven — NOT auto-picked
+    // from whatever's in Downloads (session 17 hard rule: ship/run empty
+    // until the operator loads something). This list is just what's
+    // available to choose from.
+    val genieXCandidates = remember { app.listGenieXModelCandidates() }
+    val activeGenieXModel = app.activeGenieXModelPath
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
     val perf by app.llmRuntime.perfMetrics.collectAsState()
     val isCloudBackend = backendStatus.contains("Cloud")
@@ -116,8 +122,15 @@ fun RouterPane(
 
         HorizontalDivider(color = Accent.copy(alpha = 0.2f))
 
-        // ── NPU Runtime ──────────────────────────────────────────────────────
-        RouterSection("NPU Runtime")
+        // ── NPU Runtime — GenieX, explicit load/swap/unload ────────────────────
+        // Nothing here auto-runs. The app ships/lands/runs empty; the operator
+        // picks a model, which is the ONLY thing that makes CliffordService
+        // launch geniex_daemon (AppStateStore.KEY_ACTIVE_GENIEX_MODEL).
+        // "Runtime", not "NPU Runtime" — GenieX schedules across NPU/GPU/CPU
+        // (its llama_cpp backend defaults to hybrid dispatch); the hardware
+        // split is the runtime's business, not a category the UI should
+        // hardcode (operator-corrected, session 17).
+        RouterSection("Runtime — GenieX")
 
         Surface(
             color = if (npuReady) HorizonsColors.StatusAsr.copy(alpha = 0.1f)
@@ -132,13 +145,17 @@ fun RouterPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "ort_engine · Hexagon HTP v79",
+                        "geniex_daemon · Hexagon HTP v79",
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     StatusPill(
-                        text = if (npuReady) "ACTIVE" else if (modelExists) "IDLE" else "NO MODEL",
+                        text = when {
+                            npuReady -> "ACTIVE"
+                            activeGenieXModel != null -> "LOADING"
+                            else -> "EMPTY"
+                        },
                         active = npuReady,
                     )
                 }
@@ -148,19 +165,55 @@ fun RouterPane(
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
-                if (modelPath != null) {
+
+                if (genieXCandidates.isEmpty()) {
                     Text(
-                        modelPath,
+                        "No .gguf files found in models/ or Download/.",
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     )
-                }
-                if (modelExists && !npuReady) {
-                    Button(onClick = { app.llmRuntime.preWarm() }) {
-                        Text("Load Model", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                } else {
+                    Text(
+                        "Pick a model to load — nothing runs until you choose one:",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    )
+                    genieXCandidates.forEach { file ->
+                        val isSelected = file.absolutePath == activeGenieXModel
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    file.name,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) Accent else MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    "${file.length() / (1024 * 1024)} MB",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                )
+                            }
+                            if (isSelected) {
+                                OutlinedButton(onClick = { app.setActiveGenieXModel(null) }) {
+                                    Text("Unload", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                }
+                            } else {
+                                Button(onClick = { app.setActiveGenieXModel(file.absolutePath) }) {
+                                    Text("Load", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                }
+                            }
+                        }
                     }
                 }
+
                 if (npuReady) {
                     Button(onClick = { app.testModel() }) {
                         Text(
@@ -547,6 +600,71 @@ fun RouterPane(
         // ── TTS Engine + Voice Picker ────────────────────────────────────────
         RouterSection("TTS Engine")
 
+        // Daemon TTS status + auto-speak toggle
+        val daemonTtsReady by app.daemonTts.ready.collectAsState()
+        val isAutoSpeak by app.autoSpeak.collectAsState()
+
+        Surface(
+            color = if (daemonTtsReady) HorizonsColors.StatusAsr.copy(alpha = 0.1f)
+                    else HorizonsColors.Surface,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Media daemon TTS (Kokoro)",
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    StatusPill(
+                        if (daemonTtsReady) "CONNECTED" else "OFFLINE",
+                        active = daemonTtsReady,
+                    )
+                }
+                Text(
+                    "127.0.0.1:8091/tts · on-device, no network",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Auto-speak replies",
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    TextButton(onClick = { app.autoSpeak.value = !isAutoSpeak }) {
+                        Text(
+                            if (isAutoSpeak) "ON" else "OFF",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = if (isAutoSpeak) HorizonsColors.StatusAsr else Accent.copy(alpha = 0.5f),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+
+        // In-process Kokoro fallback (model download for offline use)
+        Surface(
+            color = HorizonsColors.TileSettings.copy(alpha = 0.08f),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                "In-process fallback below — downloads the Kokoro model for " +
+                    "offline use. Daemon TTS above is the primary path.",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 9.sp,
+                color = HorizonsColors.TileSettings.copy(alpha = 0.6f),
+                modifier = Modifier.padding(10.dp),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+
         Surface(
             color = HorizonsColors.Surface,
             shape = MaterialTheme.shapes.medium,
@@ -607,10 +725,16 @@ fun RouterPane(
 
         // Voice picker
         Text(
-            "Voice: $currentVoiceId · Speed: ${"%.1f".format(currentSpeed)}x",
+            "Voice: $currentVoiceId",
             fontFamily = FontFamily.Monospace,
             fontSize = 11.sp,
             color = Accent.copy(alpha = 0.7f),
+        )
+        Text(
+            "Speed: ${"%.1f".format(currentSpeed)}x",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = Accent.copy(alpha = 0.5f),
         )
 
         Slider(
@@ -623,6 +747,12 @@ fun RouterPane(
                 activeTrackColor = Accent,
                 inactiveTrackColor = Accent.copy(alpha = 0.15f),
             ),
+        )
+        Text(
+            "Pitch: not yet supported by media daemon (Kokoro uses fixed pitch per voice)",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 9.sp,
+            color = Accent.copy(alpha = 0.3f),
         )
 
         SherpaOnnxTtsClient.ENGLISH_VOICES.forEach { voice ->
@@ -661,7 +791,9 @@ fun RouterPane(
                     }
                     TextButton(onClick = {
                         app.ttsVoiceId.value = voice.id
-                        scope.launch { app.tts.speak("Hello, I am ${voice.label.substringAfter("· ")}.") }
+                        scope.launch {
+                            app.speakViaDaemon("Hello, I am ${voice.label.substringAfter("· ")}.")
+                        }
                     }) {
                         Text("Preview", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = Accent)
                     }
@@ -674,24 +806,90 @@ fun RouterPane(
         // ── STT Engine ───────────────────────────────────────────────────────
         RouterSection("STT Engine")
 
+        val sttReady by app.stt.ready.collectAsState()
         Surface(
-            color = HorizonsColors.Surface,
+            color = if (sttReady) HorizonsColors.StatusAsr.copy(alpha = 0.1f)
+                    else HorizonsColors.Surface,
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.padding(16.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text("Qwen3.5-9B audio-direct", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                    StatusPill(if (npuReady) "ACTIVE" else "WAITING", active = npuReady)
+                    Text("Media daemon STT (Whisper)", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    StatusPill(if (sttReady) "CONNECTED" else "OFFLINE", active = sttReady)
                 }
                 Text(
-                    "PCM → WAV → ort_engine daemon · on-device, no network",
+                    "127.0.0.1:8091/stt · PCM → WAV → transcript · on-device",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                )
+                if (npuReady) {
+                    Text(
+                        "Fallback: LLM audio-direct (Qwen3.5-9B)",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = {
+                        scope.launch { app.stt.probe() }
+                    }) {
+                        Text("Probe", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = Accent)
+                    }
+                }
+            }
+        }
+
+        // ── Quick Nav ──────────────────────────────────────────────────────
+        HorizontalDivider(color = Accent.copy(alpha = 0.2f))
+        RouterSection("Quick Nav")
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = { onNavigate(Panel.Terminal) },
+                border = BorderStroke(1.dp, HorizonsColors.TileTerminal.copy(alpha = 0.4f)),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    ">_ Terminal",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = HorizonsColors.TileTerminal,
+                )
+            }
+            OutlinedButton(
+                onClick = { onNavigate(Panel.Monitor) },
+                border = BorderStroke(1.dp, HorizonsColors.TileMonitor.copy(alpha = 0.4f)),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "Monitor",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = HorizonsColors.TileMonitor,
+                )
+            }
+            OutlinedButton(
+                onClick = { onNavigate(Panel.Settings) },
+                border = BorderStroke(1.dp, HorizonsColors.TileSettings.copy(alpha = 0.4f)),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "Settings",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = HorizonsColors.TileSettings,
                 )
             }
         }

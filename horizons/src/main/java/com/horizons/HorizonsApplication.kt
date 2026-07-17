@@ -7,6 +7,7 @@ import com.horizons.audio.AudioRecorder
 import com.horizons.audio.VadFactory
 import com.horizons.audio.VoiceLoopController
 import com.horizons.core.llm.CloudLlmRuntime
+import com.horizons.core.llm.GenieXClient
 import com.horizons.core.llm.LlmRuntime
 import com.horizons.core.llm.NpuClient
 import com.horizons.core.log.CrashRecorder
@@ -18,8 +19,8 @@ import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatHistoryStore
 import com.horizons.core.state.SavedCommandStore
 import com.horizons.core.stt.DaemonSttClient
+import com.horizons.core.tts.DaemonTtsClient
 import com.horizons.core.voice.KokoroModelManager
-import com.horizons.core.voice.KokoroSetupState
 import com.horizons.core.voice.SherpaOnnxTtsClient
 import com.horizons.provider.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -91,23 +92,39 @@ class HorizonsApplication : Application() {
     // -- STT via the media daemon (Whisper) -- never in-process; models run detached --
     val stt: DaemonSttClient by lazy { DaemonSttClient(appState) }
 
+    // -- TTS via the media daemon (Kokoro) -- replaces in-process SherpaOnnxTtsClient --
+    val daemonTts: DaemonTtsClient by lazy { DaemonTtsClient(appState) }
+    val autoSpeak = MutableStateFlow(false)
+
     // -- Pending screen capture (dock button -> stored here -> chat ask) --
     val pendingScreenJpeg = MutableStateFlow<ByteArray?>(null)
 
-    // -- LLM runtimes -- daemon first, cloud fallback --
+    // -- LLM runtimes -- local daemons first, cloud fallback --
+    // GenieX is checked before the legacy ort_engine NpuClient: it's the
+    // decided primary runtime (wiki/GENIEX-DAEMON-PLAN.md) and the only one
+    // that can load GGUF, which is what actually sits in /Download today.
+    @Volatile private var _genieXClient: GenieXClient? = null
     @Volatile private var _npuClient: NpuClient? = null
     val cloudRuntime: CloudLlmRuntime by lazy { CloudLlmRuntime(appState) }
 
     val llmRuntime: LlmRuntime get() {
+        _genieXClient?.let { return it }
         _npuClient?.let { return it }
         if (cloudRuntime.isConfigured) return cloudRuntime
         return _fallbackRuntime
     }
 
+    val isGenieXActive: Boolean get() = _genieXClient != null
     val isNpuActive: Boolean get() = _npuClient != null
 
     private val _fallbackRuntime = object : LlmRuntime {
-        override val backendStatus = MutableStateFlow("Adreno 830 · no backend")
+        // Deliberately does NOT start with "Adreno 830" or "Hexagon HTP" —
+        // those prefixes are the app-wide "a real backend is ready" signal
+        // (see LlmRuntime.backendStatus doc). This text used to be
+        // "Adreno 830 · no backend", which impersonated that exact signal —
+        // every ready-check in the app (HomeGrid, RouterPane) showed a false
+        // green "ACTIVE" badge with zero backend running (operator-caught).
+        override val backendStatus = MutableStateFlow("Offline · no backend configured")
         override fun stream(prompt: String) = flow<String> {
             emit("[No inference backend available — start the on-device daemon or add a cloud API key in Settings]")
         }
@@ -210,6 +227,9 @@ class HorizonsApplication : Application() {
                     list[assistantIdx] = ChatMessage("assistant", reply)
                     _chatMessages.value = list
                 }
+                if (reply.isNotBlank() && autoSpeak.value) {
+                    speakViaDaemon(reply.stripForTts())
+                }
             } finally {
                 _chatBusy.value = false
                 GameModeBoost.exitHotLoop(this@HorizonsApplication)
@@ -222,6 +242,34 @@ class HorizonsApplication : Application() {
         tts.stop()
         voiceLoop.stop()
         _chatBusy.value = false
+    }
+
+    suspend fun speakViaDaemon(text: String) {
+        val wav = daemonTts.synthesize(text, ttsVoiceId.value, ttsSpeed.value)
+        if (wav == null || wav.size <= 44) return
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val sr = 24_000
+                val dataSize = wav.size - 44
+                val pcm = ShortArray(dataSize / 2)
+                java.nio.ByteBuffer.wrap(wav, 44, dataSize)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    .asShortBuffer()
+                    .get(pcm)
+                val track = android.media.AudioTrack(
+                    android.media.AudioManager.STREAM_MUSIC, sr,
+                    android.media.AudioFormat.CHANNEL_OUT_MONO,
+                    android.media.AudioFormat.ENCODING_PCM_16BIT,
+                    pcm.size * 2, android.media.AudioTrack.MODE_STATIC,
+                )
+                track.write(pcm, 0, pcm.size)
+                track.play()
+                kotlinx.coroutines.delay(pcm.size.toLong() * 1000L / sr + 300L)
+                track.pause(); track.flush(); track.stop(); track.release()
+            } catch (e: Exception) {
+                android.util.Log.w("DaemonTTS", "playback failed: ${e.message}")
+            }
+        }
     }
 
     /** Screen Q&A: JPEG -> Qwen3.5-9B vision (ort_engine) -> streaming answer in chat. */
@@ -242,7 +290,9 @@ class HorizonsApplication : Application() {
                     list[assistantIdx] = ChatMessage("assistant", reply)
                     _chatMessages.value = list
                 }
-                if (reply.isNotBlank()) scope.launch { tts.speak(reply.stripForTts()) }
+                if (reply.isNotBlank() && autoSpeak.value) {
+                    speakViaDaemon(reply.stripForTts())
+                }
             } finally {
                 _chatBusy.value = false
                 GameModeBoost.exitHotLoop(this@HorizonsApplication)
@@ -308,31 +358,57 @@ class HorizonsApplication : Application() {
                 com.horizons.core.diag.Breadcrumb.drop("cloud_refresh_failed: ${e.javaClass.simpleName}: ${e.message}")
             }
 
-            try {
-                kokoroManager.ensureReady()
-                com.horizons.core.diag.Breadcrumb.drop("kokoro_ensure_ready_called")
-            } catch (e: Throwable) {
-                com.horizons.core.diag.Breadcrumb.drop("kokoro_ensure_ready_failed: ${e.javaClass.simpleName}: ${e.message}")
-            }
+            // In-process Kokoro/Sherpa TTS is DELIBERATELY NOT initialized at
+            // boot anymore. OfflineTts() is a native (JNI) constructor — if it
+            // aborts, it takes the whole process down with no Java stack trace,
+            // which is exactly the crash-on-launch shipped in session 17's
+            // first APK (first boot: ~20s model download → native init → die;
+            // every boot after: files present → die in ~1s). It also violates
+            // the "no in-process tensor runtime" hard rule. Speech synthesis
+            // belongs to media_daemon (:8091, DaemonTtsClient). tts.speak() is
+            // null-safe and simply no-ops until something explicitly inits it.
+            com.horizons.core.diag.Breadcrumb.drop("tts_boot_init_skipped_by_design")
+            tts.voiceId = ttsVoiceId.value
+            tts.speed   = ttsSpeed.value
 
+            // -- Media daemon probes: STT + TTS connectivity --
+            scope.launch { runCatching { stt.probe() } }
+            scope.launch { runCatching { daemonTts.probe() } }
+
+            // -- Runtime watcher: THE activation path for local daemons --
+            // CliffordService (:clifford process) launches/guards the native
+            // daemons but CANNOT activate runtimes here — it lives across a
+            // process boundary and only ever mutated its own dead copy of
+            // this singleton (root cause of "daemon healthy, chat still says
+            // no backend"). This loop runs in THE UI PROCESS: it polls the
+            // daemons' local ports and flips llmRuntime accordingly, both
+            // directions (activate on ready, deactivate on gone/deselected).
             scope.launch {
-                kokoroManager.state.collect { state ->
-                    if (state is KokoroSetupState.Ready) {
-                        com.horizons.core.diag.Breadcrumb.drop("kokoro_state_ready")
-                        try {
-                            tts.voiceId = ttsVoiceId.value
-                            tts.speed   = ttsSpeed.value
-                            withContext(Dispatchers.IO) { tts.init() }
-                            com.horizons.core.diag.Breadcrumb.drop("tts_inited")
-                        } catch (e: Throwable) {
-                            com.horizons.core.diag.Breadcrumb.drop("tts_init_failed: ${e.javaClass.simpleName}: ${e.message}")
+                while (true) {
+                    runCatching {
+                        val genieSelected = java.io.File(filesDir, ACTIVE_GENIEX_MODEL_FILE).canRead()
+                        val genieReady = genieSelected && probeOk(
+                            "http://127.0.0.1:${com.horizons.core.llm.GenieXClient.DEFAULT_PORT}/v1/models")
+                        if (genieReady && _genieXClient == null) {
+                            activateGenieXRuntime()
+                            com.horizons.core.diag.Breadcrumb.drop("geniex_runtime_activated")
+                        } else if (!genieReady && _genieXClient != null) {
+                            _genieXClient = null
+                            com.horizons.core.diag.Breadcrumb.drop("geniex_runtime_deactivated")
+                        }
+
+                        val ortReady = probeOk(
+                            "http://127.0.0.1:${com.horizons.core.shell.DaemonLauncher.ENGINE_PORT}/health")
+                        if (ortReady && _npuClient == null) {
+                            activateNpuRuntime()
+                            com.horizons.core.diag.Breadcrumb.drop("npu_runtime_activated")
+                        } else if (!ortReady && _npuClient != null) {
+                            _npuClient = null
                         }
                     }
+                    kotlinx.coroutines.delay(5_000)
                 }
             }
-
-            // -- STT: probe the media daemon so stt.ready reflects connectivity --
-            scope.launch { runCatching { stt.probe() } }
 
             scope.launch { ttsVoiceId.collect { id -> tts.voiceId = id; appState.put(AppStateStore.KEY_TTS_VOICE, id) } }
             scope.launch { ttsSpeed.collect  { sp -> tts.speed   = sp; appState.put(AppStateStore.KEY_TTS_SPEED, sp.toString()) } }
@@ -344,8 +420,75 @@ class HorizonsApplication : Application() {
         }
     }
 
+    /** True while any local (on-device) LLM daemon is serving the chat. */
+    private fun probeOk(url: String): Boolean = try {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 1_000
+        conn.readTimeout = 1_500
+        conn.requestMethod = "GET"
+        val ok = conn.responseCode == 200
+        conn.disconnect()
+        ok
+    } catch (_: Exception) { false }
+
     fun activateNpuRuntime() {
         if (_npuClient == null) _npuClient = NpuClient()
+    }
+
+    fun activateGenieXRuntime() {
+        if (_genieXClient == null) _genieXClient = GenieXClient()
+    }
+
+    /**
+     * All GGUFs available to load via GenieX (format-specific: GenieX's
+     * llama_cpp plugin needs GGUF, unlike [resolveNpuModelPath]'s ort_engine
+     * target, which needs qnn_context_binary/.onnx and can't read GGUF at
+     * all). Purely a discovery list for the Router picker UI — NOTHING here
+     * auto-launches a daemon. The operator selects one explicitly, which
+     * writes AppStateStore.KEY_ACTIVE_GENIEX_MODEL; CliffordService only
+     * ever launches/reloads geniex_daemon in response to that key changing.
+     * (Was auto-pick-and-launch-on-file-presence — operator hard-reject,
+     * session 17: "ship empty, land empty, run empty, loaded on my end.")
+     */
+    fun listGenieXModelCandidates(): List<java.io.File> {
+        val modelsDir = java.io.File(filesDir, "models")
+        val roots = listOf(modelsDir, java.io.File("/storage/emulated/0/Download"))
+        return roots.asSequence()
+            .flatMap { it.listFiles()?.asSequence() ?: emptySequence() }
+            .filter { it.isFile && it.name.endsWith(".gguf", ignoreCase = true) }
+            .sortedByDescending { it.length() }
+            .toList()
+    }
+
+    /** Currently-selected GenieX model, or null if the operator hasn't chosen
+     *  one. Reads the cross-process file (the source of truth CliffordService
+     *  acts on), not the prefs copy. */
+    val activeGenieXModelPath: String?
+        get() = java.io.File(filesDir, ACTIVE_GENIEX_MODEL_FILE)
+            .takeIf { it.canRead() }?.readText()?.trim()?.takeIf { it.isNotBlank() }
+
+    /** Selects (or clears, if null) the model GenieX should load. Swapping models — or
+     *  unloading entirely — is just calling this again; CliffordService does the rest. */
+    fun setActiveGenieXModel(path: String?) {
+        appState.put(AppStateStore.KEY_ACTIVE_GENIEX_MODEL, path ?: "")
+        // CROSS-PROCESS: CliffordService runs in :clifford, a SEPARATE process,
+        // and it's the thing that actually launches the daemon. It cannot see
+        // this main process's AppStateStore (EncryptedSharedPreferences is not
+        // multi-process coherent — the daemon-launcher was reading a stale
+        // empty selection forever, which is why "Load" did nothing and the app
+        // stayed on "no backend"). A plain file in filesDir is the reliable
+        // cross-process channel; CliffordService reads it fresh each CRS tick.
+        runCatching {
+            val f = java.io.File(filesDir, ACTIVE_GENIEX_MODEL_FILE)
+            if (path == null) f.delete() else f.writeText(path)
+        }
+        // Always reset, even when swapping (not just clearing): GenieXClient
+        // caches its discovered model id for the life of the instance, so a
+        // stale client would keep talking about the OLD model after the
+        // daemon restarts with a new one. llmRuntime falls through to
+        // cloud/fallback until CliffordService confirms the swapped daemon
+        // is actually up and re-activates a fresh client.
+        _genieXClient = null
     }
 
     fun resolveNpuModelPath(): String? {
@@ -369,6 +512,11 @@ class HorizonsApplication : Application() {
             if (n.startsWith("ggml-tiny") || n.startsWith("ggml-base") ||
                 n.startsWith("ggml-small") || n.startsWith("ggml-medium") ||
                 n.startsWith("ggml-large") || n.contains("whisper")) return false
+            // Aux/media models are not LLMs: VAD, Moonshine STT parts, Kokoro TTS.
+            if (n.contains("silero") || n.contains("vad") ||
+                n.contains("moonshine") || n.startsWith("preprocess") ||
+                n.startsWith("encode") || n.contains("decode") ||
+                n.contains("kokoro") || n == "model.onnx") return false
             return true
         }
         modelsDir.listFiles()
@@ -385,6 +533,11 @@ class HorizonsApplication : Application() {
 
     companion object {
         private const val TAG = "HorizonsApp"
+
+        /** Cross-process channel for the operator's explicit GenieX model
+         *  selection (main UI process writes, :clifford reads). Plain file
+         *  because EncryptedSharedPreferences is not multi-process coherent. */
+        const val ACTIVE_GENIEX_MODEL_FILE = "active_geniex_model.txt"
 
         private fun String.stripForTts(): String =
             replace(Regex("[*_`#~\\[\\]|>]+"), "")

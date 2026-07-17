@@ -88,9 +88,9 @@ class TaskerBridge(private val context: Context) {
         false
     }
 
-    private companion object {
-        const val TASKER_PACKAGE = "net.dinglisch.android.taskerm"
+    companion object {
+        private const val TASKER_PACKAGE = "net.dinglisch.android.taskerm"
         const val TERMUX_PACKAGE = "com.termux"
-        const val ACTION_TASK = "net.dinglisch.android.tasker.ACTION_TASK"
+        private const val ACTION_TASK = "net.dinglisch.android.tasker.ACTION_TASK"
     }
 }

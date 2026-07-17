@@ -477,7 +477,7 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-13 (session 16)
+## State of the Union — 2026-07-17 (session 18)
 
 This is the **only** current-state doc in this repo — updated in place
 each session, not accumulated as a new file per session. Historical
@@ -487,48 +487,43 @@ log, don't expect it copy-pasted in this file.
 
 ### Current state
 
-- **App/UI-fork track is the one active branch** (`claude/notice-agent-ui-local-xa14op`).
-  Horizons app is code-complete UI (Compose, 6 panels, home grid, chat,
-  terminal, browser tab); daemon/watchdog architecture (`CliffordService`,
-  `DaemonLauncher`) is real and working; a new additive local-first UI fork
-  (`com.horizons.uilocal.LocalHomeActivity`) boots without gating on the
-  model daemon and shows independent status for the model+vision daemon vs.
-  the media (STT/TTS) daemon.
+- **PR #19 (session 17, branch `mer0vin6ian/practical-bell-3t735g`) is
+  open, draft, CI-green, unmerged.** Contains: media daemon, Termux
+  terminal, GenieX wire seam, boot spec, cross-process fix, and the
+  original punch list. Needs on-device verification before merge.
+- **Operator punch list: `wiki/OPERATOR-PUNCH-LIST.md`** — 25 items from
+  the operator's first real hands-on walkthrough. This is THE work driver.
+  P0 (backend never activating) is fixed on PR #19's branch. P1 (14 dead
+  UI items) and P2 (architecture/UX redesign) are open.
 - **Compile pipeline is dormant** — fallback only, see
   `wiki/COMPILE-PIPELINE.md`. Don't trigger Job 8 without a confirmed hard
-  failure on the primary GGUF/GenieX path.
+  failure on the primary GGUF/GenieX path. **New finding (session 18):**
+  QAIRT's `gguf_builder` can take GGUF directly to HTP-optimized execution
+  without the ONNX→QAI Hub round-trip — may make the compile pipeline
+  entirely obsolete. Investigate before ever triggering Job 8.
+- **GGUF-on-NPU path clarified (session 18):** GenieX has two runtimes
+  that both reach Hexagon HTP hardware: (1) `llama_cpp` loads GGUF via
+  `ggml-hexagon` kernels (no compilation, Q4_0 recommended), (2) `qairt`
+  loads pre-compiled `.bin` shards via QNN/AI-Engine-Direct (NPU-only,
+  max perf). Same silicon, different software stacks. The project docs
+  correctly described this split but incorrectly implied QAIRT can only be
+  reached via the QAI Hub compile pipeline — the `gguf_builder` is a third
+  path.
 - **NpuManager lock, Game SDK boost, and the manifest permission/feature
   entries are all already wired** — see `§Android App / Battery Rules`.
-  This file used to claim otherwise for several sessions; corrected.
 - **Vision lives in the same daemon/process as the LLM**; STT+TTS are a
-  separate media daemon. `NpuClient.kt` carries an `image_b64` field
-  end-to-end to `ort_engine`; `DaemonTtsClient` is the TTS half of the
-  media-daemon client, mirroring `DaemonSttClient`. Neither GenieX nor a
-  real media-daemon binary exist as processes yet — this is contract +
-  scaffold work, not full runtime implementation.
+  separate media daemon. Neither GenieX nor a real media-daemon binary
+  exist as running processes yet — contract + scaffold work on PR #19.
 - **Known gap**: `daemon/src/http_server.cpp` reads a single `recv()` into
   an 8KB buffer — image payloads (100KB+) will be truncated until it reads
-  until Content-Length. Documented inline in that file.
-- **Doc/knowledge/folder restructure (this session)**: `knowledge/daemon-reference/`
-  + `knowledge/claude-code-reference/` (moved from `wiki/`), `knowledge/qairt-sdk/htp.jsonl`
-  (new — completes that topic's triplet), `wiki/COMPILE-PIPELINE.md` and
-  `wiki/JOB_EXECUTION_LOG.md` (new, replacing several older files),
-  `skills/project-memory/SKILL.md` redesigned around the knowledge/ corpus
-  instead of being a redundant CLAUDE.md/SOTU re-read. `rules/CACHE_PROMPT_RULES.md`
-  merged into this file's Cache Prompting section (no longer a separate
-  file). `models/` + `scripts/` merged into `compile/` (same dormant-pipeline
-  domain). Top-level folder count: 13 → 12 (`compile/` absorbed two).
-  `RESOURCE-DOCS-WIKI.md` (402KB duplicate of the knowledge/ corpus) deleted.
-  `knowledge/device-inventory/DEVICE-INVENTORY.md` recovered from the
-  deleted `wiki/APP-SOTU-AUDIT.md` — that file bundled a real device
-  inventory (SDKs, model files, Termux toolchain, 2026-07-13 snapshot)
-  together with a now-stale status narrative; only the factual inventory
-  was worth keeping, so it's preserved here rather than lost entirely.
+  until Content-Length.
 
 ### Standing decisions — LAW, not to re-litigate
 
-- **Runtime: GenieX on the QAIRT/HTP SDK backend**, wired to a separate
-  detached daemon (`geniex serve`, OpenAI-compatible wire on `:18181/v1`).
+- **Runtime: GenieX**, wired to a separate detached daemon (`geniex serve`,
+  OpenAI-compatible wire on `:18181/v1`). Two backends under one binary:
+  `llama_cpp` (GGUF via ggml-hexagon → HTP, current path, no compile) and
+  `qairt` (pre-compiled bundles via QNN → HTP, NPU-only, max perf).
   `ort_engine` is the legacy runtime — real, CI-built, still in the repo,
   not the Qwen3.5-9B path going forward. `GenieX` (`github.com/qualcomm/GenieX`)
   is NOT yet forked into `c10vis-poem` — that's the next real runtime step.
@@ -543,40 +538,38 @@ log, don't expect it copy-pasted in this file.
 
 ### Pending — in order
 
-1. **GenieX fork + wire** — fork `qualcomm/GenieX` → `c10vis-poem/GenieX`,
+0. **PUNCH LIST** — `wiki/OPERATOR-PUNCH-LIST.md` is the ground-truth work
+   driver. 25 items from the operator's first hands-on review. Work it
+   top-to-bottom; the items below are the pre-existing backlog that the
+   punch list doesn't replace but may subsume or reorder.
+1. **Merge PR #19** — once on-device verification confirms the cross-process
+   fix works. Everything below depends on that code being on main.
+2. **GenieX fork + wire** — fork `qualcomm/GenieX` → `c10vis-poem/GenieX`,
    then work `wiki/GENIEX-DAEMON-PLAN.md`'s next-steps list. Per
    `knowledge/device-inventory/DEVICE-INVENTORY.md`, the device already has
    the prebuilt `geniex-bench-android-arm64 v0.3.14` (both GGML and QAIRT
    backends) + the Q4_0 GGUF + HTP v79 libs sitting in
    `/storage/emulated/0/Download/` as of 2026-07-13 — don't re-download,
-   re-verify what's there first. Once wired, update `compile/manifest.yaml`'s
-   `daemon_binaries.genie_x.status` (currently "not yet forked/wired").
-2. **Real media-daemon binary** — Moonshine STT + Kokoro/Sherpa TTS as a
-   detached process on `127.0.0.1:8091`; currently only client-side
-   contracts exist (`DaemonSttClient`, `DaemonTtsClient`), nothing binds
-   that port yet. Also update `compile/manifest.yaml` once this exists —
-   it's not currently listed there at all.
-3. **Fix `http_server.cpp`'s recv() truncation** before vision can actually
+   re-verify what's there first.
+3. **Investigate QAIRT `gguf_builder`** — can it take the Qwen3.5-9B Q4_0
+   GGUF directly to an HTP-optimized artifact? If yes, the dormant compile
+   pipeline (Job 8, `compile/compile_qwen3_5_9b.py`) is dead weight. See
+   `docs.qualcomm.com/doc/80-87189-2/topic/gguf_builder.html`.
+4. **Real media-daemon binary** — Moonshine STT + Kokoro/Sherpa TTS as a
+   detached process on `127.0.0.1:8091`; built on PR #19 branch, needs
+   on-device verification with real model dirs.
+5. **Fix `http_server.cpp`'s recv() truncation** before vision can actually
    round-trip end to end.
-4. **Define precise boot/loading-phase sequencing for the UI build** — the
-   actual init order (daemon launch → health poll → UI activation →
-   voice/assist service registration → perf-lock acquisition) is implicit/
-   scattered across `CliffordService`/`DaemonLauncher`/`MainActivity`/
-   `LocalHomeActivity` rather than specified as one sequence.
-5. **Cloud connectors** — OpenRouter works; OmniRoute, GitHub, HuggingFace,
+6. **Cloud connectors** — OpenRouter works; OmniRoute, GitHub, HuggingFace,
    QAI Hub, GCS still need wiring (`CloudLlmRuntime`, agent tools).
-6. **Tailscale** — route to home node, not yet installed/wired.
-7. **Chat history export** — `ChatHistoryStore` saves locally, no export/sync.
-8. **RouterPane "routing rules"** — deliberately not built; needs a real
-   rule engine, not UI toggles with no behavioral effect.
+7. **Tailscale** — route to home node, not yet installed/wired.
+8. **Chat history export** — `ChatHistoryStore` saves locally, no export/sync.
 9. **SettingsPane "Themes"** — deliberately not built; `HorizonsColors` is
    currently a flat hardcoded object, needs a switchable palette system.
 10. **Three orphaned-but-real classes**: `core/log/InteractionLogger.kt`,
     `core/shell/SecureResourceRelay.kt`, `core/screen/ScreenshotCapture.kt`
     — fully implemented, never wired to any caller. Confirm with operator
     before deleting; likely mid-flight features, not cruft.
-11. **CI publish-target TODO** in `build-apk.yml` — unconfirmed as still
-    real; verify against a live release page before touching.
 
 ---
 
@@ -620,6 +613,7 @@ compile/                        dormant compile-pipeline domain (was models/ + s
   compile_qwen3_5_9b.py          fallback compile script (dormant, see wiki/COMPILE-PIPELINE.md)
   requirements-compile.txt       pip deps for the staged Colab compile
 wiki/
+  OPERATOR-PUNCH-LIST.md          ground-truth UI gap list from operator hands-on (25 items)
   COMPILE-PIPELINE.md            dormant fallback pipeline (Single-Path Architecture,
                                   Size Envelope, Hexagon HTP Constraints, Job 8 command)
   GENIEX-DAEMON-PLAN.md          GenieX runtime plan + model/vision daemon split

@@ -21,6 +21,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -90,7 +91,12 @@ class MainActivity : ComponentActivity() {
                 onSurface = Color.White,
                 onPrimary = Color.Black,
             )) {
-                Surface(modifier = Modifier.fillMaxSize().imePadding()) {
+                // systemBarsPadding keeps content clear of the status bar (top
+                // tabs/clock) and the gesture/nav bar (bottom input row) — the
+                // app draws edge-to-edge (setDecorFitsSystemWindows(false) in
+                // onCreate) but was never padding content away from those bars
+                // (operator-reported: chat input buried behind the nav bar).
+                Surface(modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
                     var activePanel by remember { mutableStateOf(launchDirectTo) }
 
                     BackHandler(enabled = activePanel != null) {
@@ -128,6 +134,7 @@ class MainActivity : ComponentActivity() {
                             )
                             Panel.Router    -> RouterPane(
                                 onBack = { activePanel = null },
+                                onNavigate = { activePanel = it },
                                 modifier = Modifier.fillMaxSize(),
                             )
                             Panel.Artifacts -> ArtifactsPane(

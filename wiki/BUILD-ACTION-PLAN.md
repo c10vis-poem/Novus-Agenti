@@ -14,10 +14,11 @@
 - **Native daemons + on-device run = device/Termux session**, not the repo
   session. The repo session writes Kotlin/docs; the device session builds/runs
   binaries (GenieX, media daemon) and installs Tailscale/SDKs.
-- **One committer.** Only the repo session pushes to
-  `claude/notice-agent-ui-local-xa14op` (the one active branch — the earlier
-  sae7cy branch this plan originally named is merged). The device session
-  stays read-only (inventory/verify) to avoid collisions.
+- **One committer.** Only the repo session pushes, to the current session's
+  harness-cut branch off main (see CLAUDE.md's resume prompt — the earlier
+  sae7cy and claude/notice-agent-ui-local-xa14op branches this plan named
+  are both merged). The device session stays read-only (inventory/verify)
+  to avoid collisions.
 
 ## Session topology
 

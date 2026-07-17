@@ -79,7 +79,7 @@ class CloudLlmRuntime(private val appState: AppStateStore) : LlmRuntime {
     fun refreshStatus() {
         val cfg = resolveConfig()
         _backendStatus.value = if (cfg != null) {
-            "Adreno 830 · Cloud fallback (${cfg.label})"
+            "Cloud API · ${cfg.label} (${cfg.model})"
         } else {
             "Cloud API · not configured"
         }
