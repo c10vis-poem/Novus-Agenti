@@ -76,6 +76,7 @@ import com.horizons.HorizonsApplication
 import com.horizons.ui.WaterDropletBackground
 import com.horizons.ui.theme.HorizonsColors
 import com.horizons.audio.AudioRecorder
+import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatSession
 import com.horizons.fgs.LiveChatService
 import com.horizons.fgs.ScreenShareService
