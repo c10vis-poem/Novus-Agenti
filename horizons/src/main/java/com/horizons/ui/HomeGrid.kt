@@ -63,6 +63,7 @@ fun HomeGrid(
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
 
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
+    val anyBackendReady = npuReady || backendStatus.startsWith("Cloud API ·") && !backendStatus.contains("not configured")
 
     val stars = remember { generateStars(120) }
     var goatTaps by remember { mutableIntStateOf(0) }
@@ -265,7 +266,7 @@ fun HomeGrid(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         StatusDot("ASR", HorizonsColors.StatusAsr, active = true)
-                        StatusDot("LLM", HorizonsColors.StatusLlm, active = npuReady)
+                        StatusDot("LLM", HorizonsColors.StatusLlm, active = anyBackendReady)
                         StatusDot("TTS", HorizonsColors.StatusTts, active = true)
                         StatusDot("MLLM", HorizonsColors.StatusMllm, active = false)
                         StatusDot("VAG", HorizonsColors.StatusVag, active = false)

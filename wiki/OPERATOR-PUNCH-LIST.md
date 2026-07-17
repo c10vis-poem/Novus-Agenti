@@ -64,9 +64,13 @@
     TerminalTile quick-settings tile being mistaken for a launcher icon.
     ROOT-CAUSED (probably), needs on-device confirmation.
 12. **Cloud model selector tab does nothing** — distinct from Router (#2)
-    and Settings (#3). The cloud model selector UI is non-functional; there
-    is a spot to enter everything manually but nothing happens when you
-    interact with it. OPEN.
+    and Settings (#3). PARTIAL FIX: The cloud model selector code was
+    already functional (set model, set endpoint, test connection all wired).
+    Fixed: CloudLlmRuntime.refreshStatus() was impersonating the NPU-ready
+    signal ("Adreno 830 ·") — now correctly shows "Cloud API · provider
+    (model)". HomeGrid LLM status dot now lights for cloud backends too.
+    On-device touch/input issue may still prevent field interaction (same
+    root cause as #3).
 13. **GenieX daemon loader stuck on "loading" in Router** — the status
     indicator perpetually shows loading state, never resolves. Likely the
     same cross-process wall as P0 (#1), but needs confirmation that the fix
