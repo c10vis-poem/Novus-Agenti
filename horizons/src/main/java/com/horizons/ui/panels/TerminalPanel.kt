@@ -79,7 +79,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.viewinterop.AndroidView
 import com.horizons.HorizonsApplication
+import com.horizons.Panel
 import com.horizons.core.shell.DaemonLauncher
+import com.horizons.core.state.RouterConfig
 import com.horizons.core.state.SavedCommand
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.launch
@@ -101,6 +103,7 @@ private data class TermEntry(val input: String, val result: String, val ok: Bool
 @Composable
 fun TerminalPanel(
     onBack: () -> Unit,
+    onNavigate: (Panel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
@@ -145,7 +148,7 @@ fun TerminalPanel(
                     color = MatrixGreen,
                 )
                 Text(
-                    "  / shell",
+                    "  / garage",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     color = MatrixGreen.copy(alpha = 0.5f),
@@ -379,6 +382,33 @@ private fun ShellTab(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MatrixGreen),
             ) {
                 Icon(Icons.Filled.Clear, contentDescription = "Clear")
+            }
+        }
+
+        if (cmd.isNotBlank()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        val config = RouterConfig(
+                            name = "Terminal: ${cmd.take(30)}",
+                            runtime = "terminal",
+                            backend = "bash",
+                            model = cmd,
+                        )
+                        app.routerConfigs.add(config)
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFAA77FF)),
+                ) {
+                    Text("Export to Router", fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                }
+                OutlinedButton(
+                    onClick = {
+                        app.appState.put("script.${cmd.hashCode()}", cmd)
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5577)),
+                ) {
+                    Text("Save to Vault", fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                }
             }
         }
     }
@@ -641,6 +671,26 @@ private fun PromptsTab(
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Save Command", fontFamily = FontFamily.Monospace)
+        }
+
+        if (commands.isNotEmpty()) {
+            OutlinedButton(
+                onClick = {
+                    commands.forEach { cmd ->
+                        val config = RouterConfig(
+                            name = "Script: ${cmd.label}",
+                            runtime = "terminal",
+                            backend = "bash",
+                            model = cmd.command,
+                        )
+                        app.routerConfigs.add(config)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFAA77FF)),
+            ) {
+                Text("Export All to Router", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            }
         }
     }
 }

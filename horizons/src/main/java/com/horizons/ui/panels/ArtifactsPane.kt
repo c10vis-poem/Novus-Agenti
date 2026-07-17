@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.core.state.ChatSession
+import com.horizons.core.state.ConfigStatus
 import com.horizons.core.state.SavedCommand
 import com.horizons.ui.SlateStoneBackground
 import com.horizons.ui.theme.HorizonsColors
@@ -72,6 +74,7 @@ fun ArtifactsPane(
 
     Box(modifier = modifier.fillMaxSize()) {
     SlateStoneBackground()
+    SelectionContainer {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -88,18 +91,89 @@ fun ArtifactsPane(
                 Text("←", fontSize = 20.sp, color = HorizonsColors.TileArtifacts)
             }
             Text(
-                "ARTIFACTS",
+                "ARCHIVES",
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 color = HorizonsColors.TileArtifacts,
             )
             Text(
-                "  / logs_skills",
+                "  / archive",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 color = HorizonsColors.TileArtifacts.copy(alpha = 0.5f),
             )
+        }
+
+        HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.2f))
+
+        // ── Archived Configs ─────────────────────────────────────────────
+        val configs by app.routerConfigs.configs.collectAsState()
+        val archivedConfigs = configs.filter { it.status == ConfigStatus.ARCHIVED }
+
+        SectionHeader("Archived Configs", HorizonsColors.TileArtifacts)
+
+        if (archivedConfigs.isEmpty()) {
+            PlaceholderCard("No archived router configurations. Archive configs from the Router.")
+        } else {
+            archivedConfigs.forEach { config ->
+                Surface(
+                    color = HorizonsColors.Surface,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    config.name,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = HorizonsColors.TileArtifacts,
+                                )
+                                Text(
+                                    "${config.runtime.ifBlank { "—" }} / ${config.backend.ifBlank { "—" }} / ${config.model.ifBlank { "—" }}",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                )
+                                Text(
+                                    dateFormat.format(Date(config.createdAt)),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                )
+                            }
+                            Text(
+                                "Restore",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = HorizonsColors.TileArtifacts,
+                                modifier = Modifier
+                                    .clickable {
+                                        app.routerConfigs.setStatus(config.id, ConfigStatus.INCOMPLETE)
+                                    }
+                                    .padding(8.dp),
+                            )
+                            Text(
+                                "Delete",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier
+                                    .clickable { app.routerConfigs.remove(config.id) }
+                                    .padding(8.dp),
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.2f))
@@ -274,6 +348,7 @@ fun ArtifactsPane(
         )
 
         Spacer(Modifier.height(24.dp))
+    }
     }
     }
 }

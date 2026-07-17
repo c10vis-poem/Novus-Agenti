@@ -141,11 +141,11 @@ fun HomeGrid(
                 Spacer(Modifier.width(8.dp))
                 TileCard(
                     name = "MONITOR",
-                    slug = "/ cognito",
-                    subtitle = "Model · API ·\nCLI",
+                    slug = "/ console",
+                    subtitle = "Library · Browse ·\nCompatibility",
                     color = HorizonsColors.TileMonitor,
                     tileType = TileType.MONITOR,
-                    cmdHint = "$ cognito",
+                    cmdHint = "$ console",
                     onClick = { onTileClick(Panel.Monitor) },
                     modifier = Modifier.weight(1f),
                 )
@@ -202,26 +202,26 @@ fun HomeGrid(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Bottom row: Artifacts · Terminal · Settings ──────────────────
+            // ── Bottom row: Settings (~4:30 SE) · Terminal (6:00 S) · Archives (~7:30 SW) ──
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 TileCard(
-                    name = "ARTIFACTS",
-                    slug = "/ logs_skills",
-                    subtitle = "Logs · Prompts ·\nWarm models",
-                    color = HorizonsColors.TileArtifacts,
-                    tileType = TileType.ARTIFACTS,
-                    cmdHint = "$ ls artifacts/",
-                    onClick = { onTileClick(Panel.Artifacts) },
+                    name = "SETTINGS",
+                    slug = "/ vault",
+                    subtitle = "Deposits · Keys ·\nImports · Vault",
+                    color = HorizonsColors.TileSettings,
+                    tileType = TileType.SETTINGS,
+                    cmdHint = "$ vault --open",
+                    onClick = { onTileClick(Panel.Settings) },
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 TileCard(
                     name = "TERMINAL",
-                    slug = "/ shell",
-                    subtitle = "Matrix shell ·\nGreen on black",
+                    slug = "/ garage",
+                    subtitle = "Mod garage ·\nScripts · CLI",
                     color = HorizonsColors.TileTerminal,
                     tileType = TileType.TERMINAL,
                     cmdHint = "$ _",
@@ -230,13 +230,13 @@ fun HomeGrid(
                 )
                 Spacer(Modifier.width(8.dp))
                 TileCard(
-                    name = "SETTINGS",
-                    slug = "/ config",
-                    subtitle = "Config · Matrix\ntheme overlay",
-                    color = HorizonsColors.TileSettings,
-                    tileType = TileType.SETTINGS,
-                    cmdHint = "$ config --open",
-                    onClick = { onTileClick(Panel.Settings) },
+                    name = "ARCHIVES",
+                    slug = "/ archive",
+                    subtitle = "Artifacts · Logs ·\nSaved configs",
+                    color = HorizonsColors.TileArtifacts,
+                    tileType = TileType.ARTIFACTS,
+                    cmdHint = "$ ls archive/",
+                    onClick = { onTileClick(Panel.Artifacts) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -400,9 +400,9 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
         Conduit(Offset(leftX, topRowY), Color(0xFF2DD4D9)),     // Horizons
         Conduit(Offset(midX, topRowY), Color(0xFF2DD4D9)),      // Monitor
         Conduit(Offset(rightX, topRowY), Color(0xFF4FE7EC)),    // Chat
-        Conduit(Offset(leftX, botRowY), Color(0xFFE8A838)),     // Artifacts
+        Conduit(Offset(leftX, botRowY), Color(0xFFFF5577)),     // Settings
         Conduit(Offset(midX, botRowY), Color(0xFF00FF41)),      // Terminal
-        Conduit(Offset(rightX, botRowY), Color(0xFFFF5577)),    // Settings
+        Conduit(Offset(rightX, botRowY), Color(0xFFE8A838)),    // Archives
     )
 
     conduits.forEach { conduit ->
