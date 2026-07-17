@@ -134,6 +134,7 @@ class MainActivity : ComponentActivity() {
                             )
                             Panel.Router    -> RouterPane(
                                 onBack = { activePanel = null },
+                                onNavigate = { activePanel = it },
                                 modifier = Modifier.fillMaxSize(),
                             )
                             Panel.Artifacts -> ArtifactsPane(

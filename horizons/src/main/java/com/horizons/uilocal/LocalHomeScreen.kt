@@ -1,6 +1,12 @@
 package com.horizons.uilocal
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -38,7 +45,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.horizons.ChatMessage
 import com.horizons.HorizonsApplication
 import com.horizons.core.shell.DaemonLauncher
@@ -193,9 +202,17 @@ private fun DaemonStatusChip(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChatBubble(msg: ChatMessage) {
     val isUser = msg.role == "user"
+    val context = LocalContext.current
+
+    fun copyToClipboard() {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -203,12 +220,38 @@ private fun ChatBubble(msg: ChatMessage) {
         Surface(
             color = if (isUser) HorizonsColors.PrimaryTeal.copy(alpha = 0.25f) else HorizonsColors.Surface,
             shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.combinedClickable(
+                onClick = {},
+                onLongClick = { copyToClipboard() },
+            ),
         ) {
-            Text(
-                msg.text.ifBlank { "…" },
-                modifier = Modifier.padding(10.dp),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Column {
+                SelectionContainer {
+                    Text(
+                        msg.text.ifBlank { "…" },
+                        modifier = Modifier.padding(10.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (!isUser) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        Text(
+                            text = "[ copy ]",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = HorizonsColors.PrimaryTeal.copy(alpha = 0.4f),
+                            modifier = Modifier
+                                .clickable { copyToClipboard() }
+                                .padding(4.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }

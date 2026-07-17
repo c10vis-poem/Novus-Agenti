@@ -34,7 +34,9 @@
    paste into Credentials).
 4. **Copy/paste broken app-wide** — no copy affordance on chat reply
    bubbles, no paste into the Termux chat tile, Monitor tabs copy-only.
-   OPEN: copy-on-bubble + full clipboard support on all text surfaces.
+   PARTIAL FIX: copy button + long-press copy on chat bubbles (both
+   ChatPane and LocalHomeScreen). Full clipboard support on remaining
+   text surfaces still OPEN.
 5. **Zoom works nowhere** (pinch-zoom shipped only for chat bubbles; the
    operator expects it across panels). OPEN: app-wide text-scale.
 6. **STT/TTS layer decorative**: STT tab inert; NO TTS tab; voice pitch
@@ -48,8 +50,10 @@
    quick-chat overlay. OPEN.
 9. **Monitor**: terminal row should expand to ~1/3 screen (currently one
    line); Models/Files/Network/System tabs are read-only copy boxes — no
-   manual entry, no paste. OPEN.
-10. **Shortcut button does nothing.** OPEN — wire or delete.
+   manual entry, no paste. PARTIAL FIX: console expanded from 80dp to
+   200-360dp with scrollable output. Manual entry in other tabs still OPEN.
+10. **Shortcut button does nothing.** FIXED — removed the decorative gear
+    icon from tile cards (was non-functional, looked interactive).
 11. **"Old tile still there"** on the launcher despite the manifest having
     exactly ONE launcher activity now. Likely a stale pinned/cached
     launcher shortcut from the pre-fix install surviving reinstall —
@@ -67,11 +71,15 @@
     fixed by #1's runtime watcher), needs on-device verification.
 14. **No terminal route in Router** — the router panel has no way to reach
     a terminal session. The terminal exists in Monitor but not as a
-    routable destination from Router. OPEN.
+    routable destination from Router. FIXED — added Quick Nav section to
+    Router with Terminal, Monitor, and Settings links.
 15. **No directions / vague confusing interface** — the overall navigation
     gives no guidance on what to do or where things are. No onboarding,
     no tooltips, no empty-state instructions. A new user has no idea what
-    any panel does or how to get started. OPEN.
+    any panel does or how to get started. PARTIAL FIX: added Quick Start
+    guide on the home screen ("Router → load a model · Chat → talk to it ·
+    Monitor → system status"). Full onboarding / per-panel guidance still
+    OPEN.
 
 ## P2 — architecture / UX redesign (operator direction, agreed)
 

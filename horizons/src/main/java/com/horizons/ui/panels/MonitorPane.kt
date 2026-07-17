@@ -419,14 +419,14 @@ fun MonitorPane(
         Surface(
             color = HorizonsColors.IconBackplate,
             shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 360.dp),
         ) {
             Text(
                 "> $consoleOutput",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 color = HorizonsColors.TileTerminal,
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(12.dp).verticalScroll(rememberScrollState()),
             )
         }
 

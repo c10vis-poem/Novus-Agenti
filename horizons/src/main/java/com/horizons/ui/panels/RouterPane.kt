@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
+import com.horizons.Panel
 import com.horizons.core.llm.CloudLlmRuntime
 import com.horizons.core.state.AppStateStore
 import com.horizons.core.voice.KokoroSetupState
@@ -64,6 +65,7 @@ private val Accent = HorizonsColors.TileRouter
 @Composable
 fun RouterPane(
     onBack: () -> Unit,
+    onNavigate: (Panel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
@@ -766,6 +768,52 @@ fun RouterPane(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                )
+            }
+        }
+
+        // ── Quick Nav ──────────────────────────────────────────────────────
+        HorizontalDivider(color = Accent.copy(alpha = 0.2f))
+        RouterSection("Quick Nav")
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = { onNavigate(Panel.Terminal) },
+                border = BorderStroke(1.dp, HorizonsColors.TileTerminal.copy(alpha = 0.4f)),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    ">_ Terminal",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = HorizonsColors.TileTerminal,
+                )
+            }
+            OutlinedButton(
+                onClick = { onNavigate(Panel.Monitor) },
+                border = BorderStroke(1.dp, HorizonsColors.TileMonitor.copy(alpha = 0.4f)),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "Monitor",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = HorizonsColors.TileMonitor,
+                )
+            }
+            OutlinedButton(
+                onClick = { onNavigate(Panel.Settings) },
+                border = BorderStroke(1.dp, HorizonsColors.TileSettings.copy(alpha = 0.4f)),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "Settings",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = HorizonsColors.TileSettings,
                 )
             }
         }
