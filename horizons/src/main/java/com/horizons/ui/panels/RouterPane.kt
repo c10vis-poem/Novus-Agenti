@@ -76,14 +76,12 @@ fun RouterPane(
     val currentVoiceId by app.ttsVoiceId.collectAsState()
     val currentSpeed by app.ttsSpeed.collectAsState()
 
-    // GenieX (GGUF) and ort_engine (qnn_context_binary/.onnx) are different
-    // runtimes for different model formats — show whichever actually has a
-    // model available, preferring GenieX since it's the decided primary path.
-    val genieXModelPath = app.resolveGenieXModelPath()
-    val modelPath = genieXModelPath ?: app.resolveNpuModelPath()
-    val modelExists = modelPath != null
-    val runtimeLabel = if (genieXModelPath != null) "geniex_daemon · Hexagon HTP v79"
-                        else "ort_engine · Hexagon HTP v79"
+    // GenieX model selection is explicit, operator-driven — NOT auto-picked
+    // from whatever's in Downloads (session 17 hard rule: ship/run empty
+    // until the operator loads something). This list is just what's
+    // available to choose from.
+    val genieXCandidates = remember { app.listGenieXModelCandidates() }
+    val activeGenieXModel = app.activeGenieXModelPath
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
     val perf by app.llmRuntime.perfMetrics.collectAsState()
     val isCloudBackend = backendStatus.contains("Cloud")
@@ -122,8 +120,11 @@ fun RouterPane(
 
         HorizontalDivider(color = Accent.copy(alpha = 0.2f))
 
-        // ── NPU Runtime ──────────────────────────────────────────────────────
-        RouterSection("NPU Runtime")
+        // ── NPU Runtime — GenieX, explicit load/swap/unload ────────────────────
+        // Nothing here auto-runs. The app ships/lands/runs empty; the operator
+        // picks a model, which is the ONLY thing that makes CliffordService
+        // launch geniex_daemon (AppStateStore.KEY_ACTIVE_GENIEX_MODEL).
+        RouterSection("NPU Runtime — GenieX")
 
         Surface(
             color = if (npuReady) HorizonsColors.StatusAsr.copy(alpha = 0.1f)
@@ -138,13 +139,17 @@ fun RouterPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        runtimeLabel,
+                        "geniex_daemon · Hexagon HTP v79",
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     StatusPill(
-                        text = if (npuReady) "ACTIVE" else if (modelExists) "IDLE" else "NO MODEL",
+                        text = when {
+                            npuReady -> "ACTIVE"
+                            activeGenieXModel != null -> "LOADING"
+                            else -> "EMPTY"
+                        },
                         active = npuReady,
                     )
                 }
@@ -154,19 +159,55 @@ fun RouterPane(
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
-                if (modelPath != null) {
+
+                if (genieXCandidates.isEmpty()) {
                     Text(
-                        modelPath,
+                        "No .gguf files found in models/ or Download/.",
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     )
-                }
-                if (modelExists && !npuReady) {
-                    Button(onClick = { app.llmRuntime.preWarm() }) {
-                        Text("Load Model", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                } else {
+                    Text(
+                        "Pick a model to load — nothing runs until you choose one:",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    )
+                    genieXCandidates.forEach { file ->
+                        val isSelected = file.absolutePath == activeGenieXModel
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    file.name,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) Accent else MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    "${file.length() / (1024 * 1024)} MB",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                )
+                            }
+                            if (isSelected) {
+                                OutlinedButton(onClick = { app.setActiveGenieXModel(null) }) {
+                                    Text("Unload", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                }
+                            } else {
+                                Button(onClick = { app.setActiveGenieXModel(file.absolutePath) }) {
+                                    Text("Load", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                }
+                            }
+                        }
                     }
                 }
+
                 if (npuReady) {
                     Button(onClick = { app.testModel() }) {
                         Text(

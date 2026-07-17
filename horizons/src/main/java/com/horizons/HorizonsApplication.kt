@@ -354,30 +354,41 @@ class HorizonsApplication : Application() {
     }
 
     /**
-     * GGUF specifically — the format GenieX's llama_cpp plugin loads.
-     * Separate from [resolveNpuModelPath] on purpose: that resolver is
-     * format-agnostic (any MODEL_EXTENSIONS match) and feeds ort_engine,
-     * which can ONLY load qnn_context_binary/.onnx — never GGUF. Handing a
-     * GGUF to ort_engine silently fails to load and stalls in 503 forever
-     * (operator-caught, session 17). GenieX is GGUF's actual runtime.
+     * All GGUFs available to load via GenieX (format-specific: GenieX's
+     * llama_cpp plugin needs GGUF, unlike [resolveNpuModelPath]'s ort_engine
+     * target, which needs qnn_context_binary/.onnx and can't read GGUF at
+     * all). Purely a discovery list for the Router picker UI — NOTHING here
+     * auto-launches a daemon. The operator selects one explicitly, which
+     * writes AppStateStore.KEY_ACTIVE_GENIEX_MODEL; CliffordService only
+     * ever launches/reloads geniex_daemon in response to that key changing.
+     * (Was auto-pick-and-launch-on-file-presence — operator hard-reject,
+     * session 17: "ship empty, land empty, run empty, loaded on my end.")
      */
-    fun resolveGenieXModelPath(): String? {
+    fun listGenieXModelCandidates(): List<java.io.File> {
         val modelsDir = java.io.File(filesDir, "models")
         val roots = listOf(modelsDir, java.io.File("/storage/emulated/0/Download"))
-        val candidates = roots.asSequence()
+        return roots.asSequence()
             .flatMap { it.listFiles()?.asSequence() ?: emptySequence() }
             .filter { it.isFile && it.name.endsWith(".gguf", ignoreCase = true) }
+            .sortedByDescending { it.length() }
             .toList()
-        // Prefer the operator's actual target model (Qwen3.5-9B, per every
-        // planning doc in this repo) by filename if more than one GGUF is
-        // present. Was "most recently downloaded", which silently picked up
-        // an incidental smaller test file (Qwen3.5-2B) over the real 9B
-        // model (operator-caught, session 17) — newest-download is a bad
-        // proxy for "the model I actually want to run." Falls back to
-        // largest file (a small test/quantization scrap is very unlikely to
-        // be the biggest GGUF on device) when no name match exists.
-        return candidates.firstOrNull { it.name.contains("9b", ignoreCase = true) }?.absolutePath
-            ?: candidates.maxByOrNull { it.length() }?.absolutePath
+    }
+
+    /** Currently-selected GenieX model, or null if the operator hasn't chosen one. */
+    val activeGenieXModelPath: String?
+        get() = appState.get(AppStateStore.KEY_ACTIVE_GENIEX_MODEL)?.takeIf { it.isNotBlank() }
+
+    /** Selects (or clears, if null) the model GenieX should load. Swapping models — or
+     *  unloading entirely — is just calling this again; CliffordService does the rest. */
+    fun setActiveGenieXModel(path: String?) {
+        appState.put(AppStateStore.KEY_ACTIVE_GENIEX_MODEL, path ?: "")
+        // Always reset, even when swapping (not just clearing): GenieXClient
+        // caches its discovered model id for the life of the instance, so a
+        // stale client would keep talking about the OLD model after the
+        // daemon restarts with a new one. llmRuntime falls through to
+        // cloud/fallback until CliffordService confirms the swapped daemon
+        // is actually up and re-activates a fresh client.
+        _genieXClient = null
     }
 
     fun resolveNpuModelPath(): String? {

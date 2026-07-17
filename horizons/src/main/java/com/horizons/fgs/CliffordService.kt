@@ -284,20 +284,51 @@ class CliffordService : Service() {
     // serve-first means liveness is the only thing to guard (no relaunch
     // backoff needed — a bad model just means /v1/models never returns 200,
     // which the CRS loop above polls for before activating GenieXClient).
+    //
+    // HARD RULE (operator, session 17): this daemon NEVER launches on its
+    // own just because a binary + GGUF happen to be present. It launches
+    // ONLY in response to AppStateStore.KEY_ACTIVE_GENIEX_MODEL being set —
+    // i.e. the operator explicitly picking a model in the Router UI. Ship
+    // empty, land empty, run empty, loaded on the operator's end. Picking a
+    // DIFFERENT model while one is already running stops the old process
+    // and relaunches with the new one — that's the whole hot-swap story for
+    // now (geniex_daemon loads one model per process; true per-request
+    // multi-model serving, which GenieX's real CLI supports, is a future
+    // upgrade, not required for "swap without a rebuild").
 
     private var genieLauncher: DaemonLauncher? = null
+    private var genieLoadedModelPath: String? = null
 
     private fun genieDaemonRunning(): Boolean = genieLauncher?.isRunning() == true
 
     private suspend fun ensureGenieDaemonRunning() {
         val app = applicationContext as? HorizonsApplication ?: return
         val binary = java.io.File(filesDir, GENIEX_DAEMON_BINARY)
-        if (!binary.canExecute()) return  // not imported yet — optional daemon
+        if (!binary.canExecute()) return  // not imported yet
 
+        val selected = app.activeGenieXModelPath
         val l = genieLauncher ?: DaemonLauncher(this, GENIEX_DAEMON_BINARY).also { genieLauncher = it }
-        if (l.isRunning()) return
 
-        val modelPath = app.resolveGenieXModelPath() ?: return  // no GGUF yet
+        if (selected == null) {
+            // Nothing selected (or the operator cleared the selection) — if
+            // a daemon happens to be running from a prior selection, stop it.
+            if (l.isRunning()) {
+                Log.i(TAG, "CRS: GenieX model deselected — stopping daemon")
+                l.stop()
+                genieLoadedModelPath = null
+            }
+            return
+        }
+
+        if (l.isRunning() && selected == genieLoadedModelPath) return  // already serving the right model
+
+        if (l.isRunning()) {
+            Log.i(TAG, "CRS: GenieX model swap $genieLoadedModelPath -> $selected — restarting daemon")
+            l.stop()
+            // Give the port a moment to free before rebinding.
+            kotlinx.coroutines.delay(500)
+        }
+
         val pluginDir = java.io.File(java.io.File(filesDir, "geniex-plugins"), "plugins")
         if (!pluginDir.isDirectory) {
             Log.w(TAG, "CRS: GenieX plugins not extracted yet (import geniex-plugins-arm64.tar.gz) — waiting")
@@ -306,14 +337,17 @@ class CliffordService : Service() {
 
         val args = listOf(
             "--port", GenieXClient.DEFAULT_PORT.toString(),
-            "--model", modelPath,
+            "--model", selected,
             "--plugin", "llama_cpp",
             "--device", "npu",
             "--plugin-dir", pluginDir.absolutePath,
-            "--model-name", java.io.File(modelPath).name,
+            "--model-name", java.io.File(selected).name,
         )
         l.launch(args)
-            .onSuccess { Log.i(TAG, "CRS: GenieX daemon launched PID=${it.pid} model=$modelPath") }
+            .onSuccess {
+                genieLoadedModelPath = selected
+                Log.i(TAG, "CRS: GenieX daemon launched PID=${it.pid} model=$selected")
+            }
             .onFailure { Log.w(TAG, "CRS: GenieX daemon launch failed", it) }
     }
 
