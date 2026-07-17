@@ -335,6 +335,41 @@ class HorizonsApplication : Application() {
             // -- STT: probe the media daemon so stt.ready reflects connectivity --
             scope.launch { runCatching { stt.probe() } }
 
+            // -- Runtime watcher: THE activation path for local daemons --
+            // CliffordService (:clifford process) launches/guards the native
+            // daemons but CANNOT activate runtimes here — it lives across a
+            // process boundary and only ever mutated its own dead copy of
+            // this singleton (root cause of "daemon healthy, chat still says
+            // no backend"). This loop runs in THE UI PROCESS: it polls the
+            // daemons' local ports and flips llmRuntime accordingly, both
+            // directions (activate on ready, deactivate on gone/deselected).
+            scope.launch {
+                while (true) {
+                    runCatching {
+                        val genieSelected = java.io.File(filesDir, ACTIVE_GENIEX_MODEL_FILE).canRead()
+                        val genieReady = genieSelected && probeOk(
+                            "http://127.0.0.1:${com.horizons.core.llm.GenieXClient.DEFAULT_PORT}/v1/models")
+                        if (genieReady && _genieXClient == null) {
+                            activateGenieXRuntime()
+                            com.horizons.core.diag.Breadcrumb.drop("geniex_runtime_activated")
+                        } else if (!genieReady && _genieXClient != null) {
+                            _genieXClient = null
+                            com.horizons.core.diag.Breadcrumb.drop("geniex_runtime_deactivated")
+                        }
+
+                        val ortReady = probeOk(
+                            "http://127.0.0.1:${com.horizons.core.shell.DaemonLauncher.ENGINE_PORT}/health")
+                        if (ortReady && _npuClient == null) {
+                            activateNpuRuntime()
+                            com.horizons.core.diag.Breadcrumb.drop("npu_runtime_activated")
+                        } else if (!ortReady && _npuClient != null) {
+                            _npuClient = null
+                        }
+                    }
+                    kotlinx.coroutines.delay(5_000)
+                }
+            }
+
             scope.launch { ttsVoiceId.collect { id -> tts.voiceId = id; appState.put(AppStateStore.KEY_TTS_VOICE, id) } }
             scope.launch { ttsSpeed.collect  { sp -> tts.speed   = sp; appState.put(AppStateStore.KEY_TTS_SPEED, sp.toString()) } }
 
@@ -344,6 +379,17 @@ class HorizonsApplication : Application() {
             throw e
         }
     }
+
+    /** True while any local (on-device) LLM daemon is serving the chat. */
+    private fun probeOk(url: String): Boolean = try {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 1_000
+        conn.readTimeout = 1_500
+        conn.requestMethod = "GET"
+        val ok = conn.responseCode == 200
+        conn.disconnect()
+        ok
+    } catch (_: Exception) { false }
 
     fun activateNpuRuntime() {
         if (_npuClient == null) _npuClient = NpuClient()
@@ -374,14 +420,28 @@ class HorizonsApplication : Application() {
             .toList()
     }
 
-    /** Currently-selected GenieX model, or null if the operator hasn't chosen one. */
+    /** Currently-selected GenieX model, or null if the operator hasn't chosen
+     *  one. Reads the cross-process file (the source of truth CliffordService
+     *  acts on), not the prefs copy. */
     val activeGenieXModelPath: String?
-        get() = appState.get(AppStateStore.KEY_ACTIVE_GENIEX_MODEL)?.takeIf { it.isNotBlank() }
+        get() = java.io.File(filesDir, ACTIVE_GENIEX_MODEL_FILE)
+            .takeIf { it.canRead() }?.readText()?.trim()?.takeIf { it.isNotBlank() }
 
     /** Selects (or clears, if null) the model GenieX should load. Swapping models — or
      *  unloading entirely — is just calling this again; CliffordService does the rest. */
     fun setActiveGenieXModel(path: String?) {
         appState.put(AppStateStore.KEY_ACTIVE_GENIEX_MODEL, path ?: "")
+        // CROSS-PROCESS: CliffordService runs in :clifford, a SEPARATE process,
+        // and it's the thing that actually launches the daemon. It cannot see
+        // this main process's AppStateStore (EncryptedSharedPreferences is not
+        // multi-process coherent — the daemon-launcher was reading a stale
+        // empty selection forever, which is why "Load" did nothing and the app
+        // stayed on "no backend"). A plain file in filesDir is the reliable
+        // cross-process channel; CliffordService reads it fresh each CRS tick.
+        runCatching {
+            val f = java.io.File(filesDir, ACTIVE_GENIEX_MODEL_FILE)
+            if (path == null) f.delete() else f.writeText(path)
+        }
         // Always reset, even when swapping (not just clearing): GenieXClient
         // caches its discovered model id for the life of the instance, so a
         // stale client would keep talking about the OLD model after the
@@ -433,6 +493,11 @@ class HorizonsApplication : Application() {
 
     companion object {
         private const val TAG = "HorizonsApp"
+
+        /** Cross-process channel for the operator's explicit GenieX model
+         *  selection (main UI process writes, :clifford reads). Plain file
+         *  because EncryptedSharedPreferences is not multi-process coherent. */
+        const val ACTIVE_GENIEX_MODEL_FILE = "active_geniex_model.txt"
 
         private fun String.stripForTts(): String =
             replace(Regex("[*_`#~\\[\\]|>]+"), "")

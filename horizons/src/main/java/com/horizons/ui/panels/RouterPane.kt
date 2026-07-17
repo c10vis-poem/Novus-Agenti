@@ -124,7 +124,11 @@ fun RouterPane(
         // Nothing here auto-runs. The app ships/lands/runs empty; the operator
         // picks a model, which is the ONLY thing that makes CliffordService
         // launch geniex_daemon (AppStateStore.KEY_ACTIVE_GENIEX_MODEL).
-        RouterSection("NPU Runtime — GenieX")
+        // "Runtime", not "NPU Runtime" — GenieX schedules across NPU/GPU/CPU
+        // (its llama_cpp backend defaults to hybrid dispatch); the hardware
+        // split is the runtime's business, not a category the UI should
+        // hardcode (operator-corrected, session 17).
+        RouterSection("Runtime — GenieX")
 
         Surface(
             color = if (npuReady) HorizonsColors.StatusAsr.copy(alpha = 0.1f)

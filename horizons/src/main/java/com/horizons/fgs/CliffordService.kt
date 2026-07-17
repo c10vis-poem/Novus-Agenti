@@ -132,26 +132,22 @@ class CliffordService : Service() {
 
                 // Media + GenieX daemons are both optional and serve-first (503s
                 // over a bad/missing model, never crash-loops) — just make sure
-                // they're up if their binaries exist. GenieX readiness also
-                // needs polling here (unlike media_daemon, its 200 activates a
-                // runtime, so llmRuntime picks it up over the cloud/fallback).
+                // they're up if their binaries exist. NOTE: runtime ACTIVATION
+                // does not happen here at all — this service is a separate
+                // process (:clifford), so calling app.activate*Runtime() here
+                // only mutated clifford's own dead copy of the app singleton,
+                // never the UI's (root cause of "daemon healthy but chat still
+                // says no backend", present since the original ort_engine
+                // wiring). The MAIN process polls daemon ports and activates
+                // its own runtimes — see HorizonsApplication's runtime watcher.
                 ensureMediaDaemonRunning()
                 ensureGenieDaemonRunning()
-                if (genieDaemonRunning() && app != null && !app.isGenieXActive) {
-                    if (geniexModelsReady()) {
-                        app.activateGenieXRuntime()
-                        Log.i(TAG, "CRS: GenieX daemon healthy — GenieXClient activated")
-                    }
-                }
 
                 // Auto-report main-process crashes to GitHub (this process
                 // survives them). No-op without a stored GitHub token; each
                 // crash uploads once. See core/diag/CrashReporter.
                 runCatching {
-                    com.horizons.core.diag.CrashReporter.maybeUpload(
-                        this@CliffordService,
-                        app?.appState?.get(com.horizons.core.state.AppStateStore.KEY_GITHUB_TOKEN),
-                    )
+                    com.horizons.core.diag.CrashReporter.maybeUpload(this@CliffordService)
                 }
 
                 // Terminal state: we gave up relaunching. Sit idle until the model
@@ -168,15 +164,15 @@ class CliffordService : Service() {
                 val processAlive = launcher?.isRunning() == true
 
                 if (processAlive) {
-                    // Process is up. Readiness decides activation; we do NOT relaunch.
+                    // Process is up. Readiness decides state (and the perf lock);
+                    // runtime activation is the MAIN process's job (see above).
                     consecutiveLaunchFailures = 0
                     when (daemonHealthCode()) {
                         200 -> {
                             updateState(DaemonState.Healthy)
-                            if (app != null && !app.isNpuActive) {
-                                app.activateNpuRuntime()
+                            if (npuPerfLock == null) {
                                 acquireNpuPerfLock()
-                                Log.i(TAG, "CRS: daemon healthy — NpuClient activated, perf lock acquired")
+                                Log.i(TAG, "CRS: daemon healthy — perf lock acquired")
                             }
                         }
                         // 503 = alive but model still loading OR load failed. Either way the
@@ -306,7 +302,12 @@ class CliffordService : Service() {
         val binary = java.io.File(filesDir, GENIEX_DAEMON_BINARY)
         if (!binary.canExecute()) return  // not imported yet
 
-        val selected = app.activeGenieXModelPath
+        // Read the selection from the cross-process file, NOT app.appState:
+        // this service runs in :clifford, whose AppStateStore is a separate
+        // stale copy of the main process's encrypted prefs (the original
+        // "tapped Load, nothing happened, no backend forever" bug).
+        val selected = java.io.File(filesDir, HorizonsApplication.ACTIVE_GENIEX_MODEL_FILE)
+            .takeIf { it.canRead() }?.readText()?.trim()?.takeIf { it.isNotBlank() }
         val l = genieLauncher ?: DaemonLauncher(this, GENIEX_DAEMON_BINARY).also { genieLauncher = it }
 
         if (selected == null) {
@@ -350,18 +351,6 @@ class CliffordService : Service() {
             }
             .onFailure { Log.w(TAG, "CRS: GenieX daemon launch failed", it) }
     }
-
-    /** GET :18181/v1/models — 200 + non-empty data[] means a model is loaded. */
-    private fun geniexModelsReady(): Boolean = try {
-        val conn = java.net.URL(
-            "http://127.0.0.1:${GenieXClient.DEFAULT_PORT}/v1/models"
-        ).openConnection() as java.net.HttpURLConnection
-        conn.connectTimeout = 1_000
-        conn.requestMethod = "GET"
-        val ready = conn.responseCode == 200
-        conn.disconnect()
-        ready
-    } catch (_: Exception) { false }
 
     /**
      * HTTP status from the daemon's /health, or -1 if the port didn't respond at all.

@@ -27,11 +27,22 @@ object CrashReporter {
     private const val MARKER = "crash_uploaded.marker"
 
     /** Call periodically (CRS tick). Cheap when there's nothing to do. */
-    fun maybeUpload(ctx: Context, githubToken: String?) {
-        if (githubToken.isNullOrBlank()) return
+    fun maybeUpload(ctx: Context) {
         val diagDir = ctx.getExternalFilesDir(null)?.let { File(it, "diag") } ?: return
         val crash = File(diagDir, "crash.log")
         if (!crash.canRead() || crash.length() == 0L) return
+
+        // Token is read via a FRESH AppStateStore instance every time (only
+        // reached when a crash actually exists, so the crypto setup cost is
+        // rare). The caller runs in :clifford, whose long-lived AppStateStore
+        // is a stale snapshot from process start — a token pasted into
+        // Settings afterwards would be invisible to it forever. A fresh
+        // instance re-reads the encrypted file from disk.
+        val githubToken = runCatching {
+            com.horizons.core.state.AppStateStore(ctx)
+                .get(com.horizons.core.state.AppStateStore.KEY_GITHUB_TOKEN)
+        }.getOrNull()
+        if (githubToken.isNullOrBlank()) return
 
         val content = runCatching { crash.readText() }.getOrNull() ?: return
         val hash = content.hashCode().toString()
