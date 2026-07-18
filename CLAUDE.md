@@ -6,10 +6,32 @@
 > Project: Novus Agenti (Omni Claw) — fully on-device agentic AI assistant.
 > Canonical repo: c10vis-poem/Novus-Agenti.
 >
-> ONE ACTIVE BRANCH: claude/notice-agent-ui-local-xa14op (app/UI-fork work —
-> local-first UI, model+vision daemon / media daemon split). This is THE
-> current work. Earlier app-track branch (sae7cy/PR #15) is merged to main
-> (PR #17) — do not reuse it.
+> UI RECONSTRUCTION JUST MERGED, AND IT DID NOT LAND RIGHT — see the
+> "State of the Union — 2026-07-18 (session 17)" section below before
+> touching HomeGrid.kt or any panel background. The operator gave detailed
+> reference images (monitor-panel icon should be the chat icon, chat panel
+> should look like a specific reference screenshot, the center-hub crystal
+> should be a symmetrical ~30° bevel gem off-center/rotated 45° with NO
+> "wizard hat" silhouette, the connecting cords should read as glowing
+> plasma tubes, the sun/horizon icon needs amber + pale pinkish-purple arch
+> over a blue base) and the session that shipped it (branch
+> claude/app-reconstruction-j1mog3, PR #21, merged to main at commit
+> 027005f) did NOT verify against those images before merging — no
+> screenshot/emulator check was ever run — the operator's reference images
+> WERE available to that session, the code was just never checked against
+> rendered output before shipping. Treat every visual claim in the old
+> session-16 "Current state" bullets below as UNVERIFIED against what the
+> operator actually asked for. Next session's first job is a visual debug
+> pass on HomeGrid.kt + PaneBackgrounds.kt: build the app, take a real
+> screenshot, and compare it side-by-side against the operator's reference
+> images (ask the operator to re-share them if they're not already visible
+> in this session's history) before touching any more Canvas code.
+>
+> Once that visual debug pass is stable, the daemon/runtime track below
+> (claude/notice-agent-ui-local-xa14op work, superseded conceptually by
+> what merged in PR #21 — reconcile the two before resuming daemon work)
+> resumes as the primary backend track. Earlier app-track branch
+> (sae7cy/PR #15) is merged to main (PR #17) — do not reuse it.
 >
 > The compile pipeline (ONNX → QAI Hub, branch claude/project-scope-review-lf615p,
 > PR #4) is DORMANT — not a second parallel track to pick up by default. It
@@ -477,7 +499,7 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-13 (session 16)
+## State of the Union — 2026-07-18 (session 17)
 
 This is the **only** current-state doc in this repo — updated in place
 each session, not accumulated as a new file per session. Historical
@@ -485,7 +507,75 @@ session-by-session detail lives in git history (commit log + old PR
 diffs), not here — if you need "what happened in session 12," check the
 log, don't expect it copy-pasted in this file.
 
-### Current state
+### Session 17 — UI reconstruction shipped, then merged WITHOUT verifying it matched what was asked for
+
+**What went wrong, stated plainly:** the operator supplied real reference
+images at multiple points across the session (a banner reference + goat
+photo, a chonky-orange-cat photo for the connection-lost state, and later
+a set of reference images for the monitor-panel icon, the chat panel look,
+and the plasma-tube cord style) and the model executing the work (run
+under Fable 5 for most of the visual/code work, per the operator) had
+those images available but wrote the Compose `Canvas`/`drawScope` code
+from its own interpretation without ever rendering the app and checking
+the output against them. No screenshot was taken, no emulator was run, no
+visual diff against the supplied images happened at any point before PR
+#21 was merged to `main` (commit `027005f`) at the operator's request. The
+operator's read after seeing the real result: none of the specific asks —
+the monitor icon matching the chat icon, the chat panel matching its
+reference, the crystal being a symmetrical bevel-cut gem instead of a
+"wizard hat" silhouette, the cords reading as plasma tubes, the amber sun
+/ pale pinkish-purple arch color treatment — actually landed correctly,
+and the merge made the `HomeGrid` visual state worse, not better. **Do not
+treat the "Current state" bullets carried over from session 16 below as
+visually verified — they describe what the code was intended to do, not
+what was confirmed on screen.**
+
+**Root cause:** having the reference images was not the gap — skipping the
+build+screenshot verification step was. The code was written and shipped
+on the strength of "this should match the description" without ever
+closing the loop by actually looking at rendered output next to the
+reference. Any future visual/graphics task in this repo MUST end with an
+actual rendered screenshot (emulator or device) compared side-by-side
+against whatever reference was supplied, before calling the work done —
+not just before merging, but before telling the operator it's ready to
+review.
+
+**What actually shipped in PR #21** (code is real and merged, only the
+*visual fidelity* is in question): `HomeGrid.kt` redesign (banner text,
+`drawCoreHubCrystal()`, conduit glow layers, per-tile icons, `StatusDot`,
+goat Easter egg + synthesized bleat, `drawAstralBackground()`), themed
+`PaneBackgrounds.kt` per panel (circuit-trace/oscilloscope/vault-door/
+film-grain), `Screensaver.kt` (idle screensaver with swappable device-
+storage image), interactivity pass (`SelectionContainer` + long-press
+menus), `ArchiveStore.kt` + `ArtifactsPane.kt` file manager, model
+plug-in pin (`KEY_ACTIVE_MODEL` in `AppStateStore.kt`), and the full
+runtime-definition pipeline (`RuntimeDefStore.kt`: define in Terminal →
+green-light check in Monitor → fuse-box re-validation gate in
+`RouterPane.kt`'s `switchOn()`). All of this compiles and is architecturally
+sound — the pending work is making the *visuals* match what was asked for,
+not rebuilding the pipeline underneath them.
+
+**Next session's concrete task list** (visual debug, not new features):
+1. If the reference images (monitor icon, chat panel, plasma-tube cords,
+   color reference) aren't already visible in this session's history, ask
+   the operator to re-attach them — but don't assume they're missing; check
+   first.
+2. Build the APK / run in an emulator, take a real screenshot of the home
+   grid.
+3. Compare side-by-side against references for: monitor-tile icon (should
+   match the chat icon's look, per operator), chat-panel visual (should
+   match its reference image), center-hub crystal (symmetrical ~30° bevel,
+   NOT the current silhouette if it reads as a "wizard hat", off-center,
+   rotated ~45°), conduit cords (should read as glowing plasma tubes per
+   the third reference, not the current 4-layer glow lines), HORIZONS icon
+   colors (amber sun/rays, blue at the bottom, pale pinkish-purple arch —
+   verify current `drawScope` color values actually produce this, not just
+   that amber/blue/purple appear somewhere).
+4. Fix `HomeGrid.kt` and `PaneBackgrounds.kt` iteratively against the
+   screenshot loop until confirmed, not against re-reading the text
+   description again.
+
+### Current state (session 16 carryover — daemon/runtime track, separate from the UI reconstruction above)
 
 - **App/UI-fork track is the one active branch** (`claude/notice-agent-ui-local-xa14op`).
   Horizons app is code-complete UI (Compose, 6 panels, home grid, chat,
