@@ -66,5 +66,12 @@ class AppStateStore(context: Context) {
         // TTS (Sherpa-ONNX / Kokoro)
         const val KEY_TTS_VOICE         = "tts.voice_id"
         const val KEY_TTS_SPEED         = "tts.speed"
+
+        // Per-panel uploadable wallpapers. Value = absolute path to the image
+        // copied into app storage. Absent/blank = use the procedural background.
+        const val KEY_WALLPAPER_CHAT     = "wallpaper.chat"
+        const val KEY_WALLPAPER_HORIZONS = "wallpaper.horizons"
+        const val KEY_WALLPAPER_ARCHIVES = "wallpaper.archives"
+        const val KEY_WALLPAPER_SETTINGS = "wallpaper.settings"
     }
 }

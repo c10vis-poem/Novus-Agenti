@@ -72,6 +72,9 @@ import com.horizons.ChatMessage
 import com.horizons.ChatMode
 import com.horizons.HorizonsApplication
 import com.horizons.ui.WaterDropletBackground
+import com.horizons.ui.PanelWallpaperBackground
+import com.horizons.ui.rememberWallpaperController
+import com.horizons.core.state.AppStateStore
 import com.horizons.ui.theme.HorizonsColors
 import com.horizons.audio.AudioRecorder
 import com.horizons.core.state.ChatSession
@@ -87,8 +90,10 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
 
 private val ChatAccent = HorizonsColors.TileChat
-private val CarbonBg = Color(0xFF1A1E22)
-private val CarbonCard = Color(0xFF252A30)
+// Semi-transparent so an uploaded wallpaper (or the procedural slate) shows
+// through the chat tiles/bars, per the panel-wallpaper design.
+private val CarbonBg = Color(0xD41A1E22)
+private val CarbonCard = Color(0xC2252A30)
 
 @Composable
 fun ChatPane(modifier: Modifier = Modifier) {
@@ -249,7 +254,7 @@ fun ChatPane(modifier: Modifier = Modifier) {
         modifier = modifier,
     ) {
         Box(Modifier.fillMaxSize()) {
-        WaterDropletBackground()
+        PanelWallpaperBackground(AppStateStore.KEY_WALLPAPER_CHAT) { WaterDropletBackground() }
         Column(Modifier.fillMaxSize()) {
 
             // ── Top bar: mode toggle + history button ─────────────────────────
@@ -261,6 +266,7 @@ fun ChatPane(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val chatWallpaper = rememberWallpaperController(AppStateStore.KEY_WALLPAPER_CHAT)
                 IconButton(onClick = { scope.launch { drawerState.open() } }) {
                     Text("☰", fontSize = 18.sp, color = ChatAccent)
                 }
@@ -279,6 +285,15 @@ fun ChatPane(modifier: Modifier = Modifier) {
                     onClick = { selectMode(ChatMode.B) },
                     label = { Text("Voice", fontSize = 11.sp) },
                 )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { chatWallpaper.launchPicker() }) {
+                    Text("🖼", fontSize = 15.sp, color = ChatAccent)
+                }
+                if (chatWallpaper.isSet) {
+                    IconButton(onClick = { chatWallpaper.clear() }) {
+                        Text("✕", fontSize = 15.sp, color = ChatAccent.copy(alpha = 0.7f))
+                    }
+                }
             }
 
             // ── Backend status banner ─────────────────────────────────────────
@@ -459,7 +474,7 @@ private fun CarbonBubble(msg: ChatMessage) {
     ) {
         Surface(
             shape = MaterialTheme.shapes.medium,
-            color = if (isUser) CarbonCard else HorizonsColors.Surface,
+            color = if (isUser) CarbonCard else HorizonsColors.Surface.copy(alpha = 0.78f),
             shadowElevation = 2.dp,
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
