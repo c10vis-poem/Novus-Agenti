@@ -1,5 +1,8 @@
 package com.horizons.ui
 
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -21,6 +24,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,6 +70,17 @@ fun HomeGrid(
     val stars = remember { generateStars(120) }
     var goatTaps by remember { mutableIntStateOf(0) }
     var showGoat by remember { mutableStateOf(false) }
+    var goatReason by remember { mutableStateOf<String?>(null) }
+
+    // Goat watchdog — if the runtime comes back broken, the goat delivers the news
+    LaunchedEffect(backendStatus) {
+        val bad = listOf("error", "fail", "crash", "dead", "unavailable")
+        if (bad.any { backendStatus.contains(it, ignoreCase = true) }) {
+            goatReason = backendStatus
+            showGoat = true
+            playGoatBleat()
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         // ── Astral chart background ─────────────────────────────────────────
@@ -87,8 +102,10 @@ fun HomeGrid(
                     .clickable {
                         goatTaps++
                         if (goatTaps >= 7) {
+                            goatReason = null
                             showGoat = true
                             goatTaps = 0
+                            playGoatBleat()
                         }
                     },
             ) {
@@ -100,9 +117,10 @@ fun HomeGrid(
                 )
                 Text(
                     "MØ[)u14R_  11(",
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = FontFamily.SansSerif,
                     fontWeight = FontWeight.Black,
-                    fontSize = 36.sp,
+                    fontSize = 38.sp,
+                    letterSpacing = 1.sp,
                     color = HorizonsColors.PrimaryTeal,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -110,14 +128,16 @@ fun HomeGrid(
                     "*Pioneer_Tech,",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
+                    letterSpacing = 2.sp,
                     color = HorizonsColors.PrimaryTeal,
                 )
                 Text(
                     "  (Next-Gen Certified)",
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = FontFamily.SansSerif,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
+                    fontSize = 18.sp,
+                    letterSpacing = (-0.3).sp,
                     color = HorizonsColors.PrimaryTeal,
                 )
                 Row(
@@ -352,28 +372,46 @@ fun HomeGrid(
                     Text("🐐", fontSize = 96.sp, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "// GOAT_UNLOCKED",
+                        if (goatReason != null) "// GOAT_SAYS_NO" else "// GOAT_UNLOCKED",
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = HorizonsColors.PrimaryTeal,
+                        color = if (goatReason != null) HorizonsColors.TileSettings
+                        else HorizonsColors.PrimaryTeal,
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "*Pioneer_Tech approved",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.55f),
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        "(Next-Gen Certified)",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.4f),
-                        textAlign = TextAlign.Center,
-                    )
+                    if (goatReason != null) {
+                        Text(
+                            "runtime came back wrong:",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = HorizonsColors.TileSettings.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            goatReason ?: "",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = HorizonsColors.PrimaryTeal.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center,
+                        )
+                    } else {
+                        Text(
+                            "*Pioneer_Tech approved",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = HorizonsColors.PrimaryTeal.copy(alpha = 0.55f),
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            "(Next-Gen Certified)",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = HorizonsColors.PrimaryTeal.copy(alpha = 0.4f),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                     Spacer(Modifier.height(32.dp))
                     Text(
                         "[ tap anywhere to dismiss ]",
@@ -386,6 +424,54 @@ fun HomeGrid(
             }
         }
     }
+}
+
+// ── Goat bleat — synthesized, no asset needed ───────────────────────────────
+
+private fun playGoatBleat() {
+    Thread {
+        try {
+            val sr = 22050
+            val durSec = 0.7f
+            val n = (sr * durSec).toInt()
+            val buf = ShortArray(n)
+            var phase = 0f
+            for (i in 0 until n) {
+                val t = i.toFloat() / sr
+                // Vibrato around 260Hz gives the "meh-eh-eh" warble
+                val freq = 260f + 45f * sin(2f * PI.toFloat() * 9f * t)
+                phase += 2f * PI.toFloat() * freq / sr
+                val saw = 2f * ((phase / (2f * PI.toFloat())) % 1f) - 1f
+                val tremolo = 0.55f + 0.45f * sin(2f * PI.toFloat() * 11f * t)
+                val envelope = (1f - t / durSec).coerceIn(0f, 1f) *
+                    (t * 40f).coerceAtMost(1f)
+                buf[i] = (saw * tremolo * envelope * 8500f).toInt().toShort()
+            }
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setSampleRate(sr)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build(),
+                )
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .setBufferSizeInBytes(n * 2)
+                .build()
+            track.write(buf, 0, n)
+            track.play()
+            Thread.sleep((durSec * 1000).toLong() + 150)
+            track.release()
+        } catch (_: Exception) {
+            // Sound is garnish — never let it crash the UI
+        }
+    }.start()
 }
 
 // ── Astral chart background ─────────────────────────────────────────────────
@@ -405,7 +491,47 @@ private fun generateStars(count: Int): List<Star> {
 }
 
 private fun DrawScope.drawAstralBackground(stars: List<Star>) {
-    drawRect(Color(0xFF222C34))
+    // Obsidian base — deep volcanic glass gradient, darker than flat #222C34
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Color(0xFF1A222A), Color(0xFF222C34), Color(0xFF141B21)),
+        ),
+    )
+
+    // Obsidian facets — large angular glass shards, barely visible
+    val facetRng = java.util.Random(137)
+    for (i in 0 until 6) {
+        val fx = facetRng.nextFloat() * size.width
+        val fy = facetRng.nextFloat() * size.height
+        val fw = (0.25f + facetRng.nextFloat() * 0.35f) * size.width
+        val fh = (0.15f + facetRng.nextFloat() * 0.25f) * size.height
+        val skew = (facetRng.nextFloat() - 0.5f) * fw * 0.6f
+        val facet = Path().apply {
+            moveTo(fx, fy)
+            lineTo(fx + fw, fy + skew * 0.3f)
+            lineTo(fx + fw * 0.75f + skew, fy + fh)
+            lineTo(fx - fw * 0.1f + skew * 0.5f, fy + fh * 0.85f)
+            close()
+        }
+        drawPath(
+            facet,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF2A3640).copy(alpha = 0.20f),
+                    Color(0xFF0D1216).copy(alpha = 0.12f),
+                ),
+                start = Offset(fx, fy),
+                end = Offset(fx + fw, fy + fh),
+            ),
+        )
+        // Specular glint along the facet's top edge — light catching glass
+        drawLine(
+            color = Color(0xFF9FCAD6).copy(alpha = 0.06f + facetRng.nextFloat() * 0.05f),
+            start = Offset(fx, fy),
+            end = Offset(fx + fw, fy + skew * 0.3f),
+            strokeWidth = 0.8f,
+        )
+    }
 
     val cx = size.width / 2f
     val cy = size.height * 0.42f

@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.ModelImportActivity
 import com.horizons.core.state.ConfigStatus
-import com.horizons.ui.SlateStoneBackground
+import com.horizons.ui.OscilloscopeBackground
 import com.horizons.ui.theme.HorizonsColors
 import java.io.File
 
@@ -100,7 +100,7 @@ fun MonitorPane(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        SlateStoneBackground()
+        OscilloscopeBackground()
         SelectionContainer {
             Column(
                 modifier = Modifier

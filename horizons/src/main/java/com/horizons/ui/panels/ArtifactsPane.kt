@@ -48,7 +48,7 @@ import com.horizons.HorizonsApplication
 import com.horizons.core.state.ChatSession
 import com.horizons.core.state.ConfigStatus
 import com.horizons.core.state.SavedCommand
-import com.horizons.ui.SlateStoneBackground
+import com.horizons.ui.FilmGrainBackground
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -73,7 +73,7 @@ fun ArtifactsPane(
     val commands by app.savedCommands.commands.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
-    SlateStoneBackground()
+    FilmGrainBackground()
     SelectionContainer {
     Column(
         modifier = Modifier

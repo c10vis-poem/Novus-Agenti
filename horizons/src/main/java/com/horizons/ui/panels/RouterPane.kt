@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.core.state.ConfigStatus
 import com.horizons.core.state.RouterConfig
-import com.horizons.ui.SlateStoneBackground
+import com.horizons.ui.CircuitTraceBackground
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.launch
 
@@ -71,7 +71,7 @@ fun RouterPane(
     var showNewConfig by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
-        SlateStoneBackground()
+        CircuitTraceBackground()
         SelectionContainer {
         Column(
             modifier = Modifier

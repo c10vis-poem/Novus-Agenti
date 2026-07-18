@@ -59,7 +59,7 @@ import com.horizons.ModelImportActivity
 import com.horizons.Panel
 import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.RouterConfig
-import com.horizons.ui.SlateStoneBackground
+import com.horizons.ui.VaultDoorBackground
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -82,7 +82,7 @@ fun SettingsPane(
     val scope = rememberCoroutineScope()
 
     Box(modifier.fillMaxSize()) {
-        SlateStoneBackground()
+        VaultDoorBackground()
         SelectionContainer {
             Column(
                 Modifier
