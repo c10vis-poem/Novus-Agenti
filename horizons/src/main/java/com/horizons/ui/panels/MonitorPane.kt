@@ -264,10 +264,17 @@ fun MonitorPane(
                         fontSize = 10.sp,
                         color = Accent.copy(alpha = 0.6f),
                     )
+                    // pinRev bumps on every plug/unplug so the rows recompose
+                    var pinRev by remember { mutableStateOf(0) }
+                    val pinnedPath = remember(pinRev) {
+                        app.appState.get(com.horizons.core.state.AppStateStore.KEY_ACTIVE_MODEL)
+                    }
+                    val resolvedPath = remember(pinRev) { app.resolveNpuModelPath() }
                     modelFiles.forEach { file ->
                         val sizeMb = file.length() / (1024 * 1024)
                         val ext = file.extension.lowercase()
-                        val active = app.resolveNpuModelPath() == file.absolutePath
+                        val pinned = pinnedPath == file.absolutePath
+                        val active = resolvedPath == file.absolutePath
 
                         val (compat, compatClr) = when (ext) {
                             "gguf" -> "Compatible: GenieX (GGML backend)" to ReadyGreen
@@ -283,13 +290,32 @@ fun MonitorPane(
                         LibraryFileCard(
                             name = file.name,
                             path = file.parent ?: "",
-                            sizeInfo = if (active) "● ACTIVE" else "${sizeMb} MB",
-                            compatInfo = compat +
-                                if (active) " — currently loaded" else "",
+                            sizeInfo = when {
+                                pinned -> "◉ PLUGGED IN"
+                                active -> "● ACTIVE (auto)"
+                                else -> "${sizeMb} MB · detected"
+                            },
+                            compatInfo = compat + when {
+                                pinned -> " — plugged in by you"
+                                active -> " — auto-selected (no pin set)"
+                                else -> " — landed, awaiting plug-in"
+                            },
                             compatColor = if (active) ReadyGreen else compatClr,
                             highlighted = active,
                             onCopy = {
                                 clipboardManager.setText(AnnotatedString(file.absolutePath))
+                            },
+                            plugLabel = if (pinned) "[ UNPLUG ]" else "[ PLUG IN ]",
+                            onPlug = {
+                                if (pinned) {
+                                    app.appState.remove(com.horizons.core.state.AppStateStore.KEY_ACTIVE_MODEL)
+                                } else {
+                                    app.appState.put(
+                                        com.horizons.core.state.AppStateStore.KEY_ACTIVE_MODEL,
+                                        file.absolutePath,
+                                    )
+                                }
+                                pinRev++
                             },
                         )
                     }
@@ -420,6 +446,8 @@ private fun LibraryFileCard(
     compatColor: Color,
     highlighted: Boolean = false,
     onCopy: () -> Unit,
+    plugLabel: String? = null,
+    onPlug: (() -> Unit)? = null,
 ) {
     var copied by remember { mutableStateOf(false) }
     Surface(
@@ -468,6 +496,19 @@ private fun LibraryFileCard(
                 fontSize = 9.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
             )
+            if (plugLabel != null && onPlug != null) {
+                Text(
+                    plugLabel,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (highlighted) WarningAmber else ReadyGreen,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .clickable(onClick = onPlug)
+                        .padding(vertical = 2.dp),
+                )
+            }
         }
     }
 }

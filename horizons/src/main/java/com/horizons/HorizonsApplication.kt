@@ -353,6 +353,16 @@ class HorizonsApplication : Application() {
     }
 
     fun resolveNpuModelPath(): String? {
+        // User-pinned model wins — the explicit "plugged in" switch from
+        // Monitor's library. A landed file is only acknowledged, never
+        // grabbed, until the user flips it.
+        appState.get(com.horizons.core.state.AppStateStore.KEY_ACTIVE_MODEL)?.let { pinned ->
+            val f = java.io.File(pinned)
+            if (f.canRead()) return f.absolutePath
+            // Pinned file vanished — fall through to detection so the UI can
+            // show what's actually available; the stale pin stays visible in
+            // Monitor until the user re-plugs.
+        }
         // Qwen3.5-9B compiled binaries (qnn_context_binary)
         val variants = listOf(
             "qwen3_5_9b_unified.bin",
