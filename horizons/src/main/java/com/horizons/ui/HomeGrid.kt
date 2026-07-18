@@ -67,7 +67,7 @@ fun HomeGrid(
 
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
 
-    val stars = remember { generateStars(120) }
+    val stars = remember { generateStars(170) }
     var goatTaps by remember { mutableIntStateOf(0) }
     var showGoat by remember { mutableStateOf(false) }
     var goatReason by remember { mutableStateOf<String?>(null) }
@@ -484,17 +484,18 @@ private fun generateStars(count: Int): List<Star> {
         Star(
             x = rng.nextFloat(),
             y = rng.nextFloat(),
-            radius = 0.5f + rng.nextFloat() * 1.5f,
-            alpha = 0.15f + rng.nextFloat() * 0.7f,
+            radius = 0.6f + rng.nextFloat() * 1.9f,
+            alpha = 0.25f + rng.nextFloat() * 0.7f,
         )
     }
 }
 
 private fun DrawScope.drawAstralBackground(stars: List<Star>) {
-    // Obsidian base — deep volcanic glass gradient, darker than flat #222C34
+    // Obsidian base — deep black with only a faint bluish tint; near-pure
+    // black at the darkest aspects (top faint blue-lift, bottom near #010203)
     drawRect(
         brush = Brush.verticalGradient(
-            colors = listOf(Color(0xFF1A222A), Color(0xFF222C34), Color(0xFF141B21)),
+            colors = listOf(Color(0xFF070B12), Color(0xFF04070C), Color(0xFF010203)),
         ),
     )
 
@@ -538,29 +539,39 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
 
     stars.forEach { star ->
         val isTeal = star.alpha > 0.5f
-        val color = if (isTeal) Color(0xFF2DD4D9).copy(alpha = star.alpha * 0.6f)
-        else Color.White.copy(alpha = star.alpha * 0.5f)
+        val bright = star.alpha > 0.62f
+        val color = if (isTeal) Color(0xFF2DD4D9).copy(alpha = star.alpha * 0.88f)
+        else Color.White.copy(alpha = star.alpha * 0.80f)
+        val center = Offset(star.x * size.width, star.y * size.height)
+        // Soft halo on the brighter stars so they read/pop against the black
+        if (bright) {
+            drawCircle(
+                color = color.copy(alpha = star.alpha * 0.22f),
+                radius = star.radius * 3.4f,
+                center = center,
+            )
+        }
         drawCircle(
             color = color,
             radius = star.radius,
-            center = Offset(star.x * size.width, star.y * size.height),
+            center = center,
         )
     }
 
     // Orbital rings around center hub
-    val ringColor = Color(0xFF2DD4D9).copy(alpha = 0.04f)
+    val ringColor = Color(0xFF2DD4D9).copy(alpha = 0.10f)
     for (i in 1..5) {
         val r = 60f + i * 55f
         drawCircle(
             color = ringColor,
             radius = r,
             center = Offset(cx, cy),
-            style = Stroke(width = 0.8f),
+            style = Stroke(width = 1.0f),
         )
     }
 
     // Telemetry / chart lines — faint radial spokes
-    val spokeColor = Color(0xFF2DD4D9).copy(alpha = 0.025f)
+    val spokeColor = Color(0xFF2DD4D9).copy(alpha = 0.06f)
     for (angle in 0 until 360 step 30) {
         val rad = angle * PI.toFloat() / 180f
         val len = 320f
@@ -568,19 +579,19 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
             color = spokeColor,
             start = Offset(cx, cy),
             end = Offset(cx + cos(rad) * len, cy + sin(rad) * len),
-            strokeWidth = 0.6f,
+            strokeWidth = 0.8f,
         )
     }
 
     // Small chart circles at intersections
-    val dotColor = Color(0xFF2DD4D9).copy(alpha = 0.06f)
+    val dotColor = Color(0xFF2DD4D9).copy(alpha = 0.14f)
     for (ring in 2..4) {
         val r = 60f + ring * 55f
         for (angle in listOf(0, 60, 120, 180, 240, 300)) {
             val rad = angle * PI.toFloat() / 180f
             drawCircle(
                 color = dotColor,
-                radius = 2.5f,
+                radius = 3f,
                 center = Offset(cx + cos(rad) * r, cy + sin(rad) * r),
             )
         }
