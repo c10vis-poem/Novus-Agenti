@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.core.state.ConfigStatus
 import com.horizons.core.state.RouterConfig
+import com.horizons.core.state.allGreen
+import com.horizons.core.state.greenLight
 import com.horizons.ui.CircuitTraceBackground
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.launch
@@ -69,6 +71,26 @@ fun RouterPane(
     val sleepingConfigs = activeConfigs.filter { it.status == ConfigStatus.SLEEPING }
 
     var showNewConfig by remember { mutableStateOf(false) }
+    var fuseBlocked by remember { mutableStateOf<String?>(null) }
+
+    // The fuse box gate: a config whose runtime has a definition can only
+    // switch on if every green-light check passes right now — re-validated
+    // at flip time, not trusted from when Monitor handed it over.
+    fun switchOn(config: com.horizons.core.state.RouterConfig, preWarm: Boolean = false) {
+        val def = app.runtimeDefs.defs.value.firstOrNull { it.name == config.runtime }
+        if (def != null) {
+            val checks = def.greenLight(ctx, app.resolveNpuModelPath())
+            if (!checks.allGreen) {
+                fuseBlocked = "'${config.name}' blocked — red lights: " +
+                    checks.filter { !it.ok }.joinToString(", ") { it.label } +
+                    ". Check Monitor / console."
+                return
+            }
+        }
+        fuseBlocked = null
+        app.routerConfigs.setStatus(config.id, ConfigStatus.RUNNING)
+        if (preWarm) app.llmRuntime.preWarm()
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         CircuitTraceBackground()
@@ -156,13 +178,26 @@ fun RouterPane(
                 }
             }
 
+            fuseBlocked?.let { msg ->
+                Surface(
+                    color = Color(0xFF2A1010),
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "⚡ FUSE BOX: $msg",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = Color(0xFFFF6666),
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
+
             readyConfigs.forEach { config ->
                 MealCard(
                     config = config,
-                    onRun = {
-                        app.routerConfigs.setStatus(config.id, ConfigStatus.RUNNING)
-                        app.llmRuntime.preWarm()
-                    },
+                    onRun = { switchOn(config, preWarm = true) },
                     onSleep = { app.routerConfigs.setStatus(config.id, ConfigStatus.SLEEPING) },
                     onArchive = { app.routerConfigs.setStatus(config.id, ConfigStatus.ARCHIVED) },
                     onDelete = { app.routerConfigs.remove(config.id) },
@@ -177,7 +212,7 @@ fun RouterPane(
                 sleepingConfigs.forEach { config ->
                     MealCard(
                         config = config,
-                        onRun = { app.routerConfigs.setStatus(config.id, ConfigStatus.RUNNING) },
+                        onRun = { switchOn(config) },
                         onSleep = null,
                         onArchive = { app.routerConfigs.setStatus(config.id, ConfigStatus.ARCHIVED) },
                         onDelete = { app.routerConfigs.remove(config.id) },

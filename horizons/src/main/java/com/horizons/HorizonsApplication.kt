@@ -18,6 +18,7 @@ import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.ChatHistoryStore
 import com.horizons.core.state.ArchiveStore
 import com.horizons.core.state.RouterConfigStore
+import com.horizons.core.state.RuntimeDefStore
 import com.horizons.core.state.SavedCommandStore
 import com.horizons.core.stt.DaemonSttClient
 import com.horizons.core.voice.KokoroModelManager
@@ -66,6 +67,7 @@ class HorizonsApplication : Application() {
     val savedCommands: SavedCommandStore by lazy { SavedCommandStore(this) }
     val routerConfigs: RouterConfigStore by lazy { RouterConfigStore(this) }
     val archive: ArchiveStore by lazy { ArchiveStore(this) }
+    val runtimeDefs: RuntimeDefStore by lazy { RuntimeDefStore(this) }
     val tasker: TaskerBridge by lazy { TaskerBridge(this) }
 
     // -- Agentic loop -- LLM + full Android API tool registry --

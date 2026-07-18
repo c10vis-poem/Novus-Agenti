@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.ModelImportActivity
 import com.horizons.core.state.ConfigStatus
+import com.horizons.core.state.allGreen
+import com.horizons.core.state.greenLight
 import com.horizons.ui.OscilloscopeBackground
 import com.horizons.ui.theme.HorizonsColors
 import java.io.File
@@ -318,6 +320,117 @@ fun MonitorPane(
                                 pinRev++
                             },
                         )
+                    }
+                }
+
+                HorizontalDivider(color = Accent.copy(alpha = 0.2f))
+
+                // ── Runtime Definitions — shipped from Terminal, checked here,
+                //    handed to the Router (the fuse box) only when all green ──
+                Text(
+                    "Runtime Definitions",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Accent,
+                    fontFamily = FontFamily.Monospace,
+                )
+
+                val runtimeDefs by app.runtimeDefs.defs.collectAsState()
+                var handedOff by remember { mutableStateOf<String?>(null) }
+
+                runtimeDefs.forEach { def ->
+                    val checks = remember(def.id, handedOff) {
+                        def.greenLight(ctx, app.resolveNpuModelPath())
+                    }
+                    val green = checks.allGreen
+                    Surface(
+                        color = HorizonsColors.Surface,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    def.name,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = if (green) ReadyGreen else Accent,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    if (green) "ALL GREEN" else
+                                        "${checks.count { !it.ok }} RED",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    color = if (green) ReadyGreen else WarningAmber,
+                                )
+                            }
+                            Text(
+                                ":${def.port}${def.healthPath} · ${def.notes.ifBlank { "no notes" }}",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            )
+                            checks.forEach { check ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        if (check.ok) "●" else "○",
+                                        fontSize = 10.sp,
+                                        color = if (check.ok) ReadyGreen else WarningAmber,
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        check.label,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(
+                                            alpha = if (check.ok) 0.7f else 0.9f,
+                                        ),
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Text(
+                                        check.detail.takeLast(28),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 8.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
+                            if (green) {
+                                Text(
+                                    if (handedOff == def.id) "✓ HANDED TO ROUTER" else "[ HAND TO ROUTER ]",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    color = ReadyGreen,
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .clickable(enabled = handedOff != def.id) {
+                                            app.routerConfigs.add(
+                                                com.horizons.core.state.RouterConfig(
+                                                    name = def.name,
+                                                    runtime = def.name,
+                                                    backend = def.binaryName,
+                                                    model = app.resolveNpuModelPath() ?: "",
+                                                    endpoint = "127.0.0.1:${def.port}${def.healthPath}",
+                                                ),
+                                            )
+                                            handedOff = def.id
+                                        }
+                                        .padding(vertical = 2.dp),
+                                )
+                            } else {
+                                Text(
+                                    "fix the red lights before this can reach the fuse box",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    color = WarningAmber.copy(alpha = 0.6f),
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
+                        }
                     }
                 }
 
