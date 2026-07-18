@@ -6,7 +6,7 @@ To update one, replace the file in place with the same name.
 
 | File | What it shows |
 |---|---|
-| `01-current-full-home.webp` | The baseline "best" full home render (the target) |
+| `01-target-full-home.webp` | The baseline "best" full home render (the target) |
 | `02-monitor-icon.webp` | Monitor display/screen icon with "AI" badge (→ "PC") |
 | `03-chat-tile-overlap.webp` | Icon overlapping the Chat tile (overlap bug) |
 | `04-chat-icon-correct.webp` | Correct clean green speech-bubble Chat icon |

@@ -7,11 +7,12 @@
 > operator refines direction. When a home-screen visual task starts, READ
 > THIS FIRST.
 >
-> **Guiding principle (operator's words):** the current *best* version of the
-> home screen is already **mostly right**. Keep the colors, labels, sizes,
-> proportions, and card format. Make **only the specific edits** listed here —
-> nothing else. Past runs failed by rebuilding everything at once; this spec
-> exists to prevent that.
+> **Guiding principle.** The renders here are a **visual TARGET / mockup —
+> REFERENCE ONLY.** They are NOT screenshots of a live or near-complete app;
+> **nothing in the current UI is anywhere near complete.** Use the references to
+> define what to build toward: match the target's colors, labels, sizes,
+> proportions, and card format rather than reinventing. Past runs failed by
+> rebuilding everything at once; this spec exists to prevent that.
 >
 > **Verification rule:** any change here MUST end with a real rendered
 > screenshot (device/emulator) compared against the references below before
@@ -54,8 +55,17 @@ supplies a better/newer screenshot, replace the file in place (same name).
 Everything not called out as a change stays **identical** (color, label, size,
 card style).
 
+> **Color note — Chat green ≠ Terminal green (they are NOT the same).**
+> **Terminal** has a **deeper, near-black card background** and a **brighter,
+> more saturated matrix-green**. **Chat** uses its own softer green on a less-black
+> background. Do not equalize the two.
+
+> **Label format.** Each tile reads: **TITLE** · `/slug` · a short **subtitle** ·
+> and a **bottom prompt line** (`$_…`). The corrected values are below.
+
 ### 12:00 — MONITOR  (teal/cyan)
-- **Labels:** `MONITOR` / `/ cognito` / third line `$_browser`.
+- **Labels:** title `MONITOR` · slug `/cognito` · subtitle `library` · bottom
+  prompt line `$_browser`.
 - **Icon:** the **display/screen** glyph — rounded rect, 2 horizontal lines
   inside, a tail/legs at the bottom — carrying a small **`PC`** badge
   (top-right). *This replaces the "AI" badge seen in the current build. There
@@ -64,9 +74,10 @@ card style).
   — *green display/screen icon, 2 inner lines, tail, circular "AI" badge
   top-right (badge must become "PC").*
 
-### 2:00 — CHAT  (green)
-- **Correct, keep:** size, labeling (`CHAT` / `/ interface`), overall style,
-  green color.
+### 2:00 — CHAT  (green — its OWN softer green, NOT Terminal's; see color note)
+- **Labels:** title `CHAT` · slug `/interface` · subtitle `tools` · bottom
+  prompt line `$_model`.
+- **Correct, keep:** size, overall style, its green color.
 - **Change 1 — icon:** replace with a **simple, clean speech bubble** (folded
   tail at bottom-left, two short lines inside). NOT a hub-and-spoke node
   network, NOT the display/PC glyph.
@@ -79,13 +90,15 @@ card style).
     — *display+"AI" icon bleeding over the Chat tile.*
 
 ### 4:00 — SETTINGS  (pink/crimson)
-- **No change.** Pink **sun/flash inside a dashed ring** icon; labels
-  `SETTINGS` / `/ config` (full card also shows `Config · Matrix UI` / `$ config`).
+- **Labels:** title `SETTINGS` · slug `/config` · subtitle `vault` · bottom
+  prompt line `$_utils`.
+- **Icon: no change** — pink **sun/flash inside a dashed ring**.
 - Attach-slot: `![settings tile](home-redesign-img/10-settings-tile.webp)`
 
-### 6:00 — TERMINAL  (green)
-- **No change.** Green **terminal-window** icon (title-bar dots + `>_`); labels
-  `TERMINAL` / `/ shell` (full card: `Shell · Matrix mode` / `$ _`).
+### 6:00 — TERMINAL  (green — DEEPER near-black bg + BRIGHTER matrix-green; see color note)
+- **Labels:** title `TERMINAL` · slug `/shell` · subtitle `commands` · bottom
+  prompt line `$_`.
+- **Icon: no change** — green **terminal-window** icon (title-bar dots + `>_`).
 - Attach-slot: `![terminal tile](home-redesign-img/09-terminal-tile.webp)`
 
 ### 8:00 — ARCHIVES  (amber)  *(currently mislabeled ARTIFACTS)*
@@ -188,15 +201,16 @@ card style).
 
 ---
 
-## Reference: the baseline "best" render
+## Reference: the target render — REFERENCE ONLY (not a live screenshot)
 
-- Attach-slot: `![baseline home](home-redesign-img/01-current-full-home.webp)`
-  — *THE target. Black bg; green `MO)u14R_11(` banner; clock-face tiles
-  (Monitor/cognito, Chat/interface, Settings/config, Terminal/shell,
-  Artifacts→Archives/logs_skills, Horizons/home); center purple crystal
-  ROUTER/route with aura; plasma cords; bottom SYSTEM_STATUS dots; input bar
-  "tap_or_hold ask //". Operator: "one of the best and one of the first
-  versions — everything has gotten worse since then."*
+**This image is a REFERENCE MOCKUP of where the home screen should end up. It is
+NOT a screenshot of the live app and does NOT reflect current state — nothing in
+the real UI is near complete.** Use it strictly as the visual target.
+
+- Attach-slot: `![target home](home-redesign-img/01-target-full-home.webp)`
+  — *Black bg; green `MO)u14R_11(` banner; clock-face tiles; center purple
+  crystal ROUTER/route with aura; plasma cords; bottom SYSTEM_STATUS dots; input
+  bar "tap_or_hold ask //". Treat as target, not current state.*
 
 ---
 
@@ -209,7 +223,7 @@ semi-transparent). Home/Monitor/Terminal/Router stay procedural.
 
 | Panel | Procedural bg | Wallpaper? | Reference image slot |
 |---|---|---|---|
-| Home | astral (deep black + stars + telemetry) ✅ | no | `01-current-full-home.webp` |
+| Home | astral (deep black + stars + telemetry) ✅ | no | `01-target-full-home.webp` |
 | Terminal | Matrix rain (`fakesteak` fork) | no | `18-matrix-rain.png` |
 | Router | circuit-board / chip nodes | no | `05-router-circuit-blue-chip.jpg` |
 | Monitor | sliding oscilloscope (animated) | no | `17-oscilloscope.webp` |
@@ -239,8 +253,12 @@ procedural (operator leaned that way for photographic fidelity).
 
 ## Open / to-confirm
 
-- **Exact tile card style:** operator says the current tiles are "the wrong
-  style" but the crisp target isn't fully pinned — resolve against the baseline
+- **Archives & Horizons labels not yet re-specified** in the new
+  TITLE · /slug · subtitle · `$_…` format. Monitor/Chat/Settings/Terminal are
+  updated; get Archives (currently `/archive`, `$ ls ./`) and Horizons
+  (currently `/home`, `$ home`) confirmed before building their labels.
+- **Exact tile card style:** operator says the tiles are "the wrong style" but
+  the crisp target isn't fully pinned — resolve against the reference target
   render before restyling cards.
 - **Logo font asset:** matching the exact typeface likely needs a bundled
   `.ttf`; `FontFamily.Monospace` is the closest built-in stand-in until a font
