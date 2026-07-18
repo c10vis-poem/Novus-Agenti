@@ -69,6 +69,7 @@ class AppStateStore(context: Context) {
 
         // Per-panel uploadable wallpapers. Value = absolute path to the image
         // copied into app storage. Absent/blank = use the procedural background.
+        const val KEY_WALLPAPER_HOME     = "wallpaper.home"
         const val KEY_WALLPAPER_CHAT     = "wallpaper.chat"
         const val KEY_WALLPAPER_HORIZONS = "wallpaper.horizons"
         const val KEY_WALLPAPER_ARCHIVES = "wallpaper.archives"
