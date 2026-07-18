@@ -761,6 +761,7 @@ private class BrowserPage(val id: Int, startUrl: String) {
     val url = mutableStateOf(startUrl)
     val title = mutableStateOf("New Tab")
     val canGoBack = mutableStateOf(false)
+    val loadError = mutableStateOf<String?>(null)
     var webView: android.webkit.WebView? = null
     var loaded = false
 }
@@ -808,11 +809,23 @@ private fun createBrowserWebView(
     webViewClient = object : android.webkit.WebViewClient() {
         override fun onPageStarted(view: android.webkit.WebView, url: String?, favicon: android.graphics.Bitmap?) {
             if (url != null) page.url.value = url
+            page.loadError.value = null
         }
         override fun onPageFinished(view: android.webkit.WebView, url: String?) {
             page.url.value = view.url ?: url ?: page.url.value
             page.title.value = view.title?.takeIf { it.isNotBlank() } ?: page.url.value
             page.canGoBack.value = view.canGoBack()
+        }
+        override fun onReceivedError(
+            view: android.webkit.WebView,
+            request: android.webkit.WebResourceRequest,
+            error: android.webkit.WebResourceError,
+        ) {
+            // Only main-frame failures mean the connection is actually gone —
+            // a blocked ad or dead favicon shouldn't summon the cat.
+            if (request.isForMainFrame) {
+                page.loadError.value = error.description?.toString() ?: "connection lost"
+            }
         }
     }
 }
@@ -950,27 +963,97 @@ private fun BrowserTab(app: HorizonsApplication) {
         Spacer(Modifier.height(6.dp))
 
         // ── The live page — a single host that re-parents the active WebView ─
-        AndroidView(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            factory = { c -> android.widget.FrameLayout(c) },
-            update = updater@ { host ->
-                val page = pages.getOrNull(activeIdx) ?: return@updater
-                val wv = page.webView ?: createBrowserWebView(host.context, page) { msg ->
-                    // Bridge messages from web content back into the app. For now,
-                    // surface them via the daemon-agnostic breadcrumb log; a real
-                    // handler can route these into AgentLoop later.
-                    scope.launch { com.horizons.core.diag.Breadcrumb.drop("browser_msg: ${msg.take(120)}") }
-                }.also { page.webView = it }
-                if (wv.parent !== host) {
-                    (wv.parent as? android.view.ViewGroup)?.removeView(wv)
-                    host.removeAllViews()
-                    host.addView(wv)
-                }
-                if (!page.loaded) {
-                    page.loaded = true
-                    wv.loadUrl(page.url.value)
-                }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { c -> android.widget.FrameLayout(c) },
+                update = updater@ { host ->
+                    val page = pages.getOrNull(activeIdx) ?: return@updater
+                    val wv = page.webView ?: createBrowserWebView(host.context, page) { msg ->
+                        // Bridge messages from web content back into the app. For now,
+                        // surface them via the daemon-agnostic breadcrumb log; a real
+                        // handler can route these into AgentLoop later.
+                        scope.launch { com.horizons.core.diag.Breadcrumb.drop("browser_msg: ${msg.take(120)}") }
+                    }.also { page.webView = it }
+                    if (wv.parent !== host) {
+                        (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                        host.removeAllViews()
+                        host.addView(wv)
+                    }
+                    if (!page.loaded) {
+                        page.loaded = true
+                        wv.loadUrl(page.url.value)
+                    }
+                },
+            )
+            val err = active?.loadError?.value
+            if (err != null) {
+                ConnectionLostCat(
+                    reason = err,
+                    onRetry = {
+                        active?.loadError?.value = null
+                        active?.webView?.reload()
+                    },
+                )
+            }
+        }
+    }
+}
+
+// ── Connection-lost cat — 404 for the browser ───────────────────────────────
+
+@Composable
+private fun ConnectionLostCat(reason: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.96f))
+            .clickable(onClick = onRetry),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            "404",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 48.sp,
+            color = MatrixGreen,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            buildString {
+                appendLine("  /\\_/\\  ")
+                appendLine(" ( o.o ) ")
+                appendLine("  > ^ <  ")
+                appendLine(" /|   |\\ ")
+                appendLine("(_|   |_)")
             },
+            fontFamily = FontFamily.Monospace,
+            fontSize = 14.sp,
+            color = MatrixGreen,
+            lineHeight = 16.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "CONNECTION_NOT_FOUND",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            color = MatrixGreen.copy(alpha = 0.8f),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            reason,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = MatrixGreen.copy(alpha = 0.45f),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "[ tap to retry ]",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = MatrixGreen.copy(alpha = 0.35f),
         )
     }
 }
