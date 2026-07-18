@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.Panel
-import com.horizons.core.state.AppStateStore
 import com.horizons.ui.theme.HorizonsColors
 import kotlin.math.PI
 import kotlin.math.cos
@@ -84,11 +83,9 @@ fun HomeGrid(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // ── Astral chart background (or an uploaded home wallpaper) ─────────
-        PanelWallpaperBackground(AppStateStore.KEY_WALLPAPER_HOME) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawAstralBackground(stars)
-            }
+        // ── Astral chart background ─────────────────────────────────────────
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawAstralBackground(stars)
         }
 
         Column(
@@ -357,11 +354,6 @@ fun HomeGrid(
             }
 
             Spacer(Modifier.height(12.dp))
-        }
-
-        // ── Wallpaper picker — top-right overlay ────────────────────────────
-        Row(modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
-            WallpaperPickerButtons(AppStateStore.KEY_WALLPAPER_HOME, HorizonsColors.PrimaryTeal)
         }
 
         // ── Goat Easter egg overlay ─────────────────────────────────────────
