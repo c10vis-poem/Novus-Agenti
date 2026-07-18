@@ -23,11 +23,11 @@
 
 ## How to use the reference images
 
-The image binaries are **not embedded** (they were pasted inline in chat, not
-saved as files). Each reference below has:
-- a **written description** detailed enough to work from without the picture, and
-- an **attach-slot**: a path under `wiki/home-redesign-img/`. Drop the actual
-  screenshot at that path with that filename and the `![]()` link renders.
+The actual reference screenshots are **committed** under
+`wiki/home-redesign-img/` (recovered from the session transcript). Each `![]()`
+link in this doc points at the real image, and each still carries a written
+description so the spec is usable even from a plain-text read. If the operator
+supplies a better/newer screenshot, replace the file in place (same name).
 
 ---
 
@@ -60,7 +60,7 @@ card style).
   inside, a tail/legs at the bottom — carrying a small **`PC`** badge
   (top-right). *This replaces the "AI" badge seen in the current build. There
   is no "AI" label wanted anywhere.*
-- Attach-slot: `![monitor icon](home-redesign-img/02-monitor-icon.png)`
+- Attach-slot: `![monitor icon](home-redesign-img/02-monitor-icon.webp)`
   — *green display/screen icon, 2 inner lines, tail, circular "AI" badge
   top-right (badge must become "PC").*
 
@@ -73,33 +73,33 @@ card style).
 - **Change 2 — overlap:** a neighboring tile's icon currently **overlaps** the
   Chat tile. Fix the layout collision so tiles/icons don't overlap.
 - Attach-slots:
-  - `![chat correct icon](home-redesign-img/04-chat-icon-correct.png)`
+  - `![chat correct icon](home-redesign-img/04-chat-icon-correct.webp)`
     — *clean green speech bubble, "CHAT / interface".*
-  - `![chat overlap bug](home-redesign-img/03-chat-tile-overlap.png)`
+  - `![chat overlap bug](home-redesign-img/03-chat-tile-overlap.webp)`
     — *display+"AI" icon bleeding over the Chat tile.*
 
 ### 4:00 — SETTINGS  (pink/crimson)
 - **No change.** Pink **sun/flash inside a dashed ring** icon; labels
   `SETTINGS` / `/ config` (full card also shows `Config · Matrix UI` / `$ config`).
-- Attach-slot: `![settings tile](home-redesign-img/10-settings-tile.png)`
+- Attach-slot: `![settings tile](home-redesign-img/10-settings-tile.webp)`
 
 ### 6:00 — TERMINAL  (green)
 - **No change.** Green **terminal-window** icon (title-bar dots + `>_`); labels
   `TERMINAL` / `/ shell` (full card: `Shell · Matrix mode` / `$ _`).
-- Attach-slot: `![terminal tile](home-redesign-img/09-terminal-tile.png)`
+- Attach-slot: `![terminal tile](home-redesign-img/09-terminal-tile.webp)`
 
 ### 8:00 — ARCHIVES  (amber)  *(currently mislabeled ARTIFACTS)*
 - **Change — label:** `ARTIFACTS` → **`ARCHIVES`**. Nothing else.
 - Everything else identical: amber, stacked-documents icon, subtitle
   (`Logs · Prompts · Store`), `$ ls ./`.
-- Attach-slot: `![horizons + archives tiles](home-redesign-img/11-horizons-archives-tiles.png)`
+- Attach-slot: `![horizons + archives tiles](home-redesign-img/11-horizons-archives-tiles.webp)`
 
 ### 10:00 — HORIZONS  (blue)
 - **Change — the sun turns AMBER:** in the icon (amber sun + rays over a blue
   horizon line + pale pinkish-purple arch), the **sun** element becomes
   **amber**; the rest of the icon stays blue.
 - Labels unchanged: `HORIZONS` / `/ home` (full card: `Home · System view` / `$ home`).
-- Attach-slot: shares `11-horizons-archives-tiles.png` above.
+- Attach-slot: shares `11-horizons-archives-tiles.webp` above.
 
 ---
 
@@ -120,13 +120,13 @@ card style).
 - **Label (3 lines, violet):** `// CORE_HUB` (top, dim) · **`ROUTER`** (large,
   violet) · `/ route` (bottom, dim).
 - Attach-slots:
-  - `![router label + cords](home-redesign-img/08-router-label.png)`
+  - `![router label + cords](home-redesign-img/08-router-label.webp)`
     — *"// CORE_HUB / ROUTER / route" in violet over crossing plasma tubes.*
-  - `![agent platform hub](home-redesign-img/06-agent-platform-hub.png)`
+  - `![agent platform hub](home-redesign-img/06-agent-platform-hub.jpg)`
     — *central hexagonal gem, nodes around it, hub-and-spoke dotted lines.*
-  - `![ai orchestration hub](home-redesign-img/07-ai-orchestration-hub.png)`
+  - `![ai orchestration hub](home-redesign-img/07-ai-orchestration-hub.webp)`
     — *glowing circular hub with plasma-cord connectors radiating out.*
-  - `![router circuit chip](home-redesign-img/05-router-circuit-blue-chip.png)`
+  - `![router circuit chip](home-redesign-img/05-router-circuit-blue-chip.jpg)`
     — *blue PCB, glowing central chip/die, amber solder-point bokeh
     (chipsets-as-nodes / 6-connector inspiration).*
 
@@ -153,7 +153,7 @@ card style).
   line), with **`(NEXT-GEN CERTIFIED)` in parentheses**, and the
   **`HORIZONS // V4`** version string on the **bottom-right**. Color and font of
   the motto are correct — only the wrapping/format is wrong.
-- Attach-slot: `![logo font](home-redesign-img/19-logo-font.png)`
+- Attach-slot: `![logo font](home-redesign-img/19-logo-font.webp)`
   — *"cat << 'EOF' / MØDU14R_11( / *Pioneer_Tech, / (Next-Gen Certified) /
   v1.0 / EOF" in a chunky blocky monospace font over wet slate.*
 
@@ -190,7 +190,7 @@ card style).
 
 ## Reference: the baseline "best" render
 
-- Attach-slot: `![baseline home](home-redesign-img/01-current-full-home.png)`
+- Attach-slot: `![baseline home](home-redesign-img/01-current-full-home.webp)`
   — *THE target. Black bg; green `MO)u14R_11(` banner; clock-face tiles
   (Monitor/cognito, Chat/interface, Settings/config, Terminal/shell,
   Artifacts→Archives/logs_skills, Horizons/home); center purple crystal
@@ -209,14 +209,14 @@ semi-transparent). Home/Monitor/Terminal/Router stay procedural.
 
 | Panel | Procedural bg | Wallpaper? | Reference image slot |
 |---|---|---|---|
-| Home | astral (deep black + stars + telemetry) ✅ | no | `01-current-full-home.png` |
+| Home | astral (deep black + stars + telemetry) ✅ | no | `01-current-full-home.webp` |
 | Terminal | Matrix rain (`fakesteak` fork) | no | `18-matrix-rain.png` |
-| Router | circuit-board / chip nodes | no | `05-router-circuit-blue-chip.png` |
-| Monitor | sliding oscilloscope (animated) | no | `17-oscilloscope.png` |
-| Chat | wet blue-grey slate stone ✅ | yes | `14-stone-slab.png` |
-| Horizons | butterfly nebula (gold/blue-white)* ✅ | yes | `13-nebula-wallpaper.png` |
-| Archives | vintage film strip | yes | `16-film-strip.png` |
-| Settings | brushed-steel vault door | yes | `15-vault-door.png` |
+| Router | circuit-board / chip nodes | no | `05-router-circuit-blue-chip.jpg` |
+| Monitor | sliding oscilloscope (animated) | no | `17-oscilloscope.webp` |
+| Chat | wet blue-grey slate stone ✅ | yes | `14-stone-slab.webp` |
+| Horizons | butterfly nebula (gold/blue-white)* ✅ | yes | `13-nebula-wallpaper.webp` |
+| Archives | vintage film strip | yes | `16-film-strip.jpg` |
+| Settings | brushed-steel vault door | yes | `15-vault-door.jpg` |
 
 \* Palette note: written spec §4 said "purple/blue/gold", but the operator's
 actual nebula reference is **gold + blue-white, minimal purple** — the image
