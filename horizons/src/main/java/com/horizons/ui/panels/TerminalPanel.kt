@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
@@ -325,12 +326,18 @@ private fun ShellTab(
                     entry.stderr.isNotEmpty() -> entry.stderr
                     else -> "(no output, exit ${entry.exitCode})"
                 }
-                Text(
-                    "$ ${entry.cmd}\n$output",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = color,
-                )
+                // Tap an entry to recall its command into the input;
+                // long-press to select/copy any of the output text.
+                Box(Modifier.fillMaxWidth().clickable { cmd = entry.cmd }) {
+                    SelectionContainer {
+                        Text(
+                            "$ ${entry.cmd}\n$output",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = color,
+                        )
+                    }
+                }
             }
         }
 
@@ -484,12 +491,17 @@ private fun TaskerTab(
         ) {
             items(history) { entry ->
                 val color = if (entry.ok) MatrixGreen else Color(0xFFFF4444)
-                Text(
-                    "> ${entry.input}\n  ${entry.result}",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = color,
-                )
+                // Tap to recall the task name into the input; long-press to copy.
+                Box(Modifier.fillMaxWidth().clickable { taskName = entry.input }) {
+                    SelectionContainer {
+                        Text(
+                            "> ${entry.input}\n  ${entry.result}",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = color,
+                        )
+                    }
+                }
             }
         }
 
