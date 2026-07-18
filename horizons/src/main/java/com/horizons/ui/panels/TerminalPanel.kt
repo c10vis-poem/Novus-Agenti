@@ -34,9 +34,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,7 +72,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +90,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.horizons.HorizonsApplication
 import com.horizons.Panel
 import com.horizons.core.shell.DaemonLauncher
+import com.horizons.core.state.ConfigStatus
 import com.horizons.core.state.RouterConfig
 import com.horizons.core.state.SavedCommand
 import com.horizons.ui.theme.HorizonsColors
@@ -268,6 +277,7 @@ private fun DrawScope.drawMatrixRain(columns: List<RainColumn>, progress: Float)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ShellTab(
     app: HorizonsApplication,
@@ -275,9 +285,70 @@ private fun ShellTab(
     cmdState: MutableState<String>,
 ) {
     val listState = rememberLazyListState()
+    val clipboard = LocalClipboardManager.current
     var cmd by cmdState
     var running by remember { mutableStateOf(false) }
     val history = remember { mutableStateListOf<ShellEntry>() }
+    var archiveTarget by remember { mutableStateOf<ShellEntry?>(null) }
+
+    // "Archive…" name dialog — the file lands in Archives under /terminal
+    archiveTarget?.let { entry ->
+        var fileName by remember(entry) {
+            mutableStateOf("cmd-${entry.cmd.take(16).replace(Regex("[^A-Za-z0-9_-]"), "_")}.sh")
+        }
+        AlertDialog(
+            onDismissRequest = { archiveTarget = null },
+            containerColor = Color(0xFF0A140A),
+            title = {
+                Text("Archive to artifacts", fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = MatrixGreen)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Saved into Archives / terminal /",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = MatrixGreen.copy(alpha = 0.5f),
+                    )
+                    OutlinedTextField(
+                        value = fileName,
+                        onValueChange = { fileName = it },
+                        singleLine = true,
+                        label = { Text("File name", color = MatrixGreen.copy(alpha = 0.4f)) },
+                        textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 12.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                            unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                            cursorColor = MatrixGreen,
+                        ),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val body = buildString {
+                        appendLine("# archived from Horizons terminal")
+                        appendLine(entry.cmd)
+                        if (entry.stdout.isNotEmpty() || entry.stderr.isNotEmpty()) {
+                            appendLine()
+                            appendLine("# --- output (exit ${entry.exitCode}) ---")
+                            if (entry.stdout.isNotEmpty()) entry.stdout.lines().forEach { appendLine("# $it") }
+                            if (entry.stderr.isNotEmpty()) entry.stderr.lines().forEach { appendLine("# [stderr] $it") }
+                        }
+                    }
+                    app.archive.writeText("terminal", fileName, body)
+                    archiveTarget = null
+                }) {
+                    Text("Archive", fontFamily = FontFamily.Monospace, color = MatrixGreen)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { archiveTarget = null }) {
+                    Text("Cancel", fontFamily = FontFamily.Monospace, color = MatrixGreen.copy(alpha = 0.5f))
+                }
+            },
+        )
+    }
 
     fun runCmd() {
         val command = cmd.trim().ifEmpty { return }
@@ -326,15 +397,75 @@ private fun ShellTab(
                     entry.stderr.isNotEmpty() -> entry.stderr
                     else -> "(no output, exit ${entry.exitCode})"
                 }
-                // Tap an entry to recall its command into the input;
-                // long-press to select/copy any of the output text.
-                Box(Modifier.fillMaxWidth().clickable { cmd = entry.cmd }) {
-                    SelectionContainer {
-                        Text(
-                            "$ ${entry.cmd}\n$output",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            color = color,
+                // Tap to recall the command into the input; long-press for
+                // the action menu (copy / export / save / archive).
+                var menuOpen by remember { mutableStateOf(false) }
+                Box(Modifier.fillMaxWidth()) {
+                    Text(
+                        "$ ${entry.cmd}\n$output",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = color,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { cmd = entry.cmd },
+                                onLongClick = { menuOpen = true },
+                            ),
+                    )
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Copy command", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                clipboard.setText(AnnotatedString(entry.cmd))
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Copy output", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                clipboard.setText(AnnotatedString(output))
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Export to Router", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                app.routerConfigs.add(
+                                    RouterConfig(
+                                        name = "Terminal: ${entry.cmd.take(30)}",
+                                        runtime = "terminal",
+                                        backend = "bash",
+                                        model = entry.cmd,
+                                    ),
+                                )
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Save to Commands", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                scope.launch {
+                                    app.savedCommands.add(
+                                        SavedCommand(
+                                            label = entry.cmd.take(24),
+                                            command = entry.cmd,
+                                            category = "terminal",
+                                        ),
+                                    )
+                                }
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Archive…", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                archiveTarget = entry
+                                menuOpen = false
+                            },
                         )
                     }
                 }
