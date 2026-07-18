@@ -7,6 +7,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -77,6 +80,24 @@ fun rememberWallpaperController(wallpaperKey: String): WallpaperController {
             app.appState.remove(wallpaperKey)
         },
     )
+}
+
+/**
+ * Header control: a picture button to set/replace the panel's wallpaper, and
+ * an x to clear it (shown only when one is set). Call inside a Row; [tint]
+ * should be the panel's accent color.
+ */
+@Composable
+fun WallpaperPickerButtons(wallpaperKey: String, tint: Color) {
+    val controller = rememberWallpaperController(wallpaperKey)
+    IconButton(onClick = { controller.launchPicker() }) {
+        Text("🖼", fontSize = 15.sp, color = tint)
+    }
+    if (controller.isSet) {
+        IconButton(onClick = { controller.clear() }) {
+            Text("✕", fontSize = 15.sp, color = tint.copy(alpha = 0.7f))
+        }
+    }
 }
 
 /**

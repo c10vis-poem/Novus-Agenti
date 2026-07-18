@@ -60,6 +60,8 @@ import com.horizons.Panel
 import com.horizons.core.state.AppStateStore
 import com.horizons.core.state.RouterConfig
 import com.horizons.ui.VaultDoorBackground
+import com.horizons.ui.PanelWallpaperBackground
+import com.horizons.ui.WallpaperPickerButtons
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -82,7 +84,7 @@ fun SettingsPane(
     val scope = rememberCoroutineScope()
 
     Box(modifier.fillMaxSize()) {
-        VaultDoorBackground()
+        PanelWallpaperBackground(AppStateStore.KEY_WALLPAPER_SETTINGS) { VaultDoorBackground() }
         SelectionContainer {
             Column(
                 Modifier
@@ -112,6 +114,8 @@ fun SettingsPane(
                         fontSize = 12.sp,
                         color = Accent.copy(alpha = 0.5f),
                     )
+                    Spacer(Modifier.weight(1f))
+                    WallpaperPickerButtons(AppStateStore.KEY_WALLPAPER_SETTINGS, Accent)
                 }
 
                 HorizontalDivider(color = Accent.copy(alpha = 0.2f))
@@ -440,7 +444,7 @@ fun SettingsPane(
                 } else {
                     memoryEntries.forEach { (key, value) ->
                         Surface(
-                            color = HorizonsColors.Surface,
+                            color = HorizonsColors.Surface.copy(alpha = 0.78f),
                             shape = MaterialTheme.shapes.medium,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
@@ -480,7 +484,7 @@ fun SettingsPane(
                 var newMemVal by remember { mutableStateOf("") }
 
                 Surface(
-                    color = HorizonsColors.Surface,
+                    color = HorizonsColors.Surface.copy(alpha = 0.78f),
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -556,7 +560,7 @@ fun SettingsPane(
                 SectionLabel("Permissions")
 
                 Surface(
-                    color = HorizonsColors.Surface,
+                    color = HorizonsColors.Surface.copy(alpha = 0.78f),
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -598,7 +602,7 @@ fun SettingsPane(
                 )
 
                 Surface(
-                    color = HorizonsColors.Surface,
+                    color = HorizonsColors.Surface.copy(alpha = 0.78f),
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -614,7 +618,7 @@ fun SettingsPane(
                 HorizontalDivider(color = Accent.copy(alpha = 0.2f))
 
                 Surface(
-                    color = HorizonsColors.Surface,
+                    color = HorizonsColors.Surface.copy(alpha = 0.78f),
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth().clickable { onNavigate(Panel.Terminal) },
                 ) {
@@ -640,7 +644,7 @@ fun SettingsPane(
                 }
 
                 Surface(
-                    color = HorizonsColors.Surface,
+                    color = HorizonsColors.Surface.copy(alpha = 0.78f),
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth().clickable { onNavigate(Panel.Artifacts) },
                 ) {
@@ -707,7 +711,7 @@ private fun TokenField(
     var visible by remember { mutableStateOf(false) }
 
     Surface(
-        color = HorizonsColors.Surface,
+        color = HorizonsColors.Surface.copy(alpha = 0.78f),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -755,7 +759,7 @@ private fun PathField(
     var draft by remember(value) { mutableStateOf(value) }
 
     Surface(
-        color = HorizonsColors.Surface,
+        color = HorizonsColors.Surface.copy(alpha = 0.78f),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {

@@ -52,6 +52,9 @@ import com.horizons.core.state.ChatSession
 import com.horizons.core.state.ConfigStatus
 import com.horizons.core.state.SavedCommand
 import com.horizons.ui.FilmGrainBackground
+import com.horizons.ui.PanelWallpaperBackground
+import com.horizons.ui.WallpaperPickerButtons
+import com.horizons.core.state.AppStateStore
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -76,7 +79,7 @@ fun ArtifactsPane(
     val commands by app.savedCommands.commands.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
-    FilmGrainBackground()
+    PanelWallpaperBackground(AppStateStore.KEY_WALLPAPER_ARCHIVES) { FilmGrainBackground() }
     SelectionContainer {
     Column(
         modifier = Modifier
@@ -106,6 +109,8 @@ fun ArtifactsPane(
                 fontSize = 12.sp,
                 color = HorizonsColors.TileArtifacts.copy(alpha = 0.5f),
             )
+            Spacer(Modifier.weight(1f))
+            WallpaperPickerButtons(AppStateStore.KEY_WALLPAPER_ARCHIVES, HorizonsColors.TileArtifacts)
         }
 
         HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.2f))
@@ -127,7 +132,7 @@ fun ArtifactsPane(
         } else {
             archivedConfigs.forEach { config ->
                 Surface(
-                    color = HorizonsColors.Surface,
+                    color = HorizonsColors.Surface.copy(alpha = 0.78f),
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -223,7 +228,7 @@ fun ArtifactsPane(
         var diagText by remember { mutableStateOf(com.horizons.core.diag.Breadcrumb.readAll()) }
 
         Surface(
-            color = HorizonsColors.Surface,
+            color = HorizonsColors.Surface.copy(alpha = 0.78f),
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -316,7 +321,7 @@ fun ArtifactsPane(
         }
 
         Surface(
-            color = HorizonsColors.Surface,
+            color = HorizonsColors.Surface.copy(alpha = 0.78f),
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier
                 .fillMaxWidth()
@@ -374,7 +379,7 @@ private fun ArchiveFileManager(app: HorizonsApplication) {
     var newFileOpen by remember { mutableStateOf(false) }
 
     Surface(
-        color = HorizonsColors.Surface,
+        color = HorizonsColors.Surface.copy(alpha = 0.78f),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -576,7 +581,7 @@ private fun ChatSessionCard(
     var expanded by remember { mutableStateOf(false) }
 
     Surface(
-        color = HorizonsColors.Surface,
+        color = HorizonsColors.Surface.copy(alpha = 0.78f),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier
             .fillMaxWidth()
@@ -681,7 +686,7 @@ private fun ChatSessionCard(
 @Composable
 private fun SavedCommandCard(cmd: SavedCommand) {
     Surface(
-        color = HorizonsColors.Surface,
+        color = HorizonsColors.Surface.copy(alpha = 0.78f),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -737,7 +742,7 @@ private fun LogFileCard(file: File, onShare: () -> Unit) {
     }
 
     Surface(
-        color = HorizonsColors.Surface,
+        color = HorizonsColors.Surface.copy(alpha = 0.78f),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -790,7 +795,7 @@ private fun LogFileCard(file: File, onShare: () -> Unit) {
 @Composable
 private fun PlaceholderCard(message: String) {
     Surface(
-        color = HorizonsColors.Surface,
+        color = HorizonsColors.Surface.copy(alpha = 0.78f),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
