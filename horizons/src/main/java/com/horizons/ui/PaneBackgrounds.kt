@@ -9,8 +9,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 
-// ── Water droplet background (Chat pane) ───────────────────────────────────
+// ── Wet slate-stone background (Chat pane) ─────────────────────────────────
+// Rain-splashed blue-grey slate: cracked stone plates + highlighted droplets
 
 private data class WaterDrop(val x: Float, val y: Float, val radius: Float, val alpha: Float)
 
@@ -21,63 +23,115 @@ private fun generateWaterDrops(count: Int): List<WaterDrop> {
             x = rng.nextFloat(),
             y = rng.nextFloat(),
             radius = 2f + rng.nextFloat() * 5f,
-            alpha = 0.05f + rng.nextFloat() * 0.12f,
+            alpha = 0.06f + rng.nextFloat() * 0.14f,
         )
+    }
+}
+
+private data class Crack(val pts: List<Offset>)
+
+private fun generateCracks(count: Int): List<Crack> {
+    val rng = java.util.Random(53)
+    return List(count) {
+        var x = rng.nextFloat()
+        var y = rng.nextFloat()
+        val pts = mutableListOf(Offset(x, y))
+        // Jagged fissure wandering across the stone
+        repeat(3 + rng.nextInt(4)) {
+            x += (rng.nextFloat() - 0.5f) * 0.22f
+            y += (rng.nextFloat() - 0.5f) * 0.22f
+            pts.add(Offset(x, y))
+        }
+        Crack(pts)
     }
 }
 
 @Composable
 fun WaterDropletBackground(modifier: Modifier = Modifier) {
-    val drops = remember { generateWaterDrops(100) }
+    val drops = remember { generateWaterDrops(90) }
+    val cracks = remember { generateCracks(16) }
 
     Canvas(modifier = modifier.fillMaxSize()) {
+        // Wet blue-grey slate — deep, cool, faintly reflective
         drawRect(
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFF122428),
-                    Color(0xFF183034),
-                    Color(0xFF0F1E22),
+                    Color(0xFF161C22),
+                    Color(0xFF212B33),
+                    Color(0xFF0D1217),
                 ),
             ),
         )
 
+        // Broad specular wet-sheen across the upper slate
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFF3A4A56).copy(alpha = 0.18f),
+                    Color.Transparent,
+                ),
+                center = Offset(size.width * 0.35f, size.height * 0.25f),
+                radius = size.maxDimension * 0.6f,
+            ),
+        )
+
+        // Cracked stone — dark fissures with a wet highlight edge catching light
+        cracks.forEach { crack ->
+            for (i in 0 until crack.pts.size - 1) {
+                val a = Offset(crack.pts[i].x * size.width, crack.pts[i].y * size.height)
+                val b = Offset(crack.pts[i + 1].x * size.width, crack.pts[i + 1].y * size.height)
+                drawLine(Color(0xFF070A0D).copy(alpha = 0.55f), a, b, 1.6f)
+                drawLine(
+                    Color(0xFF8AA0AE).copy(alpha = 0.10f),
+                    Offset(a.x + 1f, a.y - 1f), Offset(b.x + 1f, b.y - 1f), 0.7f,
+                )
+            }
+        }
+
+        // Rain-splash streaks running down the wet stone
         val rng = java.util.Random(61)
-        for (i in 0..30) {
+        for (i in 0..24) {
+            val x = rng.nextFloat() * size.width
             val y = rng.nextFloat() * size.height
             drawLine(
-                color = Color(0xFF2DD4D9).copy(alpha = 0.03f),
-                start = Offset(0f, y),
-                end = Offset(size.width, y + (rng.nextFloat() - 0.5f) * 6f),
-                strokeWidth = 0.8f + rng.nextFloat() * 2f,
+                color = Color(0xFFB8C8D2).copy(alpha = 0.05f),
+                start = Offset(x, y),
+                end = Offset(x + (rng.nextFloat() - 0.5f) * 4f, y + 10f + rng.nextFloat() * 20f),
+                strokeWidth = 0.8f,
             )
         }
 
+        // Highlighted water droplets — pale, specular, wet (not teal)
         drops.forEach { drop ->
             val cx = drop.x * size.width
             val cy = drop.y * size.height
             drawCircle(
-                color = Color(0xFF2DD4D9).copy(alpha = drop.alpha),
+                color = Color(0xFF9FB4C0).copy(alpha = drop.alpha),
                 radius = drop.radius,
                 center = Offset(cx, cy),
             )
+            // Bright specular glint (top-left) — the highlight the spec calls for
             drawCircle(
-                color = Color(0xFF4FE7EC).copy(alpha = drop.alpha * 0.5f),
-                radius = drop.radius * 0.35f,
-                center = Offset(cx - drop.radius * 0.25f, cy - drop.radius * 0.25f),
+                color = Color.White.copy(alpha = drop.alpha * 0.9f),
+                radius = drop.radius * 0.3f,
+                center = Offset(cx - drop.radius * 0.3f, cy - drop.radius * 0.3f),
             )
+            // Meniscus rim
             drawCircle(
-                color = Color(0xFF2DD4D9).copy(alpha = drop.alpha * 0.3f),
+                color = Color(0xFF6E8492).copy(alpha = drop.alpha * 0.5f),
                 radius = drop.radius,
                 center = Offset(cx, cy),
-                style = Stroke(width = 0.5f),
+                style = Stroke(width = 0.6f),
             )
         }
     }
 }
 
-// ── Astral space background (Horizons pane) ────────────────────────────────
+// ── Deep-space butterfly nebula (Horizons pane) ────────────────────────────
+// Bipolar (butterfly) nebula: mirrored purple/blue wings, gold-white core,
+// a dark equatorial dust lane, and a purple/blue/gold star field.
 
-private data class DeepStar(val x: Float, val y: Float, val size: Float, val alpha: Float, val isTeal: Boolean)
+private data class DeepStar(val x: Float, val y: Float, val size: Float, val alpha: Float, val tint: Int)
 
 private fun generateDeepStars(count: Int): List<DeepStar> {
     val rng = java.util.Random(73)
@@ -86,58 +140,107 @@ private fun generateDeepStars(count: Int): List<DeepStar> {
             x = rng.nextFloat(),
             y = rng.nextFloat(),
             size = 0.5f + rng.nextFloat() * 2f,
-            alpha = 0.1f + rng.nextFloat() * 0.6f,
-            isTeal = rng.nextFloat() < 0.3f,
+            alpha = 0.15f + rng.nextFloat() * 0.7f,
+            tint = rng.nextInt(4), // 0=white 1=blue 2=purple 3=gold
         )
     }
 }
 
 @Composable
 fun AstralSpaceBackground(modifier: Modifier = Modifier) {
-    val stars = remember { generateDeepStars(150) }
+    val stars = remember { generateDeepStars(160) }
 
     Canvas(modifier = modifier.fillMaxSize()) {
+        // Deep space base — near-black with a violet core
         drawRect(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFF1A2830),
-                    Color(0xFF111C22),
-                    Color(0xFF0A1218),
+                    Color(0xFF0E0A18),
+                    Color(0xFF080611),
+                    Color(0xFF020103),
                 ),
-                center = Offset(size.width * 0.5f, size.height * 0.3f),
+                center = Offset(size.width * 0.5f, size.height * 0.42f),
                 radius = size.maxDimension * 0.8f,
             ),
         )
 
-        stars.forEach { star ->
-            val color = if (star.isTeal) Color(0xFF2DD4D9) else Color.White
-            drawCircle(
-                color = color.copy(alpha = star.alpha),
-                radius = star.size,
-                center = Offset(star.x * size.width, star.y * size.height),
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.42f
+
+        // Butterfly wings — two mirrored lobes along a diagonal outflow axis.
+        // Each wing = stacked radial gradients fading purple -> blue -> clear.
+        fun wing(dirX: Float, dirY: Float) {
+            for (k in 0 until 4) {
+                val dist = 0.10f + k * 0.07f
+                val wx = cx + dirX * size.minDimension * dist
+                val wy = cy + dirY * size.minDimension * dist
+                val r = size.minDimension * (0.26f - k * 0.03f)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF7A3FD0).copy(alpha = 0.10f),
+                            Color(0xFF3E5CC8).copy(alpha = 0.05f),
+                            Color.Transparent,
+                        ),
+                        center = Offset(wx, wy),
+                        radius = r,
+                    ),
+                    radius = r,
+                    center = Offset(wx, wy),
+                )
+            }
+        }
+        wing(-0.8f, -0.7f) // upper-left lobe
+        wing(0.8f, 0.7f)   // lower-right lobe
+
+        // Magenta bloom hugging the core
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFB84FD0).copy(alpha = 0.08f), Color.Transparent),
+                center = Offset(cx, cy),
+                radius = size.minDimension * 0.34f,
+            ),
+            radius = size.minDimension * 0.34f,
+            center = Offset(cx, cy),
+        )
+
+        // Hot gold-white core
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFFFFE9B0).copy(alpha = 0.55f),
+                    Color(0xFFF5C518).copy(alpha = 0.18f),
+                    Color.Transparent,
+                ),
+                center = Offset(cx, cy),
+                radius = size.minDimension * 0.10f,
+            ),
+            radius = size.minDimension * 0.10f,
+            center = Offset(cx, cy),
+        )
+
+        // Dark equatorial dust lane across the waist (perpendicular to wings)
+        rotate(degrees = -49f, pivot = Offset(cx, cy)) {
+            drawRect(
+                color = Color.Black.copy(alpha = 0.38f),
+                topLeft = Offset(cx - size.width * 0.7f, cy - size.minDimension * 0.028f),
+                size = androidx.compose.ui.geometry.Size(size.width * 1.4f, size.minDimension * 0.056f),
             )
         }
 
-        val nebulaColor = Color(0xFF2DD4D9).copy(alpha = 0.02f)
-        drawCircle(
-            color = nebulaColor,
-            radius = size.minDimension * 0.4f,
-            center = Offset(size.width * 0.3f, size.height * 0.2f),
-        )
-        drawCircle(
-            color = nebulaColor,
-            radius = size.minDimension * 0.3f,
-            center = Offset(size.width * 0.7f, size.height * 0.6f),
-        )
-
-        val ringColor = Color(0xFF2DD4D9).copy(alpha = 0.04f)
-        for (i in 1..3) {
-            drawCircle(
-                color = ringColor,
-                radius = size.minDimension * 0.15f * i,
-                center = Offset(size.width * 0.5f, size.height * 0.4f),
-                style = Stroke(width = 0.5f),
-            )
+        // Star field — white / blue / purple / gold, brighter ones haloed
+        stars.forEach { star ->
+            val color = when (star.tint) {
+                1 -> Color(0xFF7FA8FF)
+                2 -> Color(0xFFB98BFF)
+                3 -> Color(0xFFFFD98A)
+                else -> Color.White
+            }
+            val center = Offset(star.x * size.width, star.y * size.height)
+            if (star.alpha > 0.6f) {
+                drawCircle(color.copy(alpha = star.alpha * 0.22f), star.size * 3f, center)
+            }
+            drawCircle(color.copy(alpha = star.alpha), star.size, center)
         }
     }
 }
@@ -174,7 +277,7 @@ fun CircuitTraceBackground(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.fillMaxSize()) {
         drawRect(
             brush = Brush.verticalGradient(
-                colors = listOf(Color(0xFF1A222A), Color(0xFF222C34), Color(0xFF161E24)),
+                colors = listOf(Color(0xFF0A1015), Color(0xFF0C141A), Color(0xFF06090C)),
             ),
         )
 
@@ -205,7 +308,7 @@ fun OscilloscopeBackground(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.fillMaxSize()) {
         drawRect(
             brush = Brush.verticalGradient(
-                colors = listOf(Color(0xFF141E20), Color(0xFF1A262A), Color(0xFF10181C)),
+                colors = listOf(Color(0xFF08120F), Color(0xFF0A1518), Color(0xFF05090B)),
             ),
         )
 
