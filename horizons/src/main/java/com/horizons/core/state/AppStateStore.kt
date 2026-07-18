@@ -54,6 +54,10 @@ class AppStateStore(context: Context) {
         // Router mode — "on-device" | "cloud" | "custom"
         const val KEY_ROUTER_MODE       = "router.mode"
 
+        // Explicit user-pinned model file — the "plugged in" switch. Nothing
+        // auto-loads a landed file until the user flips this in Monitor.
+        const val KEY_ACTIVE_MODEL      = "runtime.active_model"
+
         // Cloud API tokens (used by AgentLoop HttpFetch tool via bearer_token_key)
         const val KEY_API_SAMBANOVA     = "api.sambanova"
         const val KEY_API_OPENROUTER    = "api.openrouter"

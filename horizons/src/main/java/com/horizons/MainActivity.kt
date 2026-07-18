@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
 import com.horizons.ui.HomeGrid
+import com.horizons.ui.IdleScreensaver
 import com.horizons.ui.panels.ArtifactsPane
 import com.horizons.ui.panels.ChatPane
 import com.horizons.ui.panels.HorizonsPane
@@ -46,6 +49,14 @@ import com.horizons.ui.theme.HorizonsColors
 enum class Panel { Horizons, Monitor, Chat, Router, Artifacts, Terminal, Settings }
 
 class MainActivity : ComponentActivity() {
+
+    // Idle tracking for the screensaver — any touch anywhere resets the clock.
+    private val lastInteraction = mutableStateOf(android.os.SystemClock.elapsedRealtime())
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        lastInteraction.value = android.os.SystemClock.elapsedRealtime()
+        return super.dispatchTouchEvent(ev)
+    }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
@@ -92,11 +103,23 @@ class MainActivity : ComponentActivity() {
             )) {
                 Surface(modifier = Modifier.fillMaxSize().imePadding()) {
                     var activePanel by remember { mutableStateOf(launchDirectTo) }
+                    var showScreensaver by remember { mutableStateOf(false) }
+
+                    // 5 minutes idle → screensaver. Checked every 10s; any touch
+                    // resets lastInteraction via dispatchTouchEvent above.
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            kotlinx.coroutines.delay(10_000)
+                            showScreensaver = android.os.SystemClock.elapsedRealtime() -
+                                lastInteraction.value > 5 * 60_000L
+                        }
+                    }
 
                     BackHandler(enabled = activePanel != null) {
                         activePanel = null
                     }
 
+                    Box(Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = activePanel,
                         transitionSpec = {
@@ -144,6 +167,16 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
+                    }
+
+                    if (showScreensaver) {
+                        IdleScreensaver(
+                            onWake = {
+                                lastInteraction.value = android.os.SystemClock.elapsedRealtime()
+                                showScreensaver = false
+                            },
+                        )
+                    }
                     }
                 }
             }

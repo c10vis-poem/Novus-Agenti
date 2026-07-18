@@ -1,5 +1,8 @@
 package com.horizons.ui
 
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -16,12 +19,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,6 +70,17 @@ fun HomeGrid(
     val stars = remember { generateStars(120) }
     var goatTaps by remember { mutableIntStateOf(0) }
     var showGoat by remember { mutableStateOf(false) }
+    var goatReason by remember { mutableStateOf<String?>(null) }
+
+    // Goat watchdog — if the runtime comes back broken, the goat delivers the news
+    LaunchedEffect(backendStatus) {
+        val bad = listOf("error", "fail", "crash", "dead", "unavailable")
+        if (bad.any { backendStatus.contains(it, ignoreCase = true) }) {
+            goatReason = backendStatus
+            showGoat = true
+            playGoatBleat()
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         // ── Astral chart background ─────────────────────────────────────────
@@ -78,43 +92,72 @@ fun HomeGrid(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // ── Banner ──────────────────────────────────────────────────────
-            Text(
-                "MO)u14R_11(",
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 32.sp,
-                color = HorizonsColors.PrimaryTeal,
-                textAlign = TextAlign.Center,
+            // ── Banner — shell heredoc aesthetic ────────────────────────────
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .clickable {
                         goatTaps++
                         if (goatTaps >= 7) {
+                            goatReason = null
                             showGoat = true
                             goatTaps = 0
+                            playGoatBleat()
                         }
                     },
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "*PIONEER_TECH  ·  (NEXT-GEN CERTIFIED)",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 9.sp,
-                color = HorizonsColors.PrimaryTeal.copy(alpha = 0.5f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            )
-            Text(
-                "HORIZONS // V4",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 9.sp,
-                color = HorizonsColors.PrimaryTeal.copy(alpha = 0.5f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            ) {
+                Text(
+                    "cat    << 'EOF'",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
+                )
+                Text(
+                    "MØ[)u14R_  11(",
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 38.sp,
+                    letterSpacing = 1.sp,
+                    color = HorizonsColors.PrimaryTeal,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "*Pioneer_Tech,",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    letterSpacing = 2.sp,
+                    color = HorizonsColors.PrimaryTeal,
+                )
+                Text(
+                    "  (Next-Gen Certified)",
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    letterSpacing = (-0.3).sp,
+                    color = HorizonsColors.PrimaryTeal,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "EOF",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
+                    )
+                    Text(
+                        "v1.0",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
+                    )
+                }
+            }
 
             Spacer(Modifier.height(4.dp))
             HorizontalDivider(
@@ -141,11 +184,11 @@ fun HomeGrid(
                 Spacer(Modifier.width(8.dp))
                 TileCard(
                     name = "MONITOR",
-                    slug = "/ cognito",
-                    subtitle = "Model · API ·\nCLI",
+                    slug = "/ console",
+                    subtitle = "Library · Browse ·\nCompatibility",
                     color = HorizonsColors.TileMonitor,
                     tileType = TileType.MONITOR,
-                    cmdHint = "$ cognito",
+                    cmdHint = "$ console",
                     onClick = { onTileClick(Panel.Monitor) },
                     modifier = Modifier.weight(1f),
                 )
@@ -202,26 +245,26 @@ fun HomeGrid(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Bottom row: Artifacts · Terminal · Settings ──────────────────
+            // ── Bottom row: Settings (~4:30 SE) · Terminal (6:00 S) · Archives (~7:30 SW) ──
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 TileCard(
-                    name = "ARTIFACTS",
-                    slug = "/ logs_skills",
-                    subtitle = "Logs · Prompts ·\nWarm models",
-                    color = HorizonsColors.TileArtifacts,
-                    tileType = TileType.ARTIFACTS,
-                    cmdHint = "$ ls artifacts/",
-                    onClick = { onTileClick(Panel.Artifacts) },
+                    name = "SETTINGS",
+                    slug = "/ vault",
+                    subtitle = "Deposits · Keys ·\nImports · Vault",
+                    color = HorizonsColors.TileSettings,
+                    tileType = TileType.SETTINGS,
+                    cmdHint = "$ vault --open",
+                    onClick = { onTileClick(Panel.Settings) },
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 TileCard(
                     name = "TERMINAL",
-                    slug = "/ shell",
-                    subtitle = "Matrix shell ·\nGreen on black",
+                    slug = "/ garage",
+                    subtitle = "Mod garage ·\nScripts · CLI",
                     color = HorizonsColors.TileTerminal,
                     tileType = TileType.TERMINAL,
                     cmdHint = "$ _",
@@ -230,13 +273,13 @@ fun HomeGrid(
                 )
                 Spacer(Modifier.width(8.dp))
                 TileCard(
-                    name = "SETTINGS",
-                    slug = "/ config",
-                    subtitle = "Config · Matrix\ntheme overlay",
-                    color = HorizonsColors.TileSettings,
-                    tileType = TileType.SETTINGS,
-                    cmdHint = "$ config --open",
-                    onClick = { onTileClick(Panel.Settings) },
+                    name = "ARCHIVES",
+                    slug = "/ archive",
+                    subtitle = "Artifacts · Logs ·\nSaved configs",
+                    color = HorizonsColors.TileArtifacts,
+                    tileType = TileType.ARTIFACTS,
+                    cmdHint = "$ ls archive/",
+                    onClick = { onTileClick(Panel.Artifacts) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -312,7 +355,123 @@ fun HomeGrid(
 
             Spacer(Modifier.height(12.dp))
         }
+
+        // ── Goat Easter egg overlay ─────────────────────────────────────────
+        if (showGoat) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF000000).copy(alpha = 0.94f))
+                    .clickable { showGoat = false },
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(32.dp),
+                ) {
+                    Text("🐐", fontSize = 96.sp, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (goatReason != null) "// GOAT_SAYS_NO" else "// GOAT_UNLOCKED",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = if (goatReason != null) HorizonsColors.TileSettings
+                        else HorizonsColors.PrimaryTeal,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    if (goatReason != null) {
+                        Text(
+                            "runtime came back wrong:",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = HorizonsColors.TileSettings.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            goatReason ?: "",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = HorizonsColors.PrimaryTeal.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center,
+                        )
+                    } else {
+                        Text(
+                            "*Pioneer_Tech approved",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = HorizonsColors.PrimaryTeal.copy(alpha = 0.55f),
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            "(Next-Gen Certified)",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = HorizonsColors.PrimaryTeal.copy(alpha = 0.4f),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    Spacer(Modifier.height(32.dp))
+                    Text(
+                        "[ tap anywhere to dismiss ]",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.25f),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
     }
+}
+
+// ── Goat bleat — synthesized, no asset needed ───────────────────────────────
+
+private fun playGoatBleat() {
+    Thread {
+        try {
+            val sr = 22050
+            val durSec = 0.7f
+            val n = (sr * durSec).toInt()
+            val buf = ShortArray(n)
+            var phase = 0f
+            for (i in 0 until n) {
+                val t = i.toFloat() / sr
+                // Vibrato around 260Hz gives the "meh-eh-eh" warble
+                val freq = 260f + 45f * sin(2f * PI.toFloat() * 9f * t)
+                phase += 2f * PI.toFloat() * freq / sr
+                val saw = 2f * ((phase / (2f * PI.toFloat())) % 1f) - 1f
+                val tremolo = 0.55f + 0.45f * sin(2f * PI.toFloat() * 11f * t)
+                val envelope = (1f - t / durSec).coerceIn(0f, 1f) *
+                    (t * 40f).coerceAtMost(1f)
+                buf[i] = (saw * tremolo * envelope * 8500f).toInt().toShort()
+            }
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setSampleRate(sr)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build(),
+                )
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .setBufferSizeInBytes(n * 2)
+                .build()
+            track.write(buf, 0, n)
+            track.play()
+            Thread.sleep((durSec * 1000).toLong() + 150)
+            track.release()
+        } catch (_: Exception) {
+            // Sound is garnish — never let it crash the UI
+        }
+    }.start()
 }
 
 // ── Astral chart background ─────────────────────────────────────────────────
@@ -332,7 +491,47 @@ private fun generateStars(count: Int): List<Star> {
 }
 
 private fun DrawScope.drawAstralBackground(stars: List<Star>) {
-    drawRect(Color(0xFF222C34))
+    // Obsidian base — deep volcanic glass gradient, darker than flat #222C34
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Color(0xFF1A222A), Color(0xFF222C34), Color(0xFF141B21)),
+        ),
+    )
+
+    // Obsidian facets — large angular glass shards, barely visible
+    val facetRng = java.util.Random(137)
+    for (i in 0 until 6) {
+        val fx = facetRng.nextFloat() * size.width
+        val fy = facetRng.nextFloat() * size.height
+        val fw = (0.25f + facetRng.nextFloat() * 0.35f) * size.width
+        val fh = (0.15f + facetRng.nextFloat() * 0.25f) * size.height
+        val skew = (facetRng.nextFloat() - 0.5f) * fw * 0.6f
+        val facet = Path().apply {
+            moveTo(fx, fy)
+            lineTo(fx + fw, fy + skew * 0.3f)
+            lineTo(fx + fw * 0.75f + skew, fy + fh)
+            lineTo(fx - fw * 0.1f + skew * 0.5f, fy + fh * 0.85f)
+            close()
+        }
+        drawPath(
+            facet,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF2A3640).copy(alpha = 0.20f),
+                    Color(0xFF0D1216).copy(alpha = 0.12f),
+                ),
+                start = Offset(fx, fy),
+                end = Offset(fx + fw, fy + fh),
+            ),
+        )
+        // Specular glint along the facet's top edge — light catching glass
+        drawLine(
+            color = Color(0xFF9FCAD6).copy(alpha = 0.06f + facetRng.nextFloat() * 0.05f),
+            start = Offset(fx, fy),
+            end = Offset(fx + fw, fy + skew * 0.3f),
+            strokeWidth = 0.8f,
+        )
+    }
 
     val cx = size.width / 2f
     val cy = size.height * 0.42f
@@ -388,49 +587,43 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
     }
 
     // ── Plasma tube conduits ────────────────────────────────────────────
-    // Approximate tile center positions relative to screen
-    val topRowY = size.height * 0.2f
-    val botRowY = size.height * 0.62f
-    val leftX = size.width * 0.17f
-    val midX = cx
-    val rightX = size.width * 0.83f
+    val topRowY = size.height * 0.225f
+    val botRowY = size.height * 0.63f
+    val leftX   = size.width  * 0.16f
+    val midX    = cx
+    val rightX  = size.width  * 0.84f
+    val hub     = Offset(cx, size.height * 0.42f)
 
     data class Conduit(val from: Offset, val color: Color)
     val conduits = listOf(
-        Conduit(Offset(leftX, topRowY), Color(0xFF2DD4D9)),     // Horizons
-        Conduit(Offset(midX, topRowY), Color(0xFF2DD4D9)),      // Monitor
-        Conduit(Offset(rightX, topRowY), Color(0xFF4FE7EC)),    // Chat
-        Conduit(Offset(leftX, botRowY), Color(0xFFE8A838)),     // Artifacts
-        Conduit(Offset(midX, botRowY), Color(0xFF00FF41)),      // Terminal
-        Conduit(Offset(rightX, botRowY), Color(0xFFFF5577)),    // Settings
+        Conduit(Offset(leftX,  topRowY), Color(0xFF2DD4D9)),
+        Conduit(Offset(midX,   topRowY), Color(0xFF2DD4D9)),
+        Conduit(Offset(rightX, topRowY), Color(0xFF4FE7EC)),
+        Conduit(Offset(leftX,  botRowY), Color(0xFFFF5577)),
+        Conduit(Offset(midX,   botRowY), Color(0xFF00FF41)),
+        Conduit(Offset(rightX, botRowY), Color(0xFFE8A838)),
     )
 
-    conduits.forEach { conduit ->
-        val hub = Offset(cx, cy)
-        // Outer glow (wide, faint)
-        drawLine(
-            color = conduit.color.copy(alpha = 0.06f),
-            start = conduit.from,
-            end = hub,
-            strokeWidth = 12f,
-            cap = StrokeCap.Round,
-        )
-        // Mid glow
-        drawLine(
-            color = conduit.color.copy(alpha = 0.10f),
-            start = conduit.from,
-            end = hub,
-            strokeWidth = 6f,
-            cap = StrokeCap.Round,
-        )
-        // Core bright line
-        drawLine(
-            color = conduit.color.copy(alpha = 0.25f),
-            start = conduit.from,
-            end = hub,
-            strokeWidth = 1.5f,
-            cap = StrokeCap.Round,
-        )
+    conduits.forEach { (from, c) ->
+        // Plasma tube — 4 glow layers
+        drawLine(c.copy(alpha = 0.04f), from, hub, 22f, StrokeCap.Round)
+        drawLine(c.copy(alpha = 0.08f), from, hub, 10f, StrokeCap.Round)
+        drawLine(c.copy(alpha = 0.16f), from, hub,  4f, StrokeCap.Round)
+        drawLine(c.copy(alpha = 0.32f), from, hub, 1.4f, StrokeCap.Round)
+
+        // Plasma nodes along the tube
+        val steps = 7
+        for (i in 1 until steps) {
+            val t = i.toFloat() / steps
+            val nodeAlpha = 0.20f + sin(t * PI.toFloat()) * 0.30f
+            val nodePos = Offset(from.x + (hub.x - from.x) * t, from.y + (hub.y - from.y) * t)
+            drawCircle(c.copy(alpha = nodeAlpha * 0.7f), 3.5f, nodePos)
+            drawCircle(c.copy(alpha = nodeAlpha * 0.25f), 6.5f, nodePos, style = Stroke(0.8f))
+        }
+
+        // Anchor dot at tile end
+        drawCircle(c.copy(alpha = 0.45f), 3.5f, from)
+        drawCircle(c.copy(alpha = 0.15f), 7f,   from, style = Stroke(0.8f))
     }
 }
 
@@ -439,27 +632,19 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
 private fun DrawScope.drawCoreHubCrystal() {
     val cx = size.width / 2f
     val cy = size.height / 2f
-    val baseR = size.minDimension * 0.34f
+    val W   = size.minDimension * 0.19f   // half-width of front face
+    val H   = size.minDimension * 0.34f   // body half-height
+    val SD  = size.minDimension * 0.10f   // side-face depth (45° perspective)
+    val capH = W * 0.50f                   // 30° bevel — moderate, not pointy
+    val ox  = cx - SD * 0.2f              // slight left offset for "off-center" look
 
-    // Concentric elliptical ring base (3D platform)
-    for (i in 4 downTo 0) {
-        val ringR = baseR + i * 8f
-        val ringAlpha = 0.06f + (4 - i) * 0.02f
-        drawOval(
-            color = Color(0xFFAA77FF).copy(alpha = ringAlpha),
-            topLeft = Offset(cx - ringR, cy - ringR * 0.35f + 8f),
-            size = Size(ringR * 2f, ringR * 0.7f),
-            style = Stroke(width = 1.2f),
-        )
-    }
-
-    // Radial glow layers
+    // Ambient glow
     for (layer in 3 downTo 0) {
-        val glowR = baseR * (1.4f + layer * 0.3f)
+        val glowR = W * (2.8f + layer * 0.7f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFFAA77FF).copy(alpha = 0.12f - layer * 0.025f),
+                    Color(0xFFAA77FF).copy(alpha = 0.10f - layer * 0.02f),
                     Color.Transparent,
                 ),
                 center = Offset(cx, cy),
@@ -470,91 +655,92 @@ private fun DrawScope.drawCoreHubCrystal() {
         )
     }
 
-    // Hexagon base (bottom face, viewed at 45°)
-    val hexBase = buildHexPath(cx, cy + 4f, baseR * 0.85f, 0.4f)
-    drawPath(
-        path = hexBase,
-        color = Color(0xFFAA77FF).copy(alpha = 0.15f),
-    )
-    drawPath(
-        path = hexBase,
-        color = Color(0xFFAA77FF).copy(alpha = 0.35f),
-        style = Stroke(width = 1.5f),
-    )
+    val bodyTop  = cy - H * 0.30f
+    val bodyBot  = cy + H * 0.52f
+    val peakY    = bodyTop - capH
+    val botTipY  = bodyBot + capH * 0.55f
 
-    // Top facets — broad top face (30° pitch, not sharp point)
-    val topY = cy - baseR * 0.35f
-    val peakY = cy - baseR * 0.55f
-    val hexR = baseR * 0.85f
-
-    val topFacet = Path().apply {
-        // Left front facet
-        moveTo(cx, peakY)
-        lineTo(cx - hexR * 0.6f, topY)
-        lineTo(cx - hexR * 0.85f, cy - baseR * 0.05f)
-        lineTo(cx, cy + 2f)
+    // Front face of prism body
+    val frontFace = Path().apply {
+        moveTo(ox - W, bodyTop)
+        lineTo(ox + W, bodyTop)
+        lineTo(ox + W, bodyBot)
+        lineTo(ox - W, bodyBot)
         close()
     }
-    drawPath(topFacet, Color(0xFFAA77FF).copy(alpha = 0.18f))
-    drawPath(topFacet, Color(0xFFAA77FF).copy(alpha = 0.3f), style = Stroke(width = 1f))
+    drawPath(frontFace, Color(0xFF8855CC).copy(alpha = 0.24f))
+    drawPath(frontFace, Color(0xFFAA77FF).copy(alpha = 0.50f), style = Stroke(width = 1.5f))
 
-    val rightFacet = Path().apply {
-        moveTo(cx, peakY)
-        lineTo(cx + hexR * 0.6f, topY)
-        lineTo(cx + hexR * 0.85f, cy - baseR * 0.05f)
-        lineTo(cx, cy + 2f)
+    // Right side face (foreshortened at 45°)
+    val sideFace = Path().apply {
+        moveTo(ox + W,        bodyTop)
+        lineTo(ox + W + SD,   bodyTop - SD * 0.45f)
+        lineTo(ox + W + SD,   bodyBot - SD * 0.45f)
+        lineTo(ox + W,        bodyBot)
         close()
     }
-    drawPath(rightFacet, Color(0xFFAA77FF).copy(alpha = 0.25f))
-    drawPath(rightFacet, Color(0xFFAA77FF).copy(alpha = 0.3f), style = Stroke(width = 1f))
+    drawPath(sideFace, Color(0xFFCC99FF).copy(alpha = 0.14f))
+    drawPath(sideFace, Color(0xFFAA77FF).copy(alpha = 0.38f), style = Stroke(width = 1f))
 
-    // Top face polygon
-    val topFace = Path().apply {
-        moveTo(cx, peakY)
-        lineTo(cx - hexR * 0.6f, topY)
-        lineTo(cx - hexR * 0.3f, topY + 4f)
-        lineTo(cx, topY - 2f)
-        lineTo(cx + hexR * 0.3f, topY + 4f)
-        lineTo(cx + hexR * 0.6f, topY)
+    // Top cap — front facet (broad, 30°)
+    val capFront = Path().apply {
+        moveTo(ox - W,        bodyTop)
+        lineTo(ox + W,        bodyTop)
+        lineTo(ox + W * 0.25f, peakY)
+        lineTo(ox - W * 0.25f, peakY)
         close()
     }
-    drawPath(topFace, Color(0xFFAA77FF).copy(alpha = 0.22f))
-    drawPath(topFace, Color(0xFFBB99FF).copy(alpha = 0.4f), style = Stroke(width = 1f))
+    drawPath(capFront, Color(0xFFBB99FF).copy(alpha = 0.32f))
+    drawPath(capFront, Color(0xFFCC99FF).copy(alpha = 0.60f), style = Stroke(width = 1.2f))
+
+    // Top cap — right side facet
+    val capSide = Path().apply {
+        moveTo(ox + W,                bodyTop)
+        lineTo(ox + W + SD,           bodyTop - SD * 0.45f)
+        lineTo(ox + W * 0.25f + SD * 0.75f, peakY - SD * 0.22f)
+        lineTo(ox + W * 0.25f,        peakY)
+        close()
+    }
+    drawPath(capSide, Color(0xFFDD99FF).copy(alpha = 0.20f))
+    drawPath(capSide, Color(0xFFBB88FF).copy(alpha = 0.48f), style = Stroke(width = 1f))
+
+    // Bottom taper (crystal termination)
+    val botTaper = Path().apply {
+        moveTo(ox - W, bodyBot)
+        lineTo(ox + W, bodyBot)
+        lineTo(ox + W + SD, bodyBot - SD * 0.45f)
+        lineTo(ox + W * 0.1f + SD * 0.5f, botTipY - SD * 0.15f)
+        lineTo(ox, botTipY)
+        lineTo(ox - W * 0.1f, botTipY)
+        lineTo(ox - W, bodyBot)
+        close()
+    }
+    drawPath(botTaper, Color(0xFF7744AA).copy(alpha = 0.20f))
+    drawPath(botTaper, Color(0xFFAA77FF).copy(alpha = 0.32f), style = Stroke(width = 1f))
 
     // Inner glow core
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFFCC99FF).copy(alpha = 0.5f),
-                Color(0xFFAA77FF).copy(alpha = 0.15f),
+                Color(0xFFEECCFF).copy(alpha = 0.58f),
+                Color(0xFFAA77FF).copy(alpha = 0.20f),
                 Color.Transparent,
             ),
-            center = Offset(cx, cy - baseR * 0.1f),
-            radius = baseR * 0.4f,
+            center = Offset(ox, cy - H * 0.05f),
+            radius = W * 0.85f,
         ),
-        center = Offset(cx, cy - baseR * 0.1f),
-        radius = baseR * 0.4f,
+        center = Offset(ox, cy - H * 0.05f),
+        radius = W * 0.85f,
     )
 
-    // Faint circular border
-    drawCircle(
-        color = Color(0xFFAA77FF).copy(alpha = 0.08f),
-        radius = baseR * 1.15f,
-        center = Offset(cx, cy),
-        style = Stroke(width = 0.8f),
+    // Specular highlight streak (upper-left of front face)
+    drawLine(
+        color = Color.White.copy(alpha = 0.38f),
+        start = Offset(ox - W * 0.55f, bodyTop + 2f),
+        end = Offset(ox - W * 0.20f, bodyTop - capH * 0.45f),
+        strokeWidth = 1.3f,
+        cap = StrokeCap.Round,
     )
-}
-
-private fun buildHexPath(cx: Float, cy: Float, radius: Float, yScale: Float): Path {
-    return Path().apply {
-        for (i in 0 until 6) {
-            val angle = (i * 60 - 30) * PI.toFloat() / 180f
-            val x = cx + cos(angle) * radius
-            val y = cy + sin(angle) * radius * yScale
-            if (i == 0) moveTo(x, y) else lineTo(x, y)
-        }
-        close()
-    }
 }
 
 // ── Canvas-drawn tile icons ─────────────────────────────────────────────────
@@ -568,8 +754,21 @@ private fun DrawScope.drawTileIcon(type: TileType, color: Color) {
 
     when (type) {
         TileType.HORIZONS -> {
-            // Horizon line (blue) + green arc (sunrise) + amber dot (sun)
-            val lineY = cy + r * 0.2f
+            // Amber sun with rays + blue horizon line + pale pinkish-purple arch
+            val lineY = cy + r * 0.22f
+            val sunY = lineY - r * 0.38f
+            val sunR = r * 0.17f
+            // Pale pinkish-purple arch (sky dome)
+            drawArc(
+                color = Color(0xFFCC99CC),
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = false,
+                topLeft = Offset(cx - r * 0.78f, lineY - r * 0.78f),
+                size = Size(r * 1.56f, r * 1.0f),
+                style = Stroke(width = 1.5f, cap = StrokeCap.Round),
+            )
+            // Blue horizon line
             drawLine(
                 color = Color(0xFF40C4FF),
                 start = Offset(cx - r, lineY),
@@ -577,65 +776,60 @@ private fun DrawScope.drawTileIcon(type: TileType, color: Color) {
                 strokeWidth = 2f,
                 cap = StrokeCap.Round,
             )
-            drawArc(
-                color = Color(0xFF00E676),
-                startAngle = 180f,
-                sweepAngle = 180f,
-                useCenter = false,
-                topLeft = Offset(cx - r * 0.6f, lineY - r * 0.6f),
-                size = Size(r * 1.2f, r * 0.9f),
-                style = Stroke(width = 2f, cap = StrokeCap.Round),
-            )
-            drawCircle(
-                color = Color(0xFFE8A838),
-                radius = r * 0.15f,
-                center = Offset(cx, lineY - r * 0.38f),
-            )
+            // Amber sun disc
+            drawCircle(color = Color(0xFFF5C518), radius = sunR, center = Offset(cx, sunY))
+            // Sun rays (8)
+            for (i in 0 until 8) {
+                val ang = i * 45f * PI.toFloat() / 180f
+                drawLine(
+                    color = Color(0xFFF5C518).copy(alpha = 0.68f),
+                    start = Offset(cx + cos(ang) * (sunR + 2.5f), sunY + sin(ang) * (sunR + 2.5f)),
+                    end   = Offset(cx + cos(ang) * (sunR + r * 0.20f), sunY + sin(ang) * (sunR + r * 0.20f)),
+                    strokeWidth = 1.5f,
+                    cap = StrokeCap.Round,
+                )
+            }
         }
         TileType.MONITOR -> {
-            // Compass / target icon
-            drawCircle(
-                color = color,
-                radius = r * 0.7f,
-                center = Offset(cx, cy),
-                style = Stroke(width = 2f),
-            )
-            drawCircle(
-                color = color,
-                radius = r * 0.35f,
-                center = Offset(cx, cy),
-                style = Stroke(width = 1.5f),
-            )
-            drawCircle(
-                color = color,
-                radius = r * 0.1f,
-                center = Offset(cx, cy),
-            )
-            // Cross hairs
-            val tickLen = r * 0.2f
-            drawLine(color, Offset(cx, cy - r * 0.7f), Offset(cx, cy - r * 0.7f - tickLen), 1.5f)
-            drawLine(color, Offset(cx, cy + r * 0.7f), Offset(cx, cy + r * 0.7f + tickLen), 1.5f)
-            drawLine(color, Offset(cx - r * 0.7f, cy), Offset(cx - r * 0.7f - tickLen, cy), 1.5f)
-            drawLine(color, Offset(cx + r * 0.7f, cy), Offset(cx + r * 0.7f + tickLen, cy), 1.5f)
-        }
-        TileType.CHAT -> {
-            // Speech bubble with tail
-            val bubbleW = r * 1.6f
-            val bubbleH = r * 1.1f
-            val bubbleTop = cy - bubbleH * 0.55f
+            // Chat bubble with 2 horizontal lines inside + tail
+            val bubbleW = r * 1.5f
+            val bubbleH = r * 1.0f
+            val bubbleTop = cy - bubbleH * 0.60f
             drawRoundRect(
                 color = color,
                 topLeft = Offset(cx - bubbleW / 2f, bubbleTop),
                 size = Size(bubbleW, bubbleH),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r * 0.3f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r * 0.25f),
                 style = Stroke(width = 2f),
             )
+            val lInset = bubbleW * 0.18f
+            val lY1 = bubbleTop + bubbleH * 0.34f
+            val lY2 = bubbleTop + bubbleH * 0.65f
+            drawLine(color.copy(alpha = 0.7f), Offset(cx - bubbleW / 2f + lInset, lY1), Offset(cx + bubbleW / 2f - lInset, lY1), 1.5f)
+            drawLine(color.copy(alpha = 0.5f), Offset(cx - bubbleW / 2f + lInset, lY2), Offset(cx + bubbleW / 2f - lInset * 1.6f, lY2), 1.5f)
             val tail = Path().apply {
                 moveTo(cx - r * 0.1f, bubbleTop + bubbleH)
-                lineTo(cx - r * 0.35f, bubbleTop + bubbleH + r * 0.35f)
+                lineTo(cx - r * 0.40f, bubbleTop + bubbleH + r * 0.30f)
                 lineTo(cx + r * 0.15f, bubbleTop + bubbleH)
             }
             drawPath(tail, color, style = Stroke(width = 2f, cap = StrokeCap.Round))
+        }
+        TileType.CHAT -> {
+            // Hub-and-spoke agentic node network
+            val hubR   = r * 0.17f
+            val spokeR = r * 0.72f
+            val nodeR  = r * 0.10f
+            val nodeCount = 5
+            for (i in 0 until nodeCount) {
+                val ang = (i * 360f / nodeCount - 90f) * PI.toFloat() / 180f
+                val nx = cx + cos(ang) * spokeR
+                val ny = cy + sin(ang) * spokeR
+                drawLine(color.copy(alpha = 0.42f), Offset(cx, cy), Offset(nx, ny), 1.5f, StrokeCap.Round)
+                drawCircle(color.copy(alpha = 0.60f), nodeR, Offset(nx, ny))
+                drawCircle(color.copy(alpha = 0.18f), nodeR + 3f, Offset(nx, ny), style = Stroke(0.8f))
+            }
+            drawCircle(color, hubR + 2f, Offset(cx, cy))
+            drawCircle(color.copy(alpha = 0.22f), hubR + 6f, Offset(cx, cy), style = Stroke(1.2f))
         }
         TileType.ARTIFACTS -> {
             // Stacked documents / clipboard
@@ -842,18 +1036,33 @@ private fun TileCard(
 // ── Status dot ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun StatusDot(
-    label: String,
-    color: Color,
-    active: Boolean,
-) {
+private fun StatusDot(label: String, color: Color, active: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(if (active) color else color.copy(alpha = 0.15f)),
-        )
+        Canvas(modifier = Modifier.size(20.dp)) {
+            val dotC = if (active) color else color.copy(alpha = 0.15f)
+            val dotR = size.minDimension / 2f * 0.46f
+            val center = Offset(size.width / 2f, size.height / 2f)
+            if (active) {
+                // Radial glow layers
+                for (i in 3 downTo 0) {
+                    drawCircle(
+                        color = dotC.copy(alpha = 0.07f + i * 0.05f),
+                        radius = dotR + i * 3.5f,
+                        center = center,
+                    )
+                }
+            }
+            // Core
+            drawCircle(dotC, dotR, center)
+            if (active) {
+                // Specular highlight
+                drawCircle(
+                    Color.White.copy(alpha = 0.42f),
+                    dotR * 0.28f,
+                    Offset(center.x - dotR * 0.26f, center.y - dotR * 0.26f),
+                )
+            }
+        }
         Spacer(Modifier.height(4.dp))
         Text(
             label,

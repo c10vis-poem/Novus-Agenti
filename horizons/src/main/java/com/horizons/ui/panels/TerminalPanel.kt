@@ -28,14 +28,21 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,7 +72,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,12 +83,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.viewinterop.AndroidView
 import com.horizons.HorizonsApplication
+import com.horizons.Panel
 import com.horizons.core.shell.DaemonLauncher
+import com.horizons.core.state.ConfigStatus
+import com.horizons.core.state.RouterConfig
+import com.horizons.core.state.RuntimeDef
 import com.horizons.core.state.SavedCommand
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.launch
@@ -101,6 +115,7 @@ private data class TermEntry(val input: String, val result: String, val ok: Bool
 @Composable
 fun TerminalPanel(
     onBack: () -> Unit,
+    onNavigate: (Panel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
@@ -145,7 +160,7 @@ fun TerminalPanel(
                     color = MatrixGreen,
                 )
                 Text(
-                    "  / shell",
+                    "  / garage",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     color = MatrixGreen.copy(alpha = 0.5f),
@@ -204,6 +219,17 @@ fun TerminalPanel(
                         )
                     },
                 )
+                Tab(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    text = {
+                        Text(
+                            "Runtime",
+                            fontFamily = FontFamily.Monospace,
+                            color = if (selectedTab == 4) MatrixGreen else MatrixGreen.copy(alpha = 0.4f),
+                        )
+                    },
+                )
             }
 
             when (selectedTab) {
@@ -218,6 +244,7 @@ fun TerminalPanel(
                     },
                 )
                 3 -> BrowserTab(app = app)
+                4 -> RuntimeTab(app = app)
             }
         }
     }
@@ -264,6 +291,7 @@ private fun DrawScope.drawMatrixRain(columns: List<RainColumn>, progress: Float)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ShellTab(
     app: HorizonsApplication,
@@ -271,9 +299,70 @@ private fun ShellTab(
     cmdState: MutableState<String>,
 ) {
     val listState = rememberLazyListState()
+    val clipboard = LocalClipboardManager.current
     var cmd by cmdState
     var running by remember { mutableStateOf(false) }
     val history = remember { mutableStateListOf<ShellEntry>() }
+    var archiveTarget by remember { mutableStateOf<ShellEntry?>(null) }
+
+    // "Archive…" name dialog — the file lands in Archives under /terminal
+    archiveTarget?.let { entry ->
+        var fileName by remember(entry) {
+            mutableStateOf("cmd-${entry.cmd.take(16).replace(Regex("[^A-Za-z0-9_-]"), "_")}.sh")
+        }
+        AlertDialog(
+            onDismissRequest = { archiveTarget = null },
+            containerColor = Color(0xFF0A140A),
+            title = {
+                Text("Archive to artifacts", fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = MatrixGreen)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Saved into Archives / terminal /",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = MatrixGreen.copy(alpha = 0.5f),
+                    )
+                    OutlinedTextField(
+                        value = fileName,
+                        onValueChange = { fileName = it },
+                        singleLine = true,
+                        label = { Text("File name", color = MatrixGreen.copy(alpha = 0.4f)) },
+                        textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 12.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                            unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                            cursorColor = MatrixGreen,
+                        ),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val body = buildString {
+                        appendLine("# archived from Horizons terminal")
+                        appendLine(entry.cmd)
+                        if (entry.stdout.isNotEmpty() || entry.stderr.isNotEmpty()) {
+                            appendLine()
+                            appendLine("# --- output (exit ${entry.exitCode}) ---")
+                            if (entry.stdout.isNotEmpty()) entry.stdout.lines().forEach { appendLine("# $it") }
+                            if (entry.stderr.isNotEmpty()) entry.stderr.lines().forEach { appendLine("# [stderr] $it") }
+                        }
+                    }
+                    app.archive.writeText("terminal", fileName, body)
+                    archiveTarget = null
+                }) {
+                    Text("Archive", fontFamily = FontFamily.Monospace, color = MatrixGreen)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { archiveTarget = null }) {
+                    Text("Cancel", fontFamily = FontFamily.Monospace, color = MatrixGreen.copy(alpha = 0.5f))
+                }
+            },
+        )
+    }
 
     fun runCmd() {
         val command = cmd.trim().ifEmpty { return }
@@ -322,12 +411,78 @@ private fun ShellTab(
                     entry.stderr.isNotEmpty() -> entry.stderr
                     else -> "(no output, exit ${entry.exitCode})"
                 }
-                Text(
-                    "$ ${entry.cmd}\n$output",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = color,
-                )
+                // Tap to recall the command into the input; long-press for
+                // the action menu (copy / export / save / archive).
+                var menuOpen by remember { mutableStateOf(false) }
+                Box(Modifier.fillMaxWidth()) {
+                    Text(
+                        "$ ${entry.cmd}\n$output",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = color,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { cmd = entry.cmd },
+                                onLongClick = { menuOpen = true },
+                            ),
+                    )
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Copy command", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                clipboard.setText(AnnotatedString(entry.cmd))
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Copy output", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                clipboard.setText(AnnotatedString(output))
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Export to Router", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                app.routerConfigs.add(
+                                    RouterConfig(
+                                        name = "Terminal: ${entry.cmd.take(30)}",
+                                        runtime = "terminal",
+                                        backend = "bash",
+                                        model = entry.cmd,
+                                    ),
+                                )
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Save to Commands", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                scope.launch {
+                                    app.savedCommands.add(
+                                        SavedCommand(
+                                            label = entry.cmd.take(24),
+                                            command = entry.cmd,
+                                            category = "terminal",
+                                        ),
+                                    )
+                                }
+                                menuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Archive…", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = {
+                                archiveTarget = entry
+                                menuOpen = false
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -379,6 +534,33 @@ private fun ShellTab(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MatrixGreen),
             ) {
                 Icon(Icons.Filled.Clear, contentDescription = "Clear")
+            }
+        }
+
+        if (cmd.isNotBlank()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        val config = RouterConfig(
+                            name = "Terminal: ${cmd.take(30)}",
+                            runtime = "terminal",
+                            backend = "bash",
+                            model = cmd,
+                        )
+                        app.routerConfigs.add(config)
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFAA77FF)),
+                ) {
+                    Text("Export to Router", fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                }
+                OutlinedButton(
+                    onClick = {
+                        app.appState.put("script.${cmd.hashCode()}", cmd)
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5577)),
+                ) {
+                    Text("Save to Vault", fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                }
             }
         }
     }
@@ -454,12 +636,17 @@ private fun TaskerTab(
         ) {
             items(history) { entry ->
                 val color = if (entry.ok) MatrixGreen else Color(0xFFFF4444)
-                Text(
-                    "> ${entry.input}\n  ${entry.result}",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = color,
-                )
+                // Tap to recall the task name into the input; long-press to copy.
+                Box(Modifier.fillMaxWidth().clickable { taskName = entry.input }) {
+                    SelectionContainer {
+                        Text(
+                            "> ${entry.input}\n  ${entry.result}",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = color,
+                        )
+                    }
+                }
             }
         }
 
@@ -642,6 +829,26 @@ private fun PromptsTab(
             Spacer(Modifier.width(8.dp))
             Text("Save Command", fontFamily = FontFamily.Monospace)
         }
+
+        if (commands.isNotEmpty()) {
+            OutlinedButton(
+                onClick = {
+                    commands.forEach { cmd ->
+                        val config = RouterConfig(
+                            name = "Script: ${cmd.label}",
+                            runtime = "terminal",
+                            backend = "bash",
+                            model = cmd.command,
+                        )
+                        app.routerConfigs.add(config)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFAA77FF)),
+            ) {
+                Text("Export All to Router", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            }
+        }
     }
 }
 
@@ -711,6 +918,7 @@ private class BrowserPage(val id: Int, startUrl: String) {
     val url = mutableStateOf(startUrl)
     val title = mutableStateOf("New Tab")
     val canGoBack = mutableStateOf(false)
+    val loadError = mutableStateOf<String?>(null)
     var webView: android.webkit.WebView? = null
     var loaded = false
 }
@@ -758,11 +966,23 @@ private fun createBrowserWebView(
     webViewClient = object : android.webkit.WebViewClient() {
         override fun onPageStarted(view: android.webkit.WebView, url: String?, favicon: android.graphics.Bitmap?) {
             if (url != null) page.url.value = url
+            page.loadError.value = null
         }
         override fun onPageFinished(view: android.webkit.WebView, url: String?) {
             page.url.value = view.url ?: url ?: page.url.value
             page.title.value = view.title?.takeIf { it.isNotBlank() } ?: page.url.value
             page.canGoBack.value = view.canGoBack()
+        }
+        override fun onReceivedError(
+            view: android.webkit.WebView,
+            request: android.webkit.WebResourceRequest,
+            error: android.webkit.WebResourceError,
+        ) {
+            // Only main-frame failures mean the connection is actually gone —
+            // a blocked ad or dead favicon shouldn't summon the cat.
+            if (request.isForMainFrame) {
+                page.loadError.value = error.description?.toString() ?: "connection lost"
+            }
         }
     }
 }
@@ -900,27 +1120,257 @@ private fun BrowserTab(app: HorizonsApplication) {
         Spacer(Modifier.height(6.dp))
 
         // ── The live page — a single host that re-parents the active WebView ─
-        AndroidView(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            factory = { c -> android.widget.FrameLayout(c) },
-            update = updater@ { host ->
-                val page = pages.getOrNull(activeIdx) ?: return@updater
-                val wv = page.webView ?: createBrowserWebView(host.context, page) { msg ->
-                    // Bridge messages from web content back into the app. For now,
-                    // surface them via the daemon-agnostic breadcrumb log; a real
-                    // handler can route these into AgentLoop later.
-                    scope.launch { com.horizons.core.diag.Breadcrumb.drop("browser_msg: ${msg.take(120)}") }
-                }.also { page.webView = it }
-                if (wv.parent !== host) {
-                    (wv.parent as? android.view.ViewGroup)?.removeView(wv)
-                    host.removeAllViews()
-                    host.addView(wv)
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { c -> android.widget.FrameLayout(c) },
+                update = updater@ { host ->
+                    val page = pages.getOrNull(activeIdx) ?: return@updater
+                    val wv = page.webView ?: createBrowserWebView(host.context, page) { msg ->
+                        // Bridge messages from web content back into the app. For now,
+                        // surface them via the daemon-agnostic breadcrumb log; a real
+                        // handler can route these into AgentLoop later.
+                        scope.launch { com.horizons.core.diag.Breadcrumb.drop("browser_msg: ${msg.take(120)}") }
+                    }.also { page.webView = it }
+                    if (wv.parent !== host) {
+                        (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                        host.removeAllViews()
+                        host.addView(wv)
+                    }
+                    if (!page.loaded) {
+                        page.loaded = true
+                        wv.loadUrl(page.url.value)
+                    }
+                },
+            )
+            val err = active?.loadError?.value
+            if (err != null) {
+                ConnectionLostCat(
+                    reason = err,
+                    onRetry = {
+                        active?.loadError?.value = null
+                        active?.webView?.reload()
+                    },
+                )
+            }
+        }
+    }
+}
+
+// ── Runtime tab — define runtimes here, ship them to the Monitor ────────────
+// A definition is parameters + handshake only: binary name, port, health
+// endpoint, args template, required assets. Defining launches NOTHING —
+// the Monitor acknowledges the definition and green-lights the assets;
+// running stays a separate, user-paced step. That's what keeps a bad
+// runtime from blowing the system: it can't start until everything checks.
+
+@Composable
+private fun RuntimeTab(app: HorizonsApplication) {
+    val defs by app.runtimeDefs.defs.collectAsState()
+
+    var name by remember { mutableStateOf("") }
+    var binary by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf("") }
+    var healthPath by remember { mutableStateOf("/health") }
+    var args by remember { mutableStateOf("") }
+    var assets by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var shipped by remember { mutableStateOf<String?>(null) }
+
+    fun field(
+        value: String,
+        onChange: (String) -> Unit,
+        label: String,
+    ): @Composable () -> Unit = {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            label = { Text(label, color = MatrixGreen.copy(alpha = 0.4f), fontSize = 11.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, color = MatrixGreen, fontSize = 12.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MatrixGreen.copy(alpha = 0.6f),
+                unfocusedBorderColor = MatrixGreen.copy(alpha = 0.2f),
+                cursorColor = MatrixGreen,
+            ),
+        )
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "DEFINED RUNTIMES",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            color = MatrixGreen,
+        )
+        defs.forEach { def ->
+            Surface(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "${def.name}  :${def.port}${def.healthPath}",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MatrixGreen,
+                        )
+                        Text(
+                            "bin: ${def.binaryName}" +
+                                if (def.requiredAssets.isNotEmpty())
+                                    " · assets: ${def.requiredAssets.size}" else "",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = MatrixGreen.copy(alpha = 0.5f),
+                        )
+                        if (def.builtIn) {
+                            Text(
+                                "built-in",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.sp,
+                                color = MatrixGreen.copy(alpha = 0.3f),
+                            )
+                        }
+                    }
+                    if (!def.builtIn) {
+                        Text(
+                            "✕",
+                            fontSize = 12.sp,
+                            color = Color(0xFFFF4444).copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .clickable { app.runtimeDefs.remove(def.id) }
+                                .padding(6.dp),
+                        )
+                    }
                 }
-                if (!page.loaded) {
-                    page.loaded = true
-                    wv.loadUrl(page.url.value)
-                }
+            }
+        }
+
+        HorizontalDivider(color = MatrixGreen.copy(alpha = 0.2f))
+
+        Text(
+            "DEFINE NEW RUNTIME",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            color = MatrixGreen,
+        )
+        field(name, { name = it }, "Name (e.g. geniex-local)")()
+        field(binary, { binary = it }, "Binary file name")()
+        field(port, { port = it.filter { c -> c.isDigit() } }, "Port")()
+        field(healthPath, { healthPath = it }, "Health endpoint path (handshake)")()
+        field(args, { args = it }, "Args template ({model} {port} available)")()
+        field(assets, { assets = it }, "Required assets, comma-separated")()
+        field(notes, { notes = it }, "Notes")()
+
+        Button(
+            onClick = {
+                val p = port.toIntOrNull() ?: return@Button
+                app.runtimeDefs.add(
+                    RuntimeDef(
+                        name = name.trim(),
+                        binaryName = binary.trim(),
+                        port = p,
+                        healthPath = healthPath.trim().ifBlank { "/health" },
+                        argsTemplate = args.trim(),
+                        requiredAssets = assets.split(',')
+                            .map { it.trim() }.filter { it.isNotBlank() },
+                        notes = notes.trim(),
+                    ),
+                )
+                shipped = name.trim()
+                name = ""; binary = ""; port = ""; args = ""; assets = ""; notes = ""
+                healthPath = "/health"
             },
+            enabled = name.isNotBlank() && binary.isNotBlank() && port.toIntOrNull() != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MatrixGreen.copy(alpha = 0.15f),
+                contentColor = MatrixGreen,
+            ),
+        ) {
+            Text("Define & ship to Monitor", fontFamily = FontFamily.Monospace)
+        }
+        shipped?.let {
+            Text(
+                "✓ '$it' shipped — check its green lights in Monitor / console",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = MatrixGreen.copy(alpha = 0.7f),
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+// ── Connection-lost cat — 404 for the browser ───────────────────────────────
+
+@Composable
+private fun ConnectionLostCat(reason: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.96f))
+            .clickable(onClick = onRetry),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            "404",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 48.sp,
+            color = MatrixGreen,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            buildString {
+                appendLine("  /\\_/\\  ")
+                appendLine(" ( o.o ) ")
+                appendLine("  > ^ <  ")
+                appendLine(" /|   |\\ ")
+                appendLine("(_|   |_)")
+            },
+            fontFamily = FontFamily.Monospace,
+            fontSize = 14.sp,
+            color = MatrixGreen,
+            lineHeight = 16.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "CONNECTION_NOT_FOUND",
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            color = MatrixGreen.copy(alpha = 0.8f),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            reason,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = MatrixGreen.copy(alpha = 0.45f),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "[ tap to retry ]",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = MatrixGreen.copy(alpha = 0.35f),
         )
     }
 }

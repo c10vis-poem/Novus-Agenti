@@ -18,16 +18,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,8 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.core.state.ChatSession
+import com.horizons.core.state.ConfigStatus
 import com.horizons.core.state.SavedCommand
-import com.horizons.ui.SlateStoneBackground
+import com.horizons.ui.FilmGrainBackground
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,7 +76,8 @@ fun ArtifactsPane(
     val commands by app.savedCommands.commands.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
-    SlateStoneBackground()
+    FilmGrainBackground()
+    SelectionContainer {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -88,18 +94,95 @@ fun ArtifactsPane(
                 Text("←", fontSize = 20.sp, color = HorizonsColors.TileArtifacts)
             }
             Text(
-                "ARTIFACTS",
+                "ARCHIVES",
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 color = HorizonsColors.TileArtifacts,
             )
             Text(
-                "  / logs_skills",
+                "  / archive",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 color = HorizonsColors.TileArtifacts.copy(alpha = 0.5f),
             )
+        }
+
+        HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.2f))
+
+        // ── File Archive — a real file manager over filesDir/archive ─────
+        SectionHeader("File Archive", HorizonsColors.TileArtifacts)
+        ArchiveFileManager(app)
+
+        HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.2f))
+
+        // ── Archived Configs ─────────────────────────────────────────────
+        val configs by app.routerConfigs.configs.collectAsState()
+        val archivedConfigs = configs.filter { it.status == ConfigStatus.ARCHIVED }
+
+        SectionHeader("Archived Configs", HorizonsColors.TileArtifacts)
+
+        if (archivedConfigs.isEmpty()) {
+            PlaceholderCard("No archived router configurations. Archive configs from the Router.")
+        } else {
+            archivedConfigs.forEach { config ->
+                Surface(
+                    color = HorizonsColors.Surface,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    config.name,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = HorizonsColors.TileArtifacts,
+                                )
+                                Text(
+                                    "${config.runtime.ifBlank { "—" }} / ${config.backend.ifBlank { "—" }} / ${config.model.ifBlank { "—" }}",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                )
+                                Text(
+                                    dateFormat.format(Date(config.createdAt)),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                )
+                            }
+                            Text(
+                                "Restore",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = HorizonsColors.TileArtifacts,
+                                modifier = Modifier
+                                    .clickable {
+                                        app.routerConfigs.setStatus(config.id, ConfigStatus.INCOMPLETE)
+                                    }
+                                    .padding(8.dp),
+                            )
+                            Text(
+                                "Delete",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier
+                                    .clickable { app.routerConfigs.remove(config.id) }
+                                    .padding(8.dp),
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.2f))
@@ -276,6 +359,210 @@ fun ArtifactsPane(
         Spacer(Modifier.height(24.dp))
     }
     }
+    }
+}
+
+// ── Archive File Manager ─────────────────────────────────────────────────────
+
+@Composable
+private fun ArchiveFileManager(app: HorizonsApplication) {
+    var path by remember { mutableStateOf("") }
+    var refresh by remember { mutableStateOf(0) }
+    val entries = remember(path, refresh) { app.archive.list(path) }
+    var viewingFile by remember { mutableStateOf<String?>(null) }
+    var newFolderOpen by remember { mutableStateOf(false) }
+    var newFileOpen by remember { mutableStateOf(false) }
+
+    Surface(
+        color = HorizonsColors.Surface,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Breadcrumb — tap a segment to jump back
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "archive/",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    color = HorizonsColors.TileArtifacts,
+                    modifier = Modifier.clickable { path = "" },
+                )
+                path.split('/').filter { it.isNotBlank() }.forEachIndexed { i, seg ->
+                    Text(
+                        "$seg/",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = HorizonsColors.TileArtifacts.copy(alpha = 0.7f),
+                        modifier = Modifier.clickable {
+                            path = path.split('/').filter { it.isNotBlank() }
+                                .take(i + 1).joinToString("/")
+                        },
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "+folder",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = HorizonsColors.TileArtifacts,
+                    modifier = Modifier.clickable { newFolderOpen = true }.padding(4.dp),
+                )
+                Text(
+                    "+file",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = HorizonsColors.TileArtifacts,
+                    modifier = Modifier.clickable { newFileOpen = true }.padding(4.dp),
+                )
+            }
+
+            HorizontalDivider(color = HorizonsColors.TileArtifacts.copy(alpha = 0.1f))
+
+            if (entries.isEmpty()) {
+                Text(
+                    "empty — archive terminal commands, harnesses, or add files here",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                )
+            }
+
+            entries.forEach { entry ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (entry.isFolder) {
+                                path = if (path.isBlank()) entry.name else "$path/${entry.name}"
+                            } else {
+                                viewingFile = if (viewingFile == entry.name) null else entry.name
+                            }
+                        },
+                ) {
+                    Text(
+                        if (entry.isFolder) "▸ ${entry.name}/" else "  ${entry.name}",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        fontWeight = if (entry.isFolder) FontWeight.Bold else FontWeight.Normal,
+                        color = if (entry.isFolder) HorizonsColors.TileArtifacts
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (!entry.isFolder) {
+                        Text(
+                            "${entry.sizeBytes}B",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(
+                        "✕",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .clickable {
+                                app.archive.delete(path, entry.name)
+                                if (viewingFile == entry.name) viewingFile = null
+                                refresh++
+                            }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                // Inline file viewer — tap the file row again to collapse
+                if (!entry.isFolder && viewingFile == entry.name) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            app.archive.readText(path, entry.name)?.take(6000)
+                                ?: "(could not read file)",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                            modifier = Modifier.padding(8.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (newFolderOpen) {
+        ArchiveNameDialog(
+            title = "New folder",
+            initial = "",
+            onConfirm = { name ->
+                app.archive.mkdir(path, name)
+                newFolderOpen = false
+                refresh++
+            },
+            onDismiss = { newFolderOpen = false },
+        )
+    }
+    if (newFileOpen) {
+        ArchiveNameDialog(
+            title = "New file",
+            initial = "notes.md",
+            onConfirm = { name ->
+                app.archive.writeText(path, name, "")
+                newFileOpen = false
+                refresh++
+            },
+            onDismiss = { newFileOpen = false },
+        )
+    }
+}
+
+@Composable
+private fun ArchiveNameDialog(
+    title: String,
+    initial: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = HorizonsColors.Surface,
+        title = {
+            Text(title, fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HorizonsColors.TileArtifacts)
+        },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text("Name", color = HorizonsColors.TileArtifacts.copy(alpha = 0.5f)) },
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { if (name.isNotBlank()) onConfirm(name) }) {
+                Text("Create", fontFamily = FontFamily.Monospace, color = HorizonsColors.TileArtifacts)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+            }
+        },
+    )
 }
 
 // ── Chat Session Card ────────────────────────────────────────────────────────
