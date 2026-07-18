@@ -1,305 +1,328 @@
-# HOME-REDESIGN-SPEC — Living Spec (hand session-to-session)
+# HOME-REDESIGN-SPEC — Living Spec (image-first, hand session-to-session)
 
 > **What this is.** The canonical, operator-approved specification for the
-> Novus Agenti **home screen** (`HomeGrid.kt`) redesign. It exists so no
-> session — including this one after a context reset — ever has to
-> reconstruct the intent from scratch again. Update it **in place** as the
-> operator refines direction. When a home-screen visual task starts, READ
-> THIS FIRST.
+> Novus Agenti **home screen** (`HomeGrid.kt`) redesign. Every section leads
+> with the **reference image on top**, then the **operator's own words
+> (verbatim)**, then the distilled spec. Update **in place** as direction
+> refines. When a home-screen visual task starts, READ THIS FIRST.
 >
 > **Guiding principle.** The renders here are a **visual TARGET / mockup —
 > REFERENCE ONLY.** They are NOT screenshots of a live or near-complete app;
-> **nothing in the current UI is anywhere near complete.** Use the references to
-> define what to build toward: match the target's colors, labels, sizes,
-> proportions, and card format rather than reinventing. Past runs failed by
-> rebuilding everything at once; this spec exists to prevent that.
+> **nothing in the current UI is anywhere near complete.** Match the target,
+> make the specific edits below, don't reinvent. Past runs failed by rebuilding
+> everything at once and by downgrading instead of upgrading — this spec exists
+> to prevent that.
 >
-> **Verification rule:** any change here MUST end with a real rendered
-> screenshot (device/emulator) compared against the references below before
-> it's called done. The cloud build container has **no Android SDK**, so the
-> operator is the on-device visual check — ship in small, verifiable passes,
-> never one blind dump.
+> **Verification rule.** Every change MUST end with a real rendered screenshot
+> (device/emulator) compared against the references before it's "done." The
+> cloud build container has **no Android SDK**, so the operator is the on-device
+> visual check — ship in small, verifiable passes, never one blind dump.
 
 ---
 
-## How to use the reference images
+## 0 · The target render — REFERENCE ONLY (not a live screenshot)
 
-The actual reference screenshots are **committed** under
-`wiki/home-redesign-img/` (recovered from the session transcript). Each `![]()`
-link in this doc points at the real image, and each still carries a written
-description so the spec is usable even from a plain-text read. If the operator
-supplies a better/newer screenshot, replace the file in place (same name).
+![target home](home-redesign-img/01-target-full-home.webp)
 
----
+> **Operator:** *"Main screen reference shot doesn't exist — replace all mention
+> of it as a live artifact / interface. Nothing in this user interface is almost
+> complete. That picture is reference only."*
+> *"This is one of the most important pictures."*
 
-## Layout geometry
-
-- **Seven elements arranged as a symmetrical wheel:** the center **Router hub**
-  plus **6 tiles** on a clock face.
-  - `12:00` Monitor · `2:00` Chat · `4:00` Settings · `6:00` Terminal ·
-    `8:00` Archives · `10:00` Horizons.
-- The Router is **centered within the ring** (all 7 symmetrical). It is **not**
-  offset relative to the tiles.
-- The **whole wheel is nudged slightly UP** (toward the upper half of the
-  screen) as a unit. This is intentional — it leaves room at the bottom for the
-  chat-bar expansion (see below).
-- **Spacing fix:** the `2/4/8/10` tiles are currently **too crowded toward the
-  top & bottom center** — spread them out.
-- **Bottom row** of tiles can **expand downward a touch** — that frees vertical
-  room for the **Router hub label**.
+**Spec.** This is a **reference mockup of the TARGET**, not the live app and not
+"almost complete." Black bg; green `MO)u14R_11(` banner; the 7-element wheel;
+bottom status nodes; input bar. Use strictly as the destination to build toward.
 
 ---
 
-## Per-tile spec
+## 1 · Layout geometry
 
-Everything not called out as a change stays **identical** (color, label, size,
-card style).
+![baseline zoom](home-redesign-img/20-baseline-zoom.webp)
 
-> **Color note — Chat green ≠ Terminal green (they are NOT the same).**
-> **Terminal** has a **deeper, near-black card background** and a **brighter,
-> more saturated matrix-green**. **Chat** uses its own softer green on a less-black
-> background. Do not equalize the two.
+> **Operator:** *"The tile layout is 12 o'clck – 2:00 – 4:00 – 6 o'clock –
+> 8:00 – 10:00."*
+> *"All seven of those should be pretty symmetrical … that wheel itself is just
+> slightly bumped up a little bit."*
+> *"The 2 o'clock 4:00 8:00 and 10:00 tiles are too crowded to the north and the
+> south."*
+> *"The bottom row of three tiles could expand down below just a tiny bit — that
+> would free up more space for the labeling of the router hub."*
 
-> **Label format.** Each tile reads: **TITLE** · `/slug` · a short **subtitle** ·
-> and a **bottom prompt line** (`$_…`). The corrected values are below.
-
-### 12:00 — MONITOR  (teal/cyan)
-- **Labels:** title `MONITOR` · slug `/cognito` · subtitle `library` · bottom
-  prompt line `$_browser`.
-- **Icon:** the **display/screen** glyph — rounded rect, 2 horizontal lines
-  inside, a tail/legs at the bottom — carrying a small **`PC`** badge
-  (top-right). *This replaces the "AI" badge seen in the current build. There
-  is no "AI" label wanted anywhere.*
-- Attach-slot: `![monitor icon](home-redesign-img/02-monitor-icon.webp)`
-  — *green display/screen icon, 2 inner lines, tail, circular "AI" badge
-  top-right (badge must become "PC").*
-
-### 2:00 — CHAT  (green — its OWN softer green, NOT Terminal's; see color note)
-- **Labels:** title `CHAT` · slug `/interface` · subtitle `tools` · bottom
-  prompt line `$_model`.
-- **Correct, keep:** size, overall style, its green color.
-- **Change 1 — icon:** replace with a **simple, clean speech bubble** (folded
-  tail at bottom-left, two short lines inside). NOT a hub-and-spoke node
-  network, NOT the display/PC glyph.
-- **Change 2 — overlap:** a neighboring tile's icon currently **overlaps** the
-  Chat tile. Fix the layout collision so tiles/icons don't overlap.
-- Attach-slots:
-  - `![chat correct icon](home-redesign-img/04-chat-icon-correct.webp)`
-    — *clean green speech bubble, "CHAT / interface".*
-  - `![chat overlap bug](home-redesign-img/03-chat-tile-overlap.webp)`
-    — *display+"AI" icon bleeding over the Chat tile.*
-
-### 4:00 — SETTINGS  (pink/crimson)
-- **Labels:** title `SETTINGS` · slug `/config` · subtitle `vault` · bottom
-  prompt line `$_utils`.
-- **Icon: no change** — pink **sun/flash inside a dashed ring**.
-- Attach-slot: `![settings tile](home-redesign-img/10-settings-tile.webp)`
-
-### 6:00 — TERMINAL  (green — DEEPER near-black bg + BRIGHTER matrix-green; see color note)
-- **Labels:** title `TERMINAL` · slug `/shell` · subtitle `commands` · bottom
-  prompt line `$_`.
-- **Icon: no change** — green **terminal-window** icon (title-bar dots + `>_`).
-- Attach-slot: `![terminal tile](home-redesign-img/09-terminal-tile.webp)`
-
-### 8:00 — ARCHIVES  (amber)  *(currently mislabeled ARTIFACTS)*
-- **Labels:** title `ARCHIVES` (was ARTIFACTS) · slug `/logs` · subtitle
-  `artifacts` · bottom prompt line `$_files`.
-- **Icon: no change** — amber, stacked-documents.
-- Attach-slot: `![horizons + archives tiles](home-redesign-img/11-horizons-archives-tiles.webp)`
-
-### 10:00 — HORIZONS  (blue)
-- **Labels:** title `HORIZONS` · slug `/about` · subtitle `credits` · bottom
-  prompt line `$_.home`.
-- **Change — the sun turns AMBER:** in the icon (amber sun + rays over a blue
-  horizon line + pale pinkish-purple arch), the **sun** element becomes
-  **amber**; the rest of the icon stays blue.
-- Attach-slot: shares `11-horizons-archives-tiles.webp` above.
+**Spec.**
+- 7 elements on a clock face: **12 Monitor · 2 Chat · 4 Settings · 6 Terminal ·
+  8 Archives · 10 Horizons**, Router hub in the center.
+- All 7 **symmetrical**; Router centered in the ring. The **whole wheel is
+  nudged slightly UP** as a unit.
+- **Spread the 2/4/8/10 tiles** — they're too crowded toward top & bottom center.
+- **Bottom row can extend down a touch** to free room for the Router hub label.
 
 ---
 
-## Center hub — ROUTER
+## 2 · Tiles — general
 
-**The whole Agent Platform reference image IS the target for the ENTIRE hub —
-not just the crystal.** Build the hub after it, with three deliberate changes.
+> **Operator:** *"This is EXACTLY WHAT I WANT TILES TO LOOK LIKE: BESIDES A
+> COUPLE ICON SWAPS. SAME COLORS LABELS STYLE. EVERYTHING."*
+> *"The labeling is almost correct on the tiles, the colors are correct, but the
+> tiles themselves are the wrong style."*
 
-- **Take from the Agent Platform reference:** the **plasma tubes** (glowing
-  radiating connectors), the **nodes** (surrounding node points), the **platform
-  perimeter** (the elliptical platform base/ring), and the **protruding central
-  faceted crystal**.
-- **Change 1 — dome → white sun:** drop the reference's dome; use the **white
-  sun / radial aura** instead. **No dome, no concentric-ring framing.**
-- **Change 2 — crystal size:** the crystal is a hexagonal faceted gem **shaped
-  like the Agent Platform gem, just slightly LARGER than that gem.** That is
-  **much SMALLER** than the current build's crystal — the "wizard-hat"-looking
-  purple thing from the past build is **grossly oversized; shrink it.**
-- **Change 3 — violet hue + under-glow:** the gem is **violet/purple** (not the
-  reference's blue), with the **white glow permeating from underneath** (bright
-  core radiating up from beneath the crystal).
-- **Label — stacked under the hub icon (NOT `/ route`):**
-  - `// CORE_HUB` — slug, at the **top, right under the icon** (dim)
-  - **`ROUTER`** — big, in the **off-white** used by other secondary on-screen
-    text (**NOT violet**)
-  - `$_Statio` — the **only** thing underneath ROUTER
-- Attach-slots:
-  - `![agent platform — whole-hub target](home-redesign-img/06-agent-platform-hub.jpg)`
-    — *central hexagonal gem + nodes + platform perimeter + plasma connectors.
-    THE reference for the entire hub (then: swap dome→sun, bigger violet crystal).*
-  - `![ai orchestration hub](home-redesign-img/07-ai-orchestration-hub.webp)`
-    — *glowing hub with plasma-cord connectors radiating out.*
-  - `![router label + cords](home-redesign-img/08-router-label.webp)`
-    — *"// CORE_HUB / ROUTER" over crossing plasma tubes. NOTE: label is now
-    off-white `ROUTER` + `$_Statio`, no `/ route`.*
-  - `![router circuit chip](home-redesign-img/05-router-circuit-blue-chip.jpg)`
-    — *chipsets-as-nodes / 6-connector inspiration.*
+> **Color note — Chat green ≠ Terminal green.** *"Notice the deeper black and
+> the brighter green in terminal."* Terminal = **deeper near-black card bg +
+> brighter matrix-green**; Chat = its own **softer green**. Do NOT equalize.
 
----
+**Label format (every tile):** **TITLE** · `/slug` · short **subtitle** · a
+**bottom prompt line** (`$_…`). Keep colors/sizes/style; only the specific
+icon/label edits below change.
 
-## Connector cords
+### 12:00 — MONITOR (teal/cyan)
 
-- **Plasma-tube styling:** glowing, layered tubes (soft outer glow → bright
-  core), **each in its tile's color** — green→Terminal, amber→Archives,
-  pink→Settings, teal/blue→Monitor/Chat/Horizons.
-- **Beads/nodes** run along each tube.
-- Six cords, one from each tile-node into the Router hub.
+![monitor icon](home-redesign-img/02-monitor-icon.webp)
 
----
+> **Operator:** *"That's what the monitor tile icon looks like: it should say PC
+> instead of AI."* … *"I told you to put the PC in the monitor icon instead of
+> AI."*
+> *"Monitor /cognito, library. And in the bottom prompt line of the tile can
+> read $_browser."*
 
-## Banner (top logo)
+**Spec.** Labels: `MONITOR` · `/cognito` · `library` · `$_browser`. Icon: the
+**display/screen** glyph (rounded rect, 2 inner lines, tail) with a **`PC`**
+badge (replacing "AI"). No "AI" anywhere.
 
-- **Placement is PERFECT — do not move it.**
-- **Logo font — WRONG, fix it:** the `MØ[)u14R_11(` logo uses the wrong
-  typeface. Color (green) is correct. Match the **chunky monospace/terminal
-  font** in the font reference.
-- **Motto format — WRONG, fix it:** `*Pioneer_Tech · (Next-Gen Certified)`
-  must read as **one continuous, unbroken line** across the screen (fit on one
-  line), with **`(NEXT-GEN CERTIFIED)` in parentheses**, and the
-  **`HORIZONS // V4`** version string on the **bottom-right**. Color and font of
-  the motto are correct — only the wrapping/format is wrong.
-- Attach-slot: `![logo font](home-redesign-img/19-logo-font.webp)`
-  — *"cat << 'EOF' / MØDU14R_11( / *Pioneer_Tech, / (Next-Gen Certified) /
-  v1.0 / EOF" in a chunky blocky monospace font over wet slate.*
+### 2:00 — CHAT (green — its OWN softer green)
 
----
+![chat correct icon](home-redesign-img/04-chat-icon-correct.webp)
+![chat overlap bug](home-redesign-img/03-chat-tile-overlap.webp)
 
-## Background (home)
+> **Operator:** *"What's correct about this chat tile: the size, the labeling,
+> the overall style and color. What's incorrect: the icon and the fact that
+> another tile is overlapping it. The icon should match the second picture."*
+> *"Chat /interface, tools, bottom prompt line of the tile can read $_model."*
 
-- **Base is DONE** (already shipped): deep black with a faint blue tint,
-  brighter/haloed stars, more-visible astral telemetry map. (`drawAstralBackground`.)
-- **Operator note:** the color hue was *almost* perfect but the **background
-  styling is still slightly off** — revisit after the forefront layers land.
+**Spec.** Labels: `CHAT` · `/interface` · `tools` · `$_model`. Keep size/style/
+green. **Icon → clean simple speech bubble** (2nd pic; NOT hub-and-spoke, NOT
+the display/PC glyph). **Fix the tile overlap.**
 
----
+### 4:00 — SETTINGS (pink/crimson)
 
-## Chat bar (bottom input)
+![settings tile](home-redesign-img/10-settings-tile.webp)
 
-- **Placement + the bottom status nodes (ASR/LLM/TTS/MLLM/VAG) are PERFECT —
-  do not move them.**
-- **Behavior change:** holding the chat bar should open a **mini UI, not just a
-  shortcut** to the Chat tile. **Hold → it pops up to ~⅓ screen for quick
-  inference.** (This is why the wheel sits slightly high — to leave room for
-  this expansion.)
+> **Operator:** *"Exactly what settings will look like, 4pm pos. Same coloring
+> same size proportions same titles."*
+> *"Settings /config, vault, bottom prompt line of the tile can read $_utils."*
 
----
+**Spec.** Labels: `SETTINGS` · `/config` · `vault` · `$_utils`. Icon **no
+change** — pink sun/flash in a dashed ring.
 
-## Colors — header / bold / outline
+### 6:00 — TERMINAL (green — deeper near-black bg + brighter matrix-green)
 
-- **Header text, bold text, and outline colors** use the **purple/magenta from
-  the nebula lock-screen** (the color of the `09:57` clock) — a hot
-  violet-magenta.
-- **Exception:** the **ROUTER** hub title is **off-white**, not this purple (see
-  Router hub). So: nebula-purple for headers/bold/outlines generally; off-white
-  for the ROUTER title specifically. ⚠️ *Confirm this split with the operator.*
-- Attach-slot: `![nebula purple text](home-redesign-img/22-nebula-purple-text.webp)`
-  — *the magenta-purple of the clock text is the header/bold/outline color.*
+![terminal tile](home-redesign-img/09-terminal-tile.webp)
+
+> **Operator:** *"This is exactly what terminal tile will look like (6:00
+> position)."*
+> *"Terminal /shell, commands, bottom line of the tile can read $_bash."*
+
+**Spec.** Labels: `TERMINAL` · `/shell` · `commands` · `$_bash`. Icon **no
+change** — green terminal-window (dots + `>_`). Deeper black bg, brighter green.
+
+### 8:00 — ARCHIVES (amber) — currently mislabeled ARTIFACTS
+
+![horizons + archives tiles](home-redesign-img/11-horizons-archives-tiles.webp)
+
+> **Operator:** *"Archives is actually labeled — instead of ARTIFACTS it'll be
+> ARCHIVES."*
+> *"Archive /logs, artifacts, in the bottom line can read $_files."* *"Archives
+> is at 8:00."*
+
+**Spec.** Labels: `ARCHIVES` (was ARTIFACTS) · `/logs` · `artifacts` ·
+`$_files`. Icon **no change** — amber stacked-documents.
+
+### 10:00 — HORIZONS (blue)
+
+*(same reference image as Archives above)*
+
+> **Operator:** *"Horizon sun gets an amber color."* *"Horizons is at 10:00."*
+> *"Horizons /about, credits, bottom line can read $_version.s … or $_.home"*
+> (cleanest → `$_.home`).
+
+**Spec.** Labels: `HORIZONS` · `/about` · `credits` · `$_.home`. Icon: the
+**sun** element turns **amber**; the rest of the icon (blue horizon line, pale
+pinkish-purple arch) stays blue.
 
 ---
 
-## Easter eggs & guardians
+## 3 · Center hub — ROUTER
 
-- **GOAT — crash-log easter egg.** On runtime crash/fail the **goat** pops up
-  (`// GOAT_SAYS_NO`) with a synthesized bleat; a manual unlock (7 banner taps →
-  `// GOAT_UNLOCKED`) also exists. Already wired (`HomeGrid.kt`
-  `showGoat` / `playGoatBleat`).
-  - `![goat easter egg](home-redesign-img/24-goat-easter-egg.webp)`
-- **CHONK — screen-timeout guardian.** The idle / screen-timeout screensaver
-  loads the **chonky orange cat** ("guardian chonk") from device storage.
-  Partly wired (`Screensaver.kt`).
-  - `![guardian chonk](home-redesign-img/23-guardian-chonk.png)`
+![agent platform — whole-hub target](home-redesign-img/06-agent-platform-hub.jpg)
+![ai orchestration hub](home-redesign-img/07-ai-orchestration-hub.webp)
+![router label + cords](home-redesign-img/08-router-label.webp)
+
+> **Operator:** *"That whole hub was a reference to what the entire router hub
+> should look like — the plasma tubes, the nodes, the platform perimeter, the
+> protruding crystal. Swap out the dome for the white sun. Make the crystal a
+> little bit bigger. Give it the violet hue."*
+> *"The hub that … has nothing to do with the app … that's what the crystal
+> should look like, just slightly larger than that. That wizard-hat looking
+> thing [the past build's purple crystal] is grossly oversized already."*
+> *"Keep the center glowing sun aura instead of the dome."*
+> *"The router doesn't just have the purple color, it has the white sun or a glow
+> as well permeating from underneath."*
+> *"Router is always white — I've never said it's the text, I mean the ROUTER
+> [label] is white; obviously the icon is the violet."*
+> *"No /route at the bottom. The core_hub slug is at the top right under the
+> icon. `$_Statio` only thing underneath ROUTER."* (chose `$_Statio` over
+> `$_Nodus`).
+> *"Incorporate the chipsets as nodes … six connector setup, basically six nodes
+> around center hub."*
+
+**Spec.**
+- Build the **entire hub after the Agent Platform reference**: plasma tubes,
+  nodes, platform perimeter, protruding central faceted crystal.
+- **Dome → white sun / radial aura** (no dome, no concentric rings).
+- **Crystal:** hexagonal faceted gem **shaped like the Agent-Platform gem, just
+  slightly LARGER than that gem** — i.e. **much smaller** than the current
+  oversized "wizard-hat" crystal (shrink it). **Violet** gem with a **white glow
+  from underneath**.
+- **Label (stacked under the icon):** `// CORE_HUB` slug (top, under the icon) →
+  **`ROUTER` big, WHITE** → `$_Statio` (only line under it). **No `/route`.**
+  The crystal **icon is violet**; the **ROUTER word is white**.
+- Chipsets-as-nodes / 6 connectors — see `05-router-circuit-blue-chip.jpg`.
 
 ---
 
-## What is PERFECT — do not touch
+## 4 · Connector cords
 
-- Top **logo placement**.
-- **Bottom chat bar** placement.
-- **Bottom status nodes** (ASR / LLM / TTS / MLLM / VAG) placement.
+*(see `07-ai-orchestration-hub.webp` and `08-router-label.webp` above)*
+
+> **Operator:** *"The plasma tubing styling of the connector cords."*
+
+**Spec.** Six cords, one from each tile-node into the hub, styled as glowing
+**plasma tubes** (soft outer glow → bright core), **each in its tile's color**
+(green→Terminal, amber→Archives, pink→Settings, teal/blue→Monitor/Chat/Horizons),
+with **beads/nodes** running along each tube.
+
+---
+
+## 5 · Banner (top logo)
+
+![logo font](home-redesign-img/19-logo-font.webp)
+
+> **Operator:** *"Wrong font for the logo — correct color, wrong font."*
+> *"The motto underneath: correct color, correct font, wrong format. It should
+> read in one continuous line across the screen and fit in one line unbroken,
+> with (Next-Gen Certified) being in parentheses and the Horizons v-whatever on
+> the bottom right."*
+> *"Here is the matching font for the logo."*
+
+**Spec.** Placement is **perfect — don't move it.** Logo: keep green, **change
+the font** to match the chunky monospace/terminal font in the reference. Motto:
+**one unbroken line**, `(NEXT-GEN CERTIFIED)` in parentheses, `HORIZONS // V4`
+on the **bottom-right**.
+
+---
+
+## 6 · Colors — header / bold / outline
+
+![nebula purple text](home-redesign-img/22-nebula-purple-text.webp)
+
+> **Operator:** *"Example of the purple text on the nebula screen — that's what
+> the header text, bold text and outline colors should be."*
+> *"In the nebula screen the header text and outlines are purple."*
+
+**Spec.** **Header text, bold text, and outline colors = the purple/magenta from
+the nebula lock-screen** (the `09:57` clock color). Note the ONE exception: the
+**ROUTER hub title is white**, not purple (see §3).
+
+---
+
+## 7 · Background (home)
+
+> **Operator:** *"Background stylings off"* (hue almost right).
+
+**Spec.** Base already shipped: deep black + faint blue tint, brighter/haloed
+stars, more-visible astral telemetry map (`drawAstralBackground`). Styling still
+needs a polish pass after the forefront layers land.
+
+---
+
+## 8 · Chat bar (bottom input)
+
+> **Operator:** *"When you hold down on the chat bar, that chat bar should work
+> like a mini user interface, not just a shortcut to open up the chat tile — if
+> you hold down on it, it pops up to 1/3 screen for quick inference."*
+
+**Spec.** Placement + bottom status nodes are **perfect — don't move them.**
+**Hold** the chat bar → it expands to a **~⅓-screen mini inference UI** (not just
+a navigate-to-Chat shortcut). This is why the wheel sits slightly high.
+
+---
+
+## 9 · Easter eggs & guardians
+
+![goat easter egg](home-redesign-img/24-goat-easter-egg.webp)
+![guardian chonk](home-redesign-img/23-guardian-chonk.png)
+
+> **Operator:** *"Don't forget about the crash log / easter egg goat pop up and
+> the screen timeout guardian chonk."*
+
+**Spec.**
+- **GOAT — crash-log easter egg.** On runtime crash/fail the goat pops up
+  (`// GOAT_SAYS_NO`) with a synthesized bleat; 7 banner taps → `// GOAT_UNLOCKED`.
+  Already wired (`HomeGrid.kt` `showGoat` / `playGoatBleat`).
+- **CHONK — screen-timeout guardian.** Idle/screen-timeout screensaver loads the
+  **chonky orange cat** from device storage. Partly wired (`Screensaver.kt`).
+
+---
+
+## 10 · What is PERFECT — do not touch
+
+> **Operator:** *"The overall spacing ratio, size ratios, color hues, placement
+> of the upper logo and the bottom chat bar and bottom configuration nodes …
+> those are perfect."*
+
+- Top **logo placement** · **bottom chat bar** placement · **bottom status
+  nodes** (ASR/LLM/TTS/MLLM/VAG) placement.
 - Overall **spacing ratios, size ratios, color hues**.
 
 ---
 
-## Reference: the target render — REFERENCE ONLY (not a live screenshot)
+## 11 · Panel backgrounds (separate track — mostly shipped)
 
-**This image is a REFERENCE MOCKUP of where the home screen should end up. It is
-NOT a screenshot of the live app and does NOT reflect current state — nothing in
-the real UI is near complete.** Use it strictly as the visual target.
+Each of the 8 panels has a procedural background; **4 are also uploadable-wallpaper
+capable** (image fully replaces procedural, tiles go semi-transparent).
 
-- Attach-slot: `![target home](home-redesign-img/01-target-full-home.webp)`
-  — *Black bg; green `MO)u14R_11(` banner; clock-face tiles; center purple
-  crystal ROUTER/route with aura; plasma cords; bottom SYSTEM_STATUS dots; input
-  bar "tap_or_hold ask //". Treat as target, not current state.*
-
----
-
-## Panel backgrounds (separate track — mostly shipped)
-
-Not part of the home wheel, but part of the same living design. Each of these 8
-panels has a procedural background; **4 are also uploadable-wallpaper capable**
-(Chat, Horizons, Archives, Settings — image fully replaces procedural, tiles go
-semi-transparent). Home/Monitor/Terminal/Router stay procedural.
-
-| Panel | Procedural bg | Wallpaper? | Reference image slot |
+| Panel | Procedural bg | Wallpaper? | Reference |
 |---|---|---|---|
 | Home | astral (deep black + stars + telemetry) ✅ | no | `01-target-full-home.webp` |
 | Terminal | Matrix rain (`fakesteak` fork) | no | `18-matrix-rain.png` |
 | Router | circuit-board / chip nodes | no | `05-router-circuit-blue-chip.jpg` |
 | Monitor | sliding oscilloscope (animated) | no | `17-oscilloscope.webp` |
 | Chat | wet blue-grey slate stone ✅ | yes | `14-stone-slab.webp` |
-| Horizons | butterfly nebula (gold/blue-white)* ✅ | yes | `13-nebula-wallpaper.webp` |
+| Horizons | butterfly nebula (gold/blue-white) ✅ | yes | `13-nebula-wallpaper.webp` |
 | Archives | vintage film strip | yes | `16-film-strip.jpg` |
 | Settings | brushed-steel vault door | yes | `15-vault-door.jpg` |
 
-\* Palette note: written spec §4 said "purple/blue/gold", but the operator's
-actual nebula reference is **gold + blue-white, minimal purple** — the image
-wins. Nebula is also a candidate to use a **real image asset** rather than
-procedural (operator leaned that way for photographic fidelity).
+Nebula palette: the reference is **gold + blue-white, minimal purple** (image
+wins over the old "purple/blue/gold" text); it's also a candidate for a **real
+image asset** vs procedural.
 
 ---
 
-## Status ledger
+## 12 · Status ledger
 
 - ✅ Home background layer (deep black + stars + telemetry) — shipped.
-- ✅ Panel backgrounds: Chat slate, Horizons nebula, deeper Router/Monitor bases — shipped.
-- ✅ Uploadable wallpapers on Chat/Horizons/Archives/Settings — shipped.
-- ⛔ Home wallpaper — **reverted** (operator said no; home is procedural only).
-- ⬜ **Home forefront redesign — PENDING (this spec).** Banner font/format,
-  tile icon/label swaps, tile spacing, Router crystal/label/cords, background
-  styling polish, chat-bar hold-to-⅓-screen mini UI.
+- ✅ Panel backgrounds: Chat slate, Horizons nebula, deeper Router/Monitor bases.
+- ✅ Uploadable wallpapers on Chat/Horizons/Archives/Settings.
+- ⛔ Home wallpaper — reverted (home is procedural only).
+- ⬜ **Home forefront redesign — PENDING.** Banner font/format, tile icon/label
+  swaps, tile spacing, Router hub (crystal/label/cords), colors, background
+  polish, chat-bar hold-to-⅓ mini UI.
 
 ---
 
-## Open / to-confirm
+## 13 · Open / to-confirm
 
-- **Header purple vs ROUTER off-white:** confirm the split — nebula-purple for
-  headers/bold/outlines, off-white for the ROUTER title specifically.
-- **Horizons bottom prompt:** used `$_.home` (the cleaner of `$_version.s` /
-  `$_.home`); confirm if wrong.
-- **Exact tile card style:** operator says the tiles are "the wrong style" but
-  the crisp target isn't fully pinned — resolve against the reference target
-  render before restyling cards.
-- **PENDING (big) — image-forefront / verbatim restructure:** operator wants
-  the photos moved to the forefront (image-first, on top of everything) with
-  exact word-for-word descriptions and comparisons quoting the operator's own
-  prompts near-verbatim. Not yet executed.
-- **Logo font asset:** matching the exact typeface likely needs a bundled
-  `.ttf`; `FontFamily.Monospace` is the closest built-in stand-in until a font
-  file is added.
+- **Old CORE_HUB render** (`21-old-corehub.webp`) = the washed-out earlier
+  version — kept as "what to avoid."
+- **Exact tile card style** ("wrong style") isn't fully pinned — resolve against
+  the target render before restyling cards.
+- **Logo font asset:** exact typeface likely needs a bundled `.ttf`;
+  `FontFamily.Monospace` is the closest built-in stand-in until one is added.
