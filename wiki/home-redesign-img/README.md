@@ -26,3 +26,6 @@ To update one, replace the file in place with the same name.
 | `19-logo-font.webp` | Chunky monospace banner font reference |
 | `20-baseline-zoom.webp` | Zoomed crop of the baseline home (crystal + tiles) |
 | `21-old-corehub.webp` | The older washed-out "CORE_HUB" version (what to avoid) |
+| `22-nebula-purple-text.webp` | Nebula lock-screen — the purple/magenta = header/bold/outline color |
+| `23-guardian-chonk.png` | Chonky orange cat — screen-timeout guardian screensaver |
+| `24-goat-easter-egg.webp` | The goat — crash-log easter-egg popup |

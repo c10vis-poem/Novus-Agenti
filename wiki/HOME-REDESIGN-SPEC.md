@@ -102,46 +102,55 @@ card style).
 - Attach-slot: `![terminal tile](home-redesign-img/09-terminal-tile.webp)`
 
 ### 8:00 — ARCHIVES  (amber)  *(currently mislabeled ARTIFACTS)*
-- **Change — label:** `ARTIFACTS` → **`ARCHIVES`**. Nothing else.
-- Everything else identical: amber, stacked-documents icon, subtitle
-  (`Logs · Prompts · Store`), `$ ls ./`.
+- **Labels:** title `ARCHIVES` (was ARTIFACTS) · slug `/logs` · subtitle
+  `artifacts` · bottom prompt line `$_files`.
+- **Icon: no change** — amber, stacked-documents.
 - Attach-slot: `![horizons + archives tiles](home-redesign-img/11-horizons-archives-tiles.webp)`
 
 ### 10:00 — HORIZONS  (blue)
+- **Labels:** title `HORIZONS` · slug `/about` · subtitle `credits` · bottom
+  prompt line `$_.home`.
 - **Change — the sun turns AMBER:** in the icon (amber sun + rays over a blue
   horizon line + pale pinkish-purple arch), the **sun** element becomes
   **amber**; the rest of the icon stays blue.
-- Labels unchanged: `HORIZONS` / `/ home` (full card: `Home · System view` / `$ home`).
 - Attach-slot: shares `11-horizons-archives-tiles.webp` above.
 
 ---
 
 ## Center hub — ROUTER
 
-- **Form:** a **purple faceted crystal** styled as an **agentic hub** — the
-  crystal is the central gem; the 6 tiles are its connected nodes
-  (hub-and-spoke).
-- **Size:** the crystal should **protrude a little MORE** than it does now —
-  slightly more prominent. **But not** the stupid-big, slanted-over crystal from
-  the color-reference image. Keep it reasonably sized and upright, not oversized
-  or heavily tilted.
-- **Glow:** keep the **glowing sun AURA** (radial glow around it). **No dome /
-  concentric-ring framing.**
-- **Color + under-glow:** not *just* purple — it also has a **white sun/glow
-  permeating from underneath** (bright core radiating up from beneath the
-  crystal). Keep both: violet body + white under-glow + purple aura.
-- **Label (3 lines, violet):** `// CORE_HUB` (top, dim) · **`ROUTER`** (large,
-  violet) · `/ route` (bottom, dim).
+**The whole Agent Platform reference image IS the target for the ENTIRE hub —
+not just the crystal.** Build the hub after it, with three deliberate changes.
+
+- **Take from the Agent Platform reference:** the **plasma tubes** (glowing
+  radiating connectors), the **nodes** (surrounding node points), the **platform
+  perimeter** (the elliptical platform base/ring), and the **protruding central
+  faceted crystal**.
+- **Change 1 — dome → white sun:** drop the reference's dome; use the **white
+  sun / radial aura** instead. **No dome, no concentric-ring framing.**
+- **Change 2 — crystal size:** the crystal is a hexagonal faceted gem **shaped
+  like the Agent Platform gem, just slightly LARGER than that gem.** That is
+  **much SMALLER** than the current build's crystal — the "wizard-hat"-looking
+  purple thing from the past build is **grossly oversized; shrink it.**
+- **Change 3 — violet hue + under-glow:** the gem is **violet/purple** (not the
+  reference's blue), with the **white glow permeating from underneath** (bright
+  core radiating up from beneath the crystal).
+- **Label — stacked under the hub icon (NOT `/ route`):**
+  - `// CORE_HUB` — slug, at the **top, right under the icon** (dim)
+  - **`ROUTER`** — big, in the **off-white** used by other secondary on-screen
+    text (**NOT violet**)
+  - `$_Statio` — the **only** thing underneath ROUTER
 - Attach-slots:
-  - `![router label + cords](home-redesign-img/08-router-label.webp)`
-    — *"// CORE_HUB / ROUTER / route" in violet over crossing plasma tubes.*
-  - `![agent platform hub](home-redesign-img/06-agent-platform-hub.jpg)`
-    — *central hexagonal gem, nodes around it, hub-and-spoke dotted lines.*
+  - `![agent platform — whole-hub target](home-redesign-img/06-agent-platform-hub.jpg)`
+    — *central hexagonal gem + nodes + platform perimeter + plasma connectors.
+    THE reference for the entire hub (then: swap dome→sun, bigger violet crystal).*
   - `![ai orchestration hub](home-redesign-img/07-ai-orchestration-hub.webp)`
-    — *glowing circular hub with plasma-cord connectors radiating out.*
+    — *glowing hub with plasma-cord connectors radiating out.*
+  - `![router label + cords](home-redesign-img/08-router-label.webp)`
+    — *"// CORE_HUB / ROUTER" over crossing plasma tubes. NOTE: label is now
+    off-white `ROUTER` + `$_Statio`, no `/ route`.*
   - `![router circuit chip](home-redesign-img/05-router-circuit-blue-chip.jpg)`
-    — *blue PCB, glowing central chip/die, amber solder-point bokeh
-    (chipsets-as-nodes / 6-connector inspiration).*
+    — *chipsets-as-nodes / 6-connector inspiration.*
 
 ---
 
@@ -189,6 +198,33 @@ card style).
   shortcut** to the Chat tile. **Hold → it pops up to ~⅓ screen for quick
   inference.** (This is why the wheel sits slightly high — to leave room for
   this expansion.)
+
+---
+
+## Colors — header / bold / outline
+
+- **Header text, bold text, and outline colors** use the **purple/magenta from
+  the nebula lock-screen** (the color of the `09:57` clock) — a hot
+  violet-magenta.
+- **Exception:** the **ROUTER** hub title is **off-white**, not this purple (see
+  Router hub). So: nebula-purple for headers/bold/outlines generally; off-white
+  for the ROUTER title specifically. ⚠️ *Confirm this split with the operator.*
+- Attach-slot: `![nebula purple text](home-redesign-img/22-nebula-purple-text.webp)`
+  — *the magenta-purple of the clock text is the header/bold/outline color.*
+
+---
+
+## Easter eggs & guardians
+
+- **GOAT — crash-log easter egg.** On runtime crash/fail the **goat** pops up
+  (`// GOAT_SAYS_NO`) with a synthesized bleat; a manual unlock (7 banner taps →
+  `// GOAT_UNLOCKED`) also exists. Already wired (`HomeGrid.kt`
+  `showGoat` / `playGoatBleat`).
+  - `![goat easter egg](home-redesign-img/24-goat-easter-egg.webp)`
+- **CHONK — screen-timeout guardian.** The idle / screen-timeout screensaver
+  loads the **chonky orange cat** ("guardian chonk") from device storage.
+  Partly wired (`Screensaver.kt`).
+  - `![guardian chonk](home-redesign-img/23-guardian-chonk.png)`
 
 ---
 
@@ -253,13 +289,17 @@ procedural (operator leaned that way for photographic fidelity).
 
 ## Open / to-confirm
 
-- **Archives & Horizons labels not yet re-specified** in the new
-  TITLE · /slug · subtitle · `$_…` format. Monitor/Chat/Settings/Terminal are
-  updated; get Archives (currently `/archive`, `$ ls ./`) and Horizons
-  (currently `/home`, `$ home`) confirmed before building their labels.
+- **Header purple vs ROUTER off-white:** confirm the split — nebula-purple for
+  headers/bold/outlines, off-white for the ROUTER title specifically.
+- **Horizons bottom prompt:** used `$_.home` (the cleaner of `$_version.s` /
+  `$_.home`); confirm if wrong.
 - **Exact tile card style:** operator says the tiles are "the wrong style" but
   the crisp target isn't fully pinned — resolve against the reference target
   render before restyling cards.
+- **PENDING (big) — image-forefront / verbatim restructure:** operator wants
+  the photos moved to the forefront (image-first, on top of everything) with
+  exact word-for-word descriptions and comparisons quoting the operator's own
+  prompts near-verbatim. Not yet executed.
 - **Logo font asset:** matching the exact typeface likely needs a bundled
   `.ttf`; `FontFamily.Monospace` is the closest built-in stand-in until a font
   file is added.
