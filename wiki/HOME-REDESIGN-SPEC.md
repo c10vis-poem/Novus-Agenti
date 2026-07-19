@@ -33,6 +33,29 @@
 "almost complete." Black bg; green `MO)u14R_11(` banner; the 7-element wheel;
 bottom status nodes; input bar. Use strictly as the destination to build toward.
 
+**What's RIGHT about this picture (operator, verbatim):**
+> *"The overall spacing ratio, size ratios, color hues, placement of the upper
+> logo and the bottom chat bar and bottom configuration nodes … those are the
+> only two things on here that are perfect."*
+
+**What's WRONG about this picture (operator, verbatim, top → bottom):**
+> *"Starting from the top — wrong font for the logo, correct color, wrong font."*
+> *"The motto underneath it — correct color, correct font, wrong format. It
+> should read in one continuous line across the screen and fit in one line
+> unbroken, with Next-Gen Certified being in parentheses and the Horizons
+> v-point-whatever on the bottom right."*
+> *"The background styling — the color was almost perfect, background styling's
+> off."*
+> *"The labeling is almost correct on the tiles, the colors are correct, but the
+> tiles themselves are the wrong style."*
+> *"The 2 o'clock, 4:00, 8:00 and 10:00 tiles are too crowded to the north and
+> the south."*
+> *"The bottom row of three tiles could expand down below just a tiny bit — that
+> would free up more space for the labeling of the router hub."*
+
+*(Each of these is expanded in the relevant section below — banner §5, background
+§7, tiles §2, layout §1.)*
+
 ---
 
 ## 1 · Layout geometry
