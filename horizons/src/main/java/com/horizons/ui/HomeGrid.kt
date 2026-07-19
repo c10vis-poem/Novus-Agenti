@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.Panel
+import com.horizons.R
 import com.horizons.ui.theme.HorizonsColors
 import kotlin.math.PI
 import kotlin.math.cos
@@ -205,18 +208,18 @@ fun HomeGrid(
 
             // ── Center: CORE_HUB / Router ───────────────────────────────────
             Box(
-                modifier = Modifier.size(120.dp),
+                modifier = Modifier.size(150.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawCoreHubCrystal()
-                }
-                Box(
+                // Real crystal art asset (cropped from the reference render) —
+                // the rendered gem can't be line-drawn; this IS the reference gem.
+                Image(
+                    painter = painterResource(id = R.drawable.hub_crystal),
+                    contentDescription = "Router hub crystal",
                     modifier = Modifier
-                        .size(80.dp)
+                        .fillMaxSize()
                         .clickable { onTileClick(Panel.Router) },
-                    contentAlignment = Alignment.Center,
-                ) {}
+                )
             }
             Text(
                 "// CORE_HUB",
