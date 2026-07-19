@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -173,22 +175,22 @@ fun HomeGrid(
             ) {
                 TileCard(
                     name = "HORIZONS",
-                    slug = "/ home",
-                    subtitle = "Home node · System\noverview",
+                    slug = "/ about",
+                    subtitle = "credits",
                     color = HorizonsColors.TileHorizons,
                     tileType = TileType.HORIZONS,
-                    cmdHint = "$ home --status",
+                    cmdHint = "$_.home",
                     onClick = { onTileClick(Panel.Horizons) },
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 TileCard(
                     name = "MONITOR",
-                    slug = "/ console",
-                    subtitle = "Library · Browse ·\nCompatibility",
+                    slug = "/ cognito",
+                    subtitle = "library",
                     color = HorizonsColors.TileMonitor,
                     tileType = TileType.MONITOR,
-                    cmdHint = "$ console",
+                    cmdHint = "$_browser",
                     onClick = { onTileClick(Panel.Monitor) },
                     modifier = Modifier.weight(1f),
                 )
@@ -196,10 +198,10 @@ fun HomeGrid(
                 TileCard(
                     name = "CHAT",
                     slug = "/ interface",
-                    subtitle = "Full AI interface ·\nArtifacts · History",
+                    subtitle = "tools",
                     color = HorizonsColors.TileChat,
                     tileType = TileType.CHAT,
-                    cmdHint = "$ chat --open",
+                    cmdHint = "$_model",
                     onClick = { onTileClick(Panel.Chat) },
                     modifier = Modifier.weight(1f),
                 )
@@ -252,33 +254,33 @@ fun HomeGrid(
             ) {
                 TileCard(
                     name = "SETTINGS",
-                    slug = "/ vault",
-                    subtitle = "Deposits · Keys ·\nImports · Vault",
+                    slug = "/ config",
+                    subtitle = "vault",
                     color = HorizonsColors.TileSettings,
                     tileType = TileType.SETTINGS,
-                    cmdHint = "$ vault --open",
+                    cmdHint = "$_utils",
                     onClick = { onTileClick(Panel.Settings) },
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 TileCard(
                     name = "TERMINAL",
-                    slug = "/ garage",
-                    subtitle = "Mod garage ·\nScripts · CLI",
+                    slug = "/ shell",
+                    subtitle = "commands",
                     color = HorizonsColors.TileTerminal,
                     tileType = TileType.TERMINAL,
-                    cmdHint = "$ _",
+                    cmdHint = "$_bash",
                     onClick = { onTileClick(Panel.Terminal) },
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 TileCard(
                     name = "ARCHIVES",
-                    slug = "/ archive",
-                    subtitle = "Artifacts · Logs ·\nSaved configs",
+                    slug = "/ logs",
+                    subtitle = "artifacts",
                     color = HorizonsColors.TileArtifacts,
                     tileType = TileType.ARTIFACTS,
-                    cmdHint = "$ ls archive/",
+                    cmdHint = "$_files",
                     onClick = { onTileClick(Panel.Artifacts) },
                     modifier = Modifier.weight(1f),
                 )
@@ -824,23 +826,47 @@ private fun DrawScope.drawTileIcon(type: TileType, color: Color) {
                 lineTo(cx + r * 0.15f, bubbleTop + bubbleH)
             }
             drawPath(tail, color, style = Stroke(width = 2f, cap = StrokeCap.Round))
+            // "PC" badge, top-right corner of the screen (was "AI")
+            val badgeCx = cx + bubbleW / 2f - r * 0.18f
+            val badgeCy = bubbleTop + r * 0.18f
+            drawCircle(color.copy(alpha = 0.9f), r * 0.22f, Offset(badgeCx, badgeCy), style = Stroke(1.4f))
+            drawContext.canvas.nativeCanvas.drawText(
+                "PC",
+                badgeCx,
+                badgeCy + r * 0.09f,
+                android.graphics.Paint().apply {
+                    this.color = color.toArgb()
+                    textSize = r * 0.24f
+                    isAntiAlias = true
+                    isFakeBoldText = true
+                    textAlign = android.graphics.Paint.Align.CENTER
+                },
+            )
         }
         TileType.CHAT -> {
-            // Hub-and-spoke agentic node network
-            val hubR   = r * 0.17f
-            val spokeR = r * 0.72f
-            val nodeR  = r * 0.10f
-            val nodeCount = 5
-            for (i in 0 until nodeCount) {
-                val ang = (i * 360f / nodeCount - 90f) * PI.toFloat() / 180f
-                val nx = cx + cos(ang) * spokeR
-                val ny = cy + sin(ang) * spokeR
-                drawLine(color.copy(alpha = 0.42f), Offset(cx, cy), Offset(nx, ny), 1.5f, StrokeCap.Round)
-                drawCircle(color.copy(alpha = 0.60f), nodeR, Offset(nx, ny))
-                drawCircle(color.copy(alpha = 0.18f), nodeR + 3f, Offset(nx, ny), style = Stroke(0.8f))
+            // Clean simple speech bubble — rounded body, tail bottom-left, 2 short lines
+            val bw = r * 1.3f
+            val bh = r * 0.95f
+            val left = cx - bw / 2f
+            val top = cy - bh * 0.55f
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(left, top),
+                size = Size(bw, bh),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r * 0.28f),
+                style = Stroke(width = 2.5f),
+            )
+            // Tail, bottom-left
+            val tail = Path().apply {
+                moveTo(left + bw * 0.20f, top + bh)
+                lineTo(left + bw * 0.08f, top + bh + r * 0.30f)
+                lineTo(left + bw * 0.44f, top + bh)
             }
-            drawCircle(color, hubR + 2f, Offset(cx, cy))
-            drawCircle(color.copy(alpha = 0.22f), hubR + 6f, Offset(cx, cy), style = Stroke(1.2f))
+            drawPath(tail, color, style = Stroke(width = 2.5f, cap = StrokeCap.Round))
+            // Two short lines inside (second shorter)
+            val lx = left + bw * 0.22f
+            drawLine(color, Offset(lx, top + bh * 0.40f), Offset(left + bw * 0.78f, top + bh * 0.40f), 2f, StrokeCap.Round)
+            drawLine(color.copy(alpha = 0.8f), Offset(lx, top + bh * 0.62f), Offset(left + bw * 0.58f, top + bh * 0.62f), 2f, StrokeCap.Round)
         }
         TileType.ARTIFACTS -> {
             // Stacked documents / clipboard
