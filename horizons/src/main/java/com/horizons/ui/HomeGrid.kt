@@ -179,7 +179,7 @@ fun HomeGrid(
                     subtitle = "credits",
                     color = HorizonsColors.TileHorizons,
                     tileType = TileType.HORIZONS,
-                    cmdHint = "$_.home",
+                    cmdHint = "\$_.home",
                     onClick = { onTileClick(Panel.Horizons) },
                     modifier = Modifier.weight(1f),
                 )
@@ -190,7 +190,7 @@ fun HomeGrid(
                     subtitle = "library",
                     color = HorizonsColors.TileMonitor,
                     tileType = TileType.MONITOR,
-                    cmdHint = "$_browser",
+                    cmdHint = "\$_browser",
                     onClick = { onTileClick(Panel.Monitor) },
                     modifier = Modifier.weight(1f),
                 )
@@ -201,7 +201,7 @@ fun HomeGrid(
                     subtitle = "tools",
                     color = HorizonsColors.TileChat,
                     tileType = TileType.CHAT,
-                    cmdHint = "$_model",
+                    cmdHint = "\$_model",
                     onClick = { onTileClick(Panel.Chat) },
                     modifier = Modifier.weight(1f),
                 )
@@ -239,7 +239,7 @@ fun HomeGrid(
                 color = Color.White,
             )
             Text(
-                "$_Statio",
+                "\$_Statio",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 9.sp,
                 color = HorizonsColors.TileRouter.copy(alpha = 0.6f),
@@ -258,7 +258,7 @@ fun HomeGrid(
                     subtitle = "vault",
                     color = HorizonsColors.TileSettings,
                     tileType = TileType.SETTINGS,
-                    cmdHint = "$_utils",
+                    cmdHint = "\$_utils",
                     onClick = { onTileClick(Panel.Settings) },
                     modifier = Modifier.weight(1f),
                 )
@@ -269,7 +269,7 @@ fun HomeGrid(
                     subtitle = "commands",
                     color = HorizonsColors.TileTerminal,
                     tileType = TileType.TERMINAL,
-                    cmdHint = "$_bash",
+                    cmdHint = "\$_bash",
                     onClick = { onTileClick(Panel.Terminal) },
                     modifier = Modifier.weight(1f),
                 )
@@ -280,7 +280,7 @@ fun HomeGrid(
                     subtitle = "artifacts",
                     color = HorizonsColors.TileArtifacts,
                     tileType = TileType.ARTIFACTS,
-                    cmdHint = "$_files",
+                    cmdHint = "\$_files",
                     onClick = { onTileClick(Panel.Artifacts) },
                     modifier = Modifier.weight(1f),
                 )
