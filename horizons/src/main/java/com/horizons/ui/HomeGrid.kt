@@ -645,9 +645,9 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
 private fun DrawScope.drawCoreHubCrystal() {
     val cx = size.width / 2f
     val cy = size.height / 2f
-    val W   = size.minDimension * 0.19f   // half-width of front face
-    val H   = size.minDimension * 0.34f   // body half-height
-    val SD  = size.minDimension * 0.10f   // side-face depth (45° perspective)
+    val W   = size.minDimension * 0.13f   // half-width — shrunk (was oversized "wizard hat")
+    val H   = size.minDimension * 0.23f   // body half-height
+    val SD  = size.minDimension * 0.075f  // side-face depth (45° perspective)
     val capH = W * 0.50f                   // 30° bevel — moderate, not pointy
     val ox  = cx - SD * 0.2f              // slight left offset for "off-center" look
 
