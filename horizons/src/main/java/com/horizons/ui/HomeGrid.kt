@@ -235,14 +235,14 @@ fun HomeGrid(
                 "ROUTER",
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                color = HorizonsColors.TileRouter,
+                fontSize = 20.sp,
+                color = Color.White,
             )
             Text(
-                "/ route",
+                "$_Statio",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 9.sp,
-                color = HorizonsColors.TileRouter.copy(alpha = 0.5f),
+                color = HorizonsColors.TileRouter.copy(alpha = 0.6f),
             )
 
             Spacer(Modifier.height(20.dp))
