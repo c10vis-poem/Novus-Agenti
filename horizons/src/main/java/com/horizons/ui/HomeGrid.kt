@@ -119,28 +119,22 @@ fun HomeGrid(
                 )
                 Text(
                     "MØ[)u14R_  11(",
-                    fontFamily = FontFamily.SansSerif,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Black,
                     fontSize = 38.sp,
                     letterSpacing = 1.sp,
                     color = HorizonsColors.PrimaryTeal,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // Motto — one unbroken line across the screen
                 Text(
-                    "*Pioneer_Tech,",
+                    "*Pioneer_Tech · (Next-Gen Certified)",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
-                    letterSpacing = 2.sp,
+                    fontSize = 13.sp,
+                    maxLines = 1,
                     color = HorizonsColors.PrimaryTeal,
-                )
-                Text(
-                    "  (Next-Gen Certified)",
-                    fontFamily = FontFamily.SansSerif,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    letterSpacing = (-0.3).sp,
-                    color = HorizonsColors.PrimaryTeal,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -153,7 +147,7 @@ fun HomeGrid(
                         color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
                     )
                     Text(
-                        "v1.0",
+                        "HORIZONS // V4",
                         fontFamily = FontFamily.Monospace,
                         fontSize = 10.sp,
                         color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
