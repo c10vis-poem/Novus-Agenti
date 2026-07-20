@@ -285,17 +285,37 @@ class HorizonsApplication : Application() {
             return
         }
 
+        // appState is the one hard requirement for a usable app, so load it
+        // FIRST and on its own — if a corrupt state file makes it throw, we
+        // fall back to a clean store rather than letting boot die.
         try {
-            CrashRecorder(this).install()
-            com.horizons.core.diag.Breadcrumb.drop("crashrecorder_installed")
+            appState = AppStateStore(this)
+            com.horizons.core.diag.Breadcrumb.drop("appstate_loaded")
+        } catch (e: Throwable) {
+            com.horizons.core.diag.Breadcrumb.drop("appstate_load_failed: ${e.javaClass.simpleName}: ${e.message}")
+            appState = AppStateStore(this, resetOnCorruption = true)
+        }
+
+        // Everything below is best-effort. A failure in ANY subsystem must
+        // NOT prevent the app from reaching a usable UI — the boot trail in
+        // Artifacts → Boot diagnostics is how we find out what failed, and
+        // that screen is unreachable if onCreate crashes. So: never rethrow.
+        try {
+            try {
+                CrashRecorder(this).install()
+                com.horizons.core.diag.Breadcrumb.drop("crashrecorder_installed")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("crashrecorder_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
 
             // Consolidate crashes + logged errors into one adb-pullable failure
             // report at externalFilesDir/failures/ (see FailureMonitor / FAILURES.md).
-            com.horizons.core.diag.FailureMonitor.install(this)
-            com.horizons.core.diag.Breadcrumb.drop("failuremonitor_installed")
-
-            appState = AppStateStore(this)
-            com.horizons.core.diag.Breadcrumb.drop("appstate_loaded")
+            try {
+                com.horizons.core.diag.FailureMonitor.install(this)
+                com.horizons.core.diag.Breadcrumb.drop("failuremonitor_installed")
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("failuremonitor_failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
 
             // CLIFFORD FGS -- separate process. Failure here shouldn't kill main.
             try {
@@ -343,8 +363,10 @@ class HorizonsApplication : Application() {
 
             com.horizons.core.diag.Breadcrumb.drop("onCreate_exit_ok")
         } catch (e: Throwable) {
-            com.horizons.core.diag.Breadcrumb.drop("onCreate_threw: ${e.javaClass.simpleName}: ${e.message}")
-            throw e
+            // Do NOT rethrow — a subsystem failure must not become a hard
+            // "won't boot." Record it; the app still reaches the home UI, where
+            // Artifacts → Boot diagnostics surfaces this exact breadcrumb.
+            com.horizons.core.diag.Breadcrumb.drop("onCreate_threw_swallowed: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
