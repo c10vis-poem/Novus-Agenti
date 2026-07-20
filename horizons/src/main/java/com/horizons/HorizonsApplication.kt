@@ -281,7 +281,12 @@ class HorizonsApplication : Application() {
 
         if (!isMainProcess()) {
             com.horizons.core.diag.Breadcrumb.drop("onCreate_skip_non_main_process")
-            appState = AppStateStore(this)
+            try {
+                appState = AppStateStore(this)
+            } catch (e: Throwable) {
+                com.horizons.core.diag.Breadcrumb.drop("appstate_load_failed_secondary: ${e.javaClass.simpleName}: ${e.message}")
+                appState = AppStateStore(this, resetOnCorruption = true)
+            }
             return
         }
 
