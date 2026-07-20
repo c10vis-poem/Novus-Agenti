@@ -9,18 +9,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 
 enum class VoiceLoopState { IDLE, LISTENING, THINKING, SPEAKING }
 
 /**
- * Voice loop: mic → Qwen3.5-9B (audio via ort_engine) → TTS.
+ * Voice loop: mic → Silero VAD (endpoint) → Moonshine STT → LLM → Kokoro TTS.
  *
- * G15 additions:
- *  - [vad] receives PCM chunks during LISTENING to detect speech-end (instead
- *    of a hard 8-second timeout).
- *  - During SPEAKING the mic stays open; if [vad] detects >= 150 ms of speech
- *    the TTS is stopped and the loop transitions back to LISTENING (barge-in).
+ * VAD runs on BOTH ends of the conversation, on the recorder's live chunk
+ * stream (the mic never stop/restarts mid-phase):
+ *  - LISTENING: speech-end detection stops the recording (no hard timer).
+ *  - SPEAKING: the mic stays open; >= 150 ms of user speech kills TTS
+ *    mid-sentence and transitions straight back to LISTENING (barge-in).
  *  - [continuousMode]: when true the loop restarts from LISTENING automatically
  *    after each SPEAKING → IDLE cycle.
  */
@@ -112,10 +113,9 @@ class VoiceLoopController(
     }
 
     /**
-     * Records PCM in chunks using VAD to determine end-of-speech.
-     *
-     * Collects chunks from [recorder]'s internal buffer by stopping and
-     * restarting the recorder on silence detection. Returns null on error.
+     * Records PCM until VAD detects end-of-speech, consuming the recorder's
+     * LIVE chunk stream — the mic runs continuously, no stop/restart windows,
+     * no dropped audio between polls.
      *
      * Speech-end detection: when VAD returns false (silence) for
      * [SILENCE_GATE_MS] ms continuously AFTER seeing at least [MIN_SPEECH_MS]
@@ -129,75 +129,55 @@ class VoiceLoopController(
         val minSpeechSamples = (sampleRate * MIN_SPEECH_MS / 1000)
         val maxSamples = (sampleRate * MAX_RECORD_MS / 1000).toInt()
 
-        val accumulated = ArrayList<ShortArray>()
         var totalSamples = 0
         var speechSamples = 0
         var silentSamples = 0
         var seenSpeech = false
+        finishRequested = false
 
-        // Time-sliced VAD: every CHUNK_POLL_MS we stop the recorder, run VAD on the
-        // newly accumulated samples, then restart — continues until silence gate or timeout.
-        val startMs = System.currentTimeMillis()
-        var lastCheckedSamples = 0
-
-        while (true) {
-            val elapsedMs = System.currentTimeMillis() - startMs
-            if (elapsedMs >= MAX_RECORD_MS) {
-                Log.d(TAG, "Max recording time reached")
-                break
-            }
-
-            kotlinx.coroutines.delay(CHUNK_POLL_MS)
-
-            val stopResult = recorder.stop()
-            val allPcm = stopResult.getOrNull() ?: break
-
-            if (allPcm.size > lastCheckedSamples) {
-                val newChunk = allPcm.copyOfRange(lastCheckedSamples, allPcm.size)
-                accumulated.add(newChunk)
-                totalSamples += newChunk.size
-                lastCheckedSamples = allPcm.size
-
-                val isSpeaking = vad.isSpeech(newChunk, sampleRate)
-                if (isSpeaking) {
-                    speechSamples += newChunk.size
-                    silentSamples = 0
-                    seenSpeech = true
-                } else {
-                    silentSamples += newChunk.size
-                    if (seenSpeech && speechSamples >= minSpeechSamples
-                        && silentSamples >= silenceGateSamples
-                    ) {
-                        Log.d(TAG, "Speech ended after ${speechSamples}s samples")
-                        break
+        try {
+            // Timeout is the hard safety ceiling; VAD's silence gate is the
+            // real endpoint. Also guards the no-emission case (recorder
+            // stopped externally → no chunks → collect would hang forever).
+            kotlinx.coroutines.withTimeoutOrNull(MAX_RECORD_MS) {
+                recorder.chunks
+                    .takeWhile { !finishRequested && totalSamples < maxSamples }
+                    .collect { chunk ->
+                        totalSamples += chunk.size
+                        if (vad.isSpeech(chunk, sampleRate)) {
+                            speechSamples += chunk.size
+                            silentSamples = 0
+                            seenSpeech = true
+                        } else {
+                            silentSamples += chunk.size
+                            if (seenSpeech && speechSamples >= minSpeechSamples
+                                && silentSamples >= silenceGateSamples
+                            ) {
+                                Log.d(TAG, "Speech ended after $speechSamples speech samples")
+                                throw EndOfSpeech
+                            }
+                        }
                     }
-                }
             }
-
-            if (totalSamples >= maxSamples) break
-
-            // Restart recorder for next window
-            if (recorder.start().isFailure) break
+        } catch (_: EndOfSpeech) {
+            // normal exit: silence gate tripped
         }
 
-        // Final stop — collect any remaining data
-        val finalStop = recorder.stop()
-        val finalPcm = finalStop.getOrNull()
-        if (finalPcm != null && finalPcm.size > lastCheckedSamples) {
-            accumulated.add(finalPcm.copyOfRange(lastCheckedSamples, finalPcm.size))
-            totalSamples += finalPcm.size - lastCheckedSamples
-        }
+        // The accumulated recording (superset of what VAD saw) is the utterance.
+        return recorder.stop().getOrNull()
+    }
 
-        if (accumulated.isEmpty()) return ShortArray(0)
+    /**
+     * Ask an in-flight LISTENING phase to wrap up now (e.g. the user tapped
+     * the mic again). The recording is kept and transcribed as usual.
+     */
+    fun finishListening() { finishRequested = true }
 
-        val out = ShortArray(totalSamples)
-        var offset = 0
-        for (chunk in accumulated) {
-            if (offset + chunk.size > out.size) break
-            System.arraycopy(chunk, 0, out, offset, chunk.size)
-            offset += chunk.size
-        }
-        return out
+    @Volatile private var finishRequested = false
+
+    /** Control-flow marker to break out of the chunk collect. */
+    private object EndOfSpeech : Exception() {
+        private fun readResolve(): Any = EndOfSpeech
     }
 
     /**
@@ -218,35 +198,24 @@ class VoiceLoopController(
             return false
         }
 
-        // Launch barge-in monitor coroutine
+        // Barge-in monitor: watch the LIVE chunk stream while TTS plays; the
+        // mic runs continuously (no stop/restart). Enough cumulative speech →
+        // kill TTS mid-sentence.
         bargeInJob = scope.launch {
             val sampleRate = AudioRecorder.SAMPLE_RATE
             val minBargeInSamples = (sampleRate * BARGE_IN_SPEECH_MS / 1000)
             var cumulativeSpeechSamples = 0
-            var lastCheckedSamples = 0
 
-            while (true) {
-                kotlinx.coroutines.delay(CHUNK_POLL_MS)
-                val allPcm = recorder.stop().getOrNull() ?: break
-
-                if (allPcm.size > lastCheckedSamples) {
-                    val newChunk = allPcm.copyOfRange(lastCheckedSamples, allPcm.size)
-                    lastCheckedSamples = allPcm.size
-
-                    if (vad.isSpeech(newChunk, sampleRate)) {
-                        cumulativeSpeechSamples += newChunk.size
-                    }
-
+            recorder.chunks.collect { chunk ->
+                if (vad.isSpeech(chunk, sampleRate)) {
+                    cumulativeSpeechSamples += chunk.size
                     if (cumulativeSpeechSamples >= minBargeInSamples) {
-                        Log.i(TAG, "Barge-in: ${cumulativeSpeechSamples} speech samples detected")
+                        Log.i(TAG, "Barge-in: $cumulativeSpeechSamples speech samples detected")
                         bargeInDetected = true
                         tts.stop()
-                        break
+                        throw kotlinx.coroutines.CancellationException("barge-in")
                     }
                 }
-
-                // Restart for next window
-                if (recorder.start().isFailure) break
             }
         }
 
@@ -281,9 +250,6 @@ class VoiceLoopController(
     companion object {
         const val TAG = "VoiceLoopController"
         const val MAX_RECORD_MS = 8_000L
-
-        /** Poll interval for VAD chunk checks (ms). */
-        private const val CHUNK_POLL_MS = 20L
 
         /** Silence duration after speech required to end listening (ms). */
         private const val SILENCE_GATE_MS = 500L

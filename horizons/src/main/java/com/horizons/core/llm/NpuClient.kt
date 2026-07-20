@@ -29,7 +29,7 @@ import java.net.URL
  *   GET  /health            → 200 when ready
  *
  * Vision lives in THIS same daemon/process as the LLM (session-16 decision — model +
- * vision share one socket; STT/TTS are a separate media daemon, see DaemonSttClient).
+ * vision share one socket; STT/TTS run in-process — see MoonshineSttEngine).
  * ort_engine doesn't decode the image yet (VLM path pending GenieX's libgeniex_vlm),
  * but the wire contract already carries it so the client side doesn't need to change
  * again when that lands.

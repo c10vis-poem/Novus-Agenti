@@ -558,12 +558,10 @@ or retire it with the operator before assuming a single active branch.
 - **NpuManager lock, Game SDK boost, and the manifest permission/feature
   entries are all already wired** — see `§Android App / Battery Rules`.
   This file used to claim otherwise for several sessions; corrected.
-- **Vision lives in the same daemon/process as the LLM**; STT+TTS are a
-  separate media daemon. `NpuClient.kt` carries an `image_b64` field
-  end-to-end to `ort_engine`; `DaemonTtsClient` is the TTS half of the
-  media-daemon client, mirroring `DaemonSttClient`. Neither GenieX nor a
-  real media-daemon binary exist as processes yet — this is contract +
-  scaffold work, not full runtime implementation.
+- **Vision lives in the same daemon/process as the LLM**; STT+TTS run
+  **in-process** (session 19b — the media-daemon contract was deleted, see
+  Pending #2). `NpuClient.kt` carries an `image_b64` field end-to-end to
+  `ort_engine`. GenieX still doesn't exist as a process yet.
 - **Known gap**: `daemon/src/http_server.cpp` reads a single `recv()` into
   an 8KB buffer — image payloads (100KB+) will be truncated until it reads
   until Content-Length. Documented inline in that file.
@@ -609,11 +607,14 @@ or retire it with the operator before assuming a single active branch.
    `/storage/emulated/0/Download/` as of 2026-07-13 — don't re-download,
    re-verify what's there first. Once wired, update `compile/manifest.yaml`'s
    `daemon_binaries.genie_x.status` (currently "not yet forked/wired").
-2. **Real media-daemon binary** — Moonshine STT + Kokoro/Sherpa TTS as a
-   detached process on `127.0.0.1:8091`; currently only client-side
-   contracts exist (`DaemonSttClient`, `DaemonTtsClient`), nothing binds
-   that port yet. Also update `compile/manifest.yaml` once this exists —
-   it's not currently listed there at all.
+2. **~~Real media-daemon binary~~ — RESOLVED session 19b: no media daemon.**
+   The voice layer is one in-process path: Moonshine STT + Kokoro TTS via
+   the bundled sherpa-onnx AAR, Silero VAD on both ends (endpointing +
+   barge-in), models user-imported from device storage (never downloaded).
+   `DaemonSttClient`/`DaemonTtsClient` deleted. In-proc is required by the
+   system surfaces anyway (`HorizonsTtsService` system TTS engine,
+   accessibility dock, assistant) and costs ~400–500MB native on a 16GB
+   device — no OOM risk; the 9B LLM stays out-of-process behind the Router.
 3. **Fix `http_server.cpp`'s recv() truncation** before vision can actually
    round-trip end to end.
 4. **Define precise boot/loading-phase sequencing for the UI build** — the
@@ -689,8 +690,7 @@ wiki/
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
   core/llm/NpuClient.kt          model+vision daemon client
-  core/stt/DaemonSttClient.kt    media daemon client (STT half)
-  core/tts/DaemonTtsClient.kt    media daemon client (TTS half, contract only)
+  core/stt/MoonshineSttEngine.kt in-process Moonshine STT (sherpa-onnx)
   core/shell/DaemonLauncher.kt
   core/agent/AgentLoop.kt
   uilocal/LocalHomeActivity.kt   local UI fork (session 16), additive

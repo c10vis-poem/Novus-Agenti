@@ -243,6 +243,7 @@
                 <data android:pathPattern=".*\\.dlc" />
                 <data android:pathPattern=".*\\.pte" />
                 <data android:pathPattern=".*\\.qnn" />
+                <data android:pathPattern=".*\\.tar\\.bz2" />
                 <data android:mimeType="*/*" />
             </intent-filter>
 

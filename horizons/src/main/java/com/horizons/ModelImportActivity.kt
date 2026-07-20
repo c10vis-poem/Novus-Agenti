@@ -92,6 +92,10 @@ class ModelImportActivity : ComponentActivity() {
         val fileName = resolveFileName(uri)
         Log.i(TAG, "handleIntent: action=${intent.action} uri=$uri resolved fileName='$fileName'")
         when {
+            isVoiceArchive(fileName) -> {
+                statusText.value = "Extracting $fileName…"
+                scope.launch { importVoiceArchive(uri, fileName) }
+            }
             isModelFile(fileName) -> {
                 statusText.value = "Importing $fileName…"
                 scope.launch {
@@ -158,6 +162,60 @@ class ModelImportActivity : ComponentActivity() {
             Log.e(TAG, "Import failed", e)
             finishWithError("Import failed: ${e.message}")
         }
+    }
+
+    /**
+     * Voice-model archives (user-loaded from device storage, never downloaded):
+     * Kokoro TTS → filesDir/sherpa_tts, Moonshine STT → filesDir/sherpa_stt.
+     */
+    private suspend fun importVoiceArchive(uri: Uri, fileName: String) {
+        try {
+            val app = applicationContext as HorizonsApplication
+            val lower = fileName.lowercase()
+            val ok = withContext(Dispatchers.IO) {
+                when {
+                    lower.contains("kokoro") -> app.kokoroManager.importArchive(uri)
+                    lower.contains("moonshine") -> {
+                        val input = contentResolver.openInputStream(uri)
+                            ?: throw IllegalStateException("Cannot open archive stream")
+                        // Archives extract as sherpa-onnx-moonshine-*/ — flatten into modelDir.
+                        val staging = File(filesDir, "sherpa_stt/.staging")
+                        staging.deleteRecursively()
+                        input.use {
+                            com.horizons.core.voice.KokoroModelManager.extractTarBz2(it, staging)
+                        }
+                        val root = staging.listFiles()?.singleOrNull { f -> f.isDirectory } ?: staging
+                        val dest = app.stt.modelDir
+                        dest.deleteRecursively(); dest.parentFile?.mkdirs()
+                        val moved = root.renameTo(dest) || root.copyRecursively(dest, overwrite = true)
+                        staging.deleteRecursively()
+                        moved && app.stt.modelPresent().also { present ->
+                            if (present) app.stt.init()
+                        }
+                    }
+                    else -> false
+                }
+            }
+            importing.value = false
+            if (ok) {
+                statusText.value = "Voice model imported: $fileName"
+                Toast.makeText(this, "Voice model imported: $fileName", Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                })
+                finish()
+            } else {
+                finishWithError("Voice archive not recognized or incomplete: $fileName")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Voice archive import failed", e)
+            finishWithError("Import failed: ${e.message}")
+        }
+    }
+
+    private fun isVoiceArchive(name: String): Boolean {
+        val lower = name.lowercase()
+        return lower.endsWith(".tar.bz2") && (lower.contains("kokoro") || lower.contains("moonshine"))
     }
 
     private fun resolveFileName(uri: Uri): String {

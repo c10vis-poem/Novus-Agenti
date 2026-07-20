@@ -1,6 +1,7 @@
 package com.horizons.core.voice
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -8,25 +9,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.TimeUnit
+import java.io.InputStream
 
 sealed class KokoroSetupState {
     object Idle : KokoroSetupState()
-    data class Downloading(val percent: Int, val totalMb: Float) : KokoroSetupState()
     object Extracting : KokoroSetupState()
     object Ready : KokoroSetupState()
     data class Error(val message: String) : KokoroSetupState()
 }
 
 /**
- * Downloads and extracts the Kokoro multi-lang v1.0 model (~200 MB compressed).
- * Exposes [state] for UI progress.  Call [ensureReady] once at app start.
+ * Locates the Kokoro multi-lang v1.0 TTS model on device. NEVER downloads —
+ * "the user is the loader": the model archive (kokoro-multi-lang-v1_0.tar.bz2)
+ * is imported from device storage via ModelImportActivity → [importArchive],
+ * which extracts it under filesDir. After that, [ensureReady] finds it on
+ * every boot with zero network.
  */
 class KokoroModelManager(private val context: Context, private val scope: CoroutineScope) {
 
@@ -36,10 +37,14 @@ class KokoroModelManager(private val context: Context, private val scope: Corout
     val modelDir: String
         get() = File(context.filesDir, "sherpa_tts/kokoro-multi-lang-v1_0").absolutePath
 
+    /** Check disk for an already-imported model. No side effects, no network. */
     fun ensureReady() {
         val cur = _state.value
-        if (cur is KokoroSetupState.Ready || cur is KokoroSetupState.Downloading || cur is KokoroSetupState.Extracting) return
-        scope.launch(Dispatchers.IO) { checkOrDownload() }
+        if (cur is KokoroSetupState.Ready || cur is KokoroSetupState.Extracting) return
+        scope.launch(Dispatchers.IO) {
+            _state.value = if (isComplete()) KokoroSetupState.Ready
+            else KokoroSetupState.Error("Kokoro voice model not imported — open the archive from Files/Downloads to import it")
+        }
     }
 
     private fun isComplete(): Boolean {
@@ -51,81 +56,53 @@ class KokoroModelManager(private val context: Context, private val scope: Corout
             && File(dir, "espeak-ng-data").isDirectory
     }
 
-    private fun checkOrDownload() {
-        if (isComplete()) { _state.value = KokoroSetupState.Ready; return }
-        downloadAndExtract()
+    /**
+     * Extract a user-picked kokoro .tar.bz2 archive (SAF/content Uri) from
+     * device storage into filesDir. Called by ModelImportActivity. Blocking —
+     * call from an IO dispatcher. Returns true when the model is complete.
+     */
+    fun importArchive(uri: Uri): Boolean {
+        return try {
+            _state.value = KokoroSetupState.Extracting
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw IOException("Cannot open archive stream")
+            input.use { extractTarBz2(it, File(context.filesDir, "sherpa_tts")) }
+            if (isComplete()) {
+                Log.i(TAG, "Kokoro model imported to $modelDir")
+                _state.value = KokoroSetupState.Ready
+                true
+            } else {
+                _state.value = KokoroSetupState.Error("Archive extracted but expected files missing")
+                false
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Kokoro import failed", e)
+            _state.value = KokoroSetupState.Error(e.message ?: "Unknown error")
+            false
+        }
     }
 
-    private fun downloadAndExtract() {
-        val tmpFile = File(context.cacheDir, "kokoro.tar.bz2")
-        try {
-            val client = OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(10, TimeUnit.MINUTES)
-                .build()
+    companion object {
+        const val TAG = "KokoroModelManager"
 
-            _state.value = KokoroSetupState.Downloading(0, 0f)
-            val request = Request.Builder().url(MODEL_URL).build()
-
-            client.newCall(request).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                val body = resp.body ?: throw IOException("empty body")
-                val totalBytes = body.contentLength()
-                val totalMb = if (totalBytes > 0) totalBytes / (1024f * 1024f) else 0f
-                var downloaded = 0L
-
-                tmpFile.outputStream().buffered().use { out ->
-                    body.byteStream().use { src ->
-                        val buf = ByteArray(65_536)
-                        var n: Int
-                        while (src.read(buf).also { n = it } != -1) {
-                            out.write(buf, 0, n)
-                            downloaded += n
-                            if (totalBytes > 0) {
-                                _state.value = KokoroSetupState.Downloading(
-                                    percent = (downloaded * 100L / totalBytes).toInt(),
-                                    totalMb = totalMb,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            _state.value = KokoroSetupState.Extracting
-            val destDir = File(context.filesDir, "sherpa_tts")
+        /** Shared tar.bz2 extractor — also used for the Moonshine STT archive. */
+        fun extractTarBz2(src: InputStream, destDir: File) {
             destDir.mkdirs()
-            Log.i(TAG, "Extracting Kokoro model archive…")
-
-            BZip2CompressorInputStream(tmpFile.inputStream().buffered()).use { bz ->
+            BZip2CompressorInputStream(src.buffered()).use { bz ->
                 TarArchiveInputStream(bz).use { tar ->
                     var entry = tar.nextEntry
                     while (entry != null) {
                         val dest = File(destDir, entry.name)
+                        // Guard against path traversal in archive entries.
+                        if (!dest.canonicalPath.startsWith(destDir.canonicalPath + File.separator)) {
+                            throw IOException("Illegal archive entry path: ${entry.name}")
+                        }
                         if (entry.isDirectory) dest.mkdirs()
                         else { dest.parentFile?.mkdirs(); dest.outputStream().use { tar.copyTo(it) } }
                         entry = tar.nextEntry
                     }
                 }
             }
-            tmpFile.delete()
-
-            if (isComplete()) {
-                Log.i(TAG, "Kokoro model ready at $modelDir")
-                _state.value = KokoroSetupState.Ready
-            } else {
-                _state.value = KokoroSetupState.Error("Extraction incomplete — expected files missing")
-            }
-        } catch (e: Throwable) {
-            Log.e(TAG, "Kokoro download/extract failed", e)
-            tmpFile.delete()
-            _state.value = KokoroSetupState.Error(e.message ?: "Unknown error")
         }
-    }
-
-    companion object {
-        const val TAG = "KokoroModelManager"
-        const val MODEL_URL =
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2"
     }
 }
