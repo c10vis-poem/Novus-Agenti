@@ -346,7 +346,10 @@ class HorizonsApplication : Application() {
             com.horizons.core.diag.Breadcrumb.drop("onCreate_exit_ok")
         } catch (e: Throwable) {
             com.horizons.core.diag.Breadcrumb.drop("onCreate_threw: ${e.javaClass.simpleName}: ${e.message}")
-            throw e
+            android.util.Log.e("HorizonsApp", "Non-fatal onCreate failure — app will boot degraded", e)
+            if (!::appState.isInitialized) {
+                appState = AppStateStore(this)
+            }
         }
     }
 
