@@ -46,6 +46,7 @@ class CliffordService : Service() {
     private var npuPerfLock: AutoCloseable? = null
 
     private enum class DaemonState(val label: String) {
+        Idle("idle — flip a fuse in the Router to run a model"), // nothing engaged; never auto-launch
         BinaryMissing("waiting for daemon binary"),
         ModelMissing("waiting for model file"),
         Launching("starting daemon…"),
@@ -55,7 +56,7 @@ class CliffordService : Service() {
         Failed("daemon unavailable — import a model to retry"), // gave up relaunching
     }
 
-    @Volatile private var state: DaemonState = DaemonState.BinaryMissing
+    @Volatile private var state: DaemonState = DaemonState.Idle
 
     // ── Relaunch backoff + failure cap ─────────────────────────────────────────
     // Defense-in-depth against a genuinely-crashing daemon (e.g. a native segfault
@@ -120,6 +121,14 @@ class CliffordService : Service() {
                     nm.notify(NOTIF_ID, buildNotification())
                 }
 
+                // Canon gate (P0): nothing engaged in the Router and no live daemon
+                // → stay idle, never auto-launch. Clear any stale relaunch backoff so
+                // a later Router flip starts fresh.
+                if (!hasEngagedRuntime(app) && launcher?.isRunning() != true) {
+                    if (state != DaemonState.Idle) { resetFailureState(); updateState(DaemonState.Idle) }
+                    continue
+                }
+
                 // Terminal state: we gave up relaunching. Sit idle until the model
                 // changes (user imported a new/valid one), then re-arm.
                 if (state == DaemonState.Failed) {
@@ -175,8 +184,20 @@ class CliffordService : Service() {
         }
     }
 
+    /** True when the user has ENGAGED a runtime by flipping its fuse in the Router. */
+    private fun hasEngagedRuntime(app: HorizonsApplication?): Boolean =
+        app?.routerConfigs?.configs?.value?.any {
+            it.status == com.horizons.core.state.ConfigStatus.RUNNING
+        } == true
+
     private suspend fun ensureDaemonRunning() {
         val app = applicationContext as? HorizonsApplication ?: return
+        // Daemons stay dumb; the user is the loader. Never launch until the user
+        // has ENGAGED a runtime by flipping its fuse in the Router (P0 canon fix).
+        if (!hasEngagedRuntime(app)) {
+            updateState(DaemonState.Idle)
+            return
+        }
         NativeBinaryInstaller.install(this)
         if (!NativeBinaryInstaller.isInstalled(this)) {
             updateState(DaemonState.BinaryMissing)

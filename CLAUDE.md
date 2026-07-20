@@ -6,60 +6,53 @@
 > Project: Novus Agenti (Omni Claw) — fully on-device agentic AI assistant.
 > Canonical repo: c10vis-poem/Novus-Agenti.
 >
-> UI RECONSTRUCTION JUST MERGED, AND IT DID NOT LAND RIGHT — see the
-> "State of the Union — 2026-07-18 (session 17)" section below before
-> touching HomeGrid.kt or any panel background. The operator gave detailed
-> reference images (monitor-panel icon should be the chat icon, chat panel
-> should look like a specific reference screenshot, the center-hub crystal
-> should be a symmetrical ~30° bevel gem off-center/rotated 45° with NO
-> "wizard hat" silhouette, the connecting cords should read as glowing
-> plasma tubes, the sun/horizon icon needs amber + pale pinkish-purple arch
-> over a blue base) and the session that shipped it (branch
-> claude/app-reconstruction-j1mog3, PR #21, merged to main at commit
-> 027005f) did NOT verify against those images before merging — no
-> screenshot/emulator check was ever run — the operator's reference images
-> WERE available to that session, the code was just never checked against
-> rendered output before shipping. Treat every visual claim in the old
-> session-16 "Current state" bullets below as UNVERIFIED against what the
-> operator actually asked for. Next session's first job is a visual debug
-> pass on HomeGrid.kt + PaneBackgrounds.kt: build the app, take a real
-> screenshot, and compare it side-by-side against the operator's reference
-> images (ask the operator to re-share them if they're not already visible
-> in this session's history) before touching any more Canvas code.
+> WHAT THIS IS: the Horizons Workbench — an on-device agentic assistant that
+> is a manual, modular "workbench," NOT a black box. Core law: "Daemons stay
+> dumb, the user is the loader" — the app boots EMPTY and stable; nothing runs
+> until the user flips a fuse in the Router. Seven tiles feed a center-hub
+> Router; a runtime is DEFINED in Terminal → LANDS in Settings → VALIDATED by
+> Monitor (greenLight) → ENGAGED by the Router flip → supervised by
+> CliffordService. Full explicit definition:
+> knowledge/omni-claw-defined/workbench/00-TILE-HUB-ARCHITECTURE.md.
 >
-> Once that visual debug pass is stable, the daemon/runtime track below
-> (claude/notice-agent-ui-local-xa14op work, superseded conceptually by
-> what merged in PR #21 — reconcile the two before resuming daemon work)
-> resumes as the primary backend track. Earlier app-track branch
-> (sae7cy/PR #15) is merged to main (PR #17) — do not reuse it.
+> CURRENT FOCUS: get the app WORKING and wired to run as defined, AND get the
+> home dock looking right — both to 100%, every session, no "get it close."
+> The running work list is EXECUTIONS.md (the build dock). It is code-anchored
+> and prioritized: P0 stable boot (a boot regression auto-launches the daemon —
+> canon violation), P1 wire the fuse box to actually execute, P2 GenieX +
+> model round-trip, P3 the amperage/OOM check, V home-dock visuals. Read the
+> build dock after the canon, before touching code. Do NOT assume the old
+> RuntimeDefStore/RouterPane/CliffordService code already implements canon — it
+> contradicts it in the ways the dock lists.
 >
-> The compile pipeline (ONNX → QAI Hub, branch claude/project-scope-review-lf615p,
-> PR #4) is DORMANT — not a second parallel track to pick up by default. It
-> only becomes active if the primary path (Q4_0 GGUF via GenieX's GGML
-> backend, no compile needed) hits a hard failure on real hardware. See
+> The compile pipeline (ONNX → QAI Hub, PR #4) is DORMANT — only if the
+> primary Q4_0 GGUF via GenieX path hard-fails on hardware. See
 > wiki/COMPILE-PIPELINE.md. Don't run Job 8 pre-emptively.
 >
-> READ THESE IN ORDER BEFORE ANY ACTION — this list IS the `horizons-wiki`
-> skill's bundle (items 1, 3, 4) plus `project-memory`'s always-read tier
-> (item 2); load them now, from the start of the session, not on demand
-> partway through:
->   1. CLAUDE.md (full read, all sections, including current State of the Union)
->   2. knowledge/omni-claw-defined/ (always-read core project definition)
->   3. knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md
->   4. knowledge/daemon-reference/NPU-RUNTIME-PATHS.md
->   5. compile/manifest.yaml
+> READ THESE IN FULL BEFORE ANY ACTION — the mandatory first-read canon (all
+> MARKDOWN, human+model readable; ingest them, don't just note they exist):
+>   1. CLAUDE.md (full, incl. current State of the Union)
+>   2. knowledge/omni-claw-defined/ — what the app IS + how it works, INCLUDING
+>      workbench/00-TILE-HUB-ARCHITECTURE.md and the three workbench/*.md docs
+>   3. knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md + NPU-RUNTIME-PATHS.md
+>   4. compile/manifest.yaml
+>   5. EXECUTIONS.md — the build dock (the "go here, do this" work list)
 >
-> For anything beyond this initial bundle (compile-pipeline detail, QAIRT
-> SDK reference, prior research, device inventory) use `project-memory`'s
-> retrieval pattern — Grep/Glob the relevant `knowledge/*.jsonl` on demand,
-> don't preload the whole corpus.
+> JSONL is for GREP/RETRIEVAL ONLY — never a first-read. The .jsonl files exist
+> so a session can grep one chunk on demand; the .md versions above ARE the
+> first read. For deep reference (QAIRT SDK, prior research, device inventory)
+> grep the relevant knowledge/*.jsonl on demand — don't preload the corpus.
 >
-> Use /memory slash command to reload full project context. There is no
-> separate per-session handoff file — CLAUDE.md's State of the Union IS
-> the current-state doc, updated in place each session.
-> After reading: state current SOTU, next action. Then wait.
-> HF_TOKEN / QAI_HUB_API_TOKEN come from the environment config (§Tokens
-> below) — already exported, no manual step needed. Never hardcode them.
+> VISUAL work only: wiki/HOME-REDESIGN-SPEC.md + wiki/home-redesign-img/ is the
+> home-dock visual canon. It is NOT first-read canon — open it ONLY when doing
+> V-track visual work. Every visual change ends with a real on-device
+> screenshot vs. the reference (operator is the on-device check; cloud has no
+> Android SDK).
+>
+> Use /memory to reload. CLAUDE.md's State of the Union is the current-state
+> doc; EXECUTIONS.md is the running build dock. After reading: state SOTU +
+> next dock item, then wait. HF_TOKEN / QAI_HUB_API_TOKEN come from the
+> environment config (§Tokens) — already exported. Never hardcode them.
 > ```
 
 ---
@@ -68,17 +61,19 @@
 
 Type `/memory` in any Claude Code session to reload full project context.
 
-**Sequence:**
-1. Read `CLAUDE.md` (this file, all sections, including the current
+**Sequence (all first-read = MARKDOWN; JSONL is grep-only, never first-read):**
+1. Read `CLAUDE.md` (this file, all sections, incl. the current
    `## State of the Union` — there is no separate handoff file)
-2. Read `knowledge/omni-claw-defined/` (always-read core project definition)
-3. Read `knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md`
-4. Read `knowledge/daemon-reference/NPU-RUNTIME-PATHS.md`
-5. Read `compile/manifest.yaml`
-6. For anything else (compile pipeline, QAIRT SDK detail, prior research),
-   retrieve on demand from `knowledge/*.jsonl` per
-   `skills/project-memory/SKILL.md` — don't preload it
-7. Produce a SOTU summary and confirm next action before touching any file
+2. Read `knowledge/omni-claw-defined/` — what the app IS + how it works,
+   INCLUDING `workbench/00-TILE-HUB-ARCHITECTURE.md` and the three
+   `workbench/*.md` docs (the fuse-box / seven-tile definition)
+3. Read `knowledge/daemon-reference/GPT-DAEMON-REFERENCE.md` + `NPU-RUNTIME-PATHS.md`
+4. Read `compile/manifest.yaml`
+5. Read `EXECUTIONS.md` — the running build dock (prioritized work list)
+6. For anything else (compile pipeline, QAIRT SDK detail, prior research,
+   device inventory), retrieve on demand by grepping `knowledge/*.jsonl` per
+   `skills/project-memory/SKILL.md` — don't preload it, and don't first-read it
+7. Produce a SOTU summary + next dock item, confirm before touching any file
 
 ---
 
@@ -499,120 +494,54 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-20 (session 18)
+## State of the Union — 2026-07-20 (session 19)
 
-This is the **only** current-state doc in this repo — updated in place
-each session, not accumulated as a new file per session. Historical
-session-by-session detail lives in git history (commit log + old PR
-diffs), not here — if you need "what happened in session 12," check the
-log, don't expect it copy-pasted in this file. Note: as of session 18
-there is now also an append-only **`EXECUTIONS.md`** — that is the
-*history* ledger (one block per session, never edited after the fact);
-this SOTU remains the *current-state* doc, rewritten in place. Don't
-conflate the two.
+This is the current-state doc, rewritten in place each session. The
+**running work list is `EXECUTIONS.md` — the build dock** (code-anchored,
+prioritized: "go here, do this"); this SOTU points at it, it is the work
+authority, not the old "Pending" list below. Historical detail lives in git
+history, not here.
 
-### Session 18 — Omni Claw UI environment + master-session scaffold + built-in failure monitoring
+**Visual work is NOT tracked here.** The home-dock redesign lives only in
+`wiki/HOME-REDESIGN-SPEC.md` + `wiki/home-redesign-img/`, read only when doing
+V-track work. (Earlier SOTUs let a visual saga dominate this file; stripped.)
 
-Branch `claude/omni-claws-ui-setup-nl1573` is designated the **Omni Claw
-UI environment**. This session added the scaffolding for running "master
-coding sessions" here and a failure-monitoring pipeline any CLI sandbox
-can read via the GitHub workbench:
+### Session 19 — canon made explicit + build dock created
 
-- **Built-in failure monitoring** — `horizons/.../core/diag/FailureMonitor.kt`
-  consolidates `CrashRecorder` + `Breadcrumb` + `InteractionLogger` errors
-  into one adb-pullable `externalFilesDir/failures/` dir (`report.json`
-  machine-readable + `REPORT.md` human). Wired into
-  `HorizonsApplication.onCreate()`; surfaced via a "Failure Report" action
-  in `ArtifactsPane` Boot Diagnostics. Use `FailureMonitor.record(tag,
-  msg, throwable)` at silent-catch sites.
-- **GitHub-native failure surface** — `FAILURES.md` (index/ledger across
-  the three surfaces), `.github/workflows/failure-monitor.yml` (watches
-  `build-apk`, uploads a `failure-report` artifact on non-success), and
-  `tools/failures.sh` (`ci` / `report` / `device` fetch entry point).
-- **Master-session setup** — `agents/omni-claws-master.agent.yaml` (Fable 5
-  lead orchestrator) + `wiki/MASTER-SESSION.md` (operating playbook: roles,
-  fan-out rules, build-monitor loop). Sub-agents still use the existing
-  `sub-agent.agent.yaml` / `agents/build-runner.yaml` templates.
-- **`EXECUTIONS.md`** — new per-session history ledger with an update
-  contract (prepend a block every session at end, commit + push).
+The operator supplied the missing canon (3 workbench docs + the home-dock
+visual spec) that pins down **how the app works under the hood**, not just
+what it is. This session:
 
-All session-18 changes are additive (new files + two small wiring edits) —
-no existing behavior changed.
+- **Folded the canon into first-read** — the 3 workbench docs are now
+  `knowledge/omni-claw-defined/workbench/*.md`, plus a new
+  `workbench/00-TILE-HUB-ARCHITECTURE.md` that **explicitly defines each
+  tile's function and how it wires to the center-hub Router** (this was
+  never written down; the old code only *assumed* it). Read the workbench
+  folder as canon.
+- **Created the build dock** — `EXECUTIONS.md` is now the code-anchored,
+  prioritized work list (repurposed from the earlier scaffolding file).
+- **Found the boot regression + a core contradiction:** the app carries
+  **two conflicting runtime models** — the canon fuse-box (built as UI +
+  validation only, never executes) and a legacy `CliffordService`
+  auto-launcher that **auto-starts the daemon at boot** (via
+  `resolveNpuModelPath()` auto-detecting a model in `/Download`), which is
+  the "won't boot" regression and a direct canon violation. Details +
+  fixes in the build dock (P0/P1).
+- **Stripped the visual saga** out of this file; it lives only in
+  `wiki/HOME-REDESIGN-SPEC.md` now. JSONL is grep-only; MD is first-read.
 
-**Hygiene flag (per protocol):** an active branch
-`claude/app-redesign-layered-t55d47` (CI green ~2026-07-19) exists on the
-remote but is NOT reflected in this SOTU or the branch policy below. Raised
-to the operator; not touched this session. The operator should confirm how
-it relates to the UI-environment branch before the next session assumes a
-single active branch.
+**Standing rule (operator):** every session gets the app running AND looking
+right, both to 100% — no "get it close." Every visual change ends with a real
+on-device screenshot vs. the reference.
 
-### Session 17 — UI reconstruction shipped, then merged WITHOUT verifying it matched what was asked for
+**Still real from session 18** (secondary): built-in failure monitoring —
+`core/diag/FailureMonitor.kt` + `FAILURES.md` + `failure-monitor.yml` +
+`tools/failures.sh`. Master-session scaffold — `agents/omni-claws-master.agent.yaml`
++ `wiki/MASTER-SESSION.md`.
 
-**What went wrong, stated plainly:** the operator supplied real reference
-images at multiple points across the session (a banner reference + goat
-photo, a chonky-orange-cat photo for the connection-lost state, and later
-a set of reference images for the monitor-panel icon, the chat panel look,
-and the plasma-tube cord style) and the model executing the work (run
-under Fable 5 for most of the visual/code work, per the operator) had
-those images available but wrote the Compose `Canvas`/`drawScope` code
-from its own interpretation without ever rendering the app and checking
-the output against them. No screenshot was taken, no emulator was run, no
-visual diff against the supplied images happened at any point before PR
-#21 was merged to `main` (commit `027005f`) at the operator's request. The
-operator's read after seeing the real result: none of the specific asks —
-the monitor icon matching the chat icon, the chat panel matching its
-reference, the crystal being a symmetrical bevel-cut gem instead of a
-"wizard hat" silhouette, the cords reading as plasma tubes, the amber sun
-/ pale pinkish-purple arch color treatment — actually landed correctly,
-and the merge made the `HomeGrid` visual state worse, not better. **Do not
-treat the "Current state" bullets carried over from session 16 below as
-visually verified — they describe what the code was intended to do, not
-what was confirmed on screen.**
-
-**Root cause:** having the reference images was not the gap — skipping the
-build+screenshot verification step was. The code was written and shipped
-on the strength of "this should match the description" without ever
-closing the loop by actually looking at rendered output next to the
-reference. Any future visual/graphics task in this repo MUST end with an
-actual rendered screenshot (emulator or device) compared side-by-side
-against whatever reference was supplied, before calling the work done —
-not just before merging, but before telling the operator it's ready to
-review.
-
-**What actually shipped in PR #21** (code is real and merged, only the
-*visual fidelity* is in question): `HomeGrid.kt` redesign (banner text,
-`drawCoreHubCrystal()`, conduit glow layers, per-tile icons, `StatusDot`,
-goat Easter egg + synthesized bleat, `drawAstralBackground()`), themed
-`PaneBackgrounds.kt` per panel (circuit-trace/oscilloscope/vault-door/
-film-grain), `Screensaver.kt` (idle screensaver with swappable device-
-storage image), interactivity pass (`SelectionContainer` + long-press
-menus), `ArchiveStore.kt` + `ArtifactsPane.kt` file manager, model
-plug-in pin (`KEY_ACTIVE_MODEL` in `AppStateStore.kt`), and the full
-runtime-definition pipeline (`RuntimeDefStore.kt`: define in Terminal →
-green-light check in Monitor → fuse-box re-validation gate in
-`RouterPane.kt`'s `switchOn()`). All of this compiles and is architecturally
-sound — the pending work is making the *visuals* match what was asked for,
-not rebuilding the pipeline underneath them.
-
-**Next session's concrete task list** (visual debug, not new features):
-1. If the reference images (monitor icon, chat panel, plasma-tube cords,
-   color reference) aren't already visible in this session's history, ask
-   the operator to re-attach them — but don't assume they're missing; check
-   first.
-2. Build the APK / run in an emulator, take a real screenshot of the home
-   grid.
-3. Compare side-by-side against references for: monitor-tile icon (should
-   match the chat icon's look, per operator), chat-panel visual (should
-   match its reference image), center-hub crystal (symmetrical ~30° bevel,
-   NOT the current silhouette if it reads as a "wizard hat", off-center,
-   rotated ~45°), conduit cords (should read as glowing plasma tubes per
-   the third reference, not the current 4-layer glow lines), HORIZONS icon
-   colors (amber sun/rays, blue at the bottom, pale pinkish-purple arch —
-   verify current `drawScope` color values actually produce this, not just
-   that amber/blue/purple appear somewhere).
-4. Fix `HomeGrid.kt` and `PaneBackgrounds.kt` iteratively against the
-   screenshot loop until confirmed, not against re-reading the text
-   description again.
+**Branch note:** `claude/app-redesign-layered-t55d47` is where the visual
+spec + reference images came from (now copied into this branch). Reconcile
+or retire it with the operator before assuming a single active branch.
 
 ### Current state (session 16 carryover — daemon/runtime track, separate from the UI reconstruction above)
 
