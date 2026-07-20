@@ -296,6 +296,11 @@ class HorizonsApplication : Application() {
             CrashRecorder(this).install()
             com.horizons.core.diag.Breadcrumb.drop("crashrecorder_installed")
 
+            // Consolidate crashes + logged errors into one adb-pullable failure
+            // report at externalFilesDir/failures/ (see FailureMonitor / FAILURES.md).
+            com.horizons.core.diag.FailureMonitor.install(this)
+            com.horizons.core.diag.Breadcrumb.drop("failuremonitor_installed")
+
             appState = AppStateStore(this)
             com.horizons.core.diag.Breadcrumb.drop("appstate_loaded")
 

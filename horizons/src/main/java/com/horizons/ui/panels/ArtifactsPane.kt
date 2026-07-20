@@ -255,6 +255,17 @@ fun ArtifactsPane(
                             diagText = com.horizons.core.diag.Breadcrumb.readAll()
                         },
                     )
+                    Text(
+                        "Failure Report",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = HorizonsColors.TileMonitor,
+                        modifier = Modifier.clickable {
+                            // Rebuilds externalFilesDir/failures/{report.json,REPORT.md}
+                            // — adb-pullable, see FAILURES.md.
+                            diagText = com.horizons.core.diag.FailureMonitor.snapshot()
+                        },
+                    )
                 }
             }
         }

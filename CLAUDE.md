@@ -499,13 +499,52 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-18 (session 17)
+## State of the Union — 2026-07-20 (session 18)
 
 This is the **only** current-state doc in this repo — updated in place
 each session, not accumulated as a new file per session. Historical
 session-by-session detail lives in git history (commit log + old PR
 diffs), not here — if you need "what happened in session 12," check the
-log, don't expect it copy-pasted in this file.
+log, don't expect it copy-pasted in this file. Note: as of session 18
+there is now also an append-only **`EXECUTIONS.md`** — that is the
+*history* ledger (one block per session, never edited after the fact);
+this SOTU remains the *current-state* doc, rewritten in place. Don't
+conflate the two.
+
+### Session 18 — Omni Claw UI environment + master-session scaffold + built-in failure monitoring
+
+Branch `claude/omni-claws-ui-setup-nl1573` is designated the **Omni Claw
+UI environment**. This session added the scaffolding for running "master
+coding sessions" here and a failure-monitoring pipeline any CLI sandbox
+can read via the GitHub workbench:
+
+- **Built-in failure monitoring** — `horizons/.../core/diag/FailureMonitor.kt`
+  consolidates `CrashRecorder` + `Breadcrumb` + `InteractionLogger` errors
+  into one adb-pullable `externalFilesDir/failures/` dir (`report.json`
+  machine-readable + `REPORT.md` human). Wired into
+  `HorizonsApplication.onCreate()`; surfaced via a "Failure Report" action
+  in `ArtifactsPane` Boot Diagnostics. Use `FailureMonitor.record(tag,
+  msg, throwable)` at silent-catch sites.
+- **GitHub-native failure surface** — `FAILURES.md` (index/ledger across
+  the three surfaces), `.github/workflows/failure-monitor.yml` (watches
+  `build-apk`, uploads a `failure-report` artifact on non-success), and
+  `tools/failures.sh` (`ci` / `report` / `device` fetch entry point).
+- **Master-session setup** — `agents/omni-claws-master.agent.yaml` (Fable 5
+  lead orchestrator) + `wiki/MASTER-SESSION.md` (operating playbook: roles,
+  fan-out rules, build-monitor loop). Sub-agents still use the existing
+  `sub-agent.agent.yaml` / `agents/build-runner.yaml` templates.
+- **`EXECUTIONS.md`** — new per-session history ledger with an update
+  contract (prepend a block every session at end, commit + push).
+
+All session-18 changes are additive (new files + two small wiring edits) —
+no existing behavior changed.
+
+**Hygiene flag (per protocol):** an active branch
+`claude/app-redesign-layered-t55d47` (CI green ~2026-07-19) exists on the
+remote but is NOT reflected in this SOTU or the branch policy below. Raised
+to the operator; not touched this session. The operator should confirm how
+it relates to the UI-environment branch before the next session assumes a
+single active branch.
 
 ### Session 17 — UI reconstruction shipped, then merged WITHOUT verifying it matched what was asked for
 

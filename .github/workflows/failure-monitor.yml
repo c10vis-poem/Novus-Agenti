@@ -1,0 +1,97 @@
+name: failure-monitor
+
+# Watches the build-apk workflow. Whenever a build run finishes, this job
+# records the outcome and — on failure — extracts the failing steps into a
+# machine-readable report that any CLI sandbox can pull from the GitHub
+# workbench:
+#
+#   Actions tab -> failure-monitor run -> artifact "failure-report"
+#   or via API:  GET /repos/{owner}/{repo}/actions/artifacts
+#
+# See tools/failures.sh for a one-liner fetch, and FAILURES.md for the
+# human-maintained ledger this feeds.
+
+on:
+  workflow_run:
+    workflows: ["build-apk"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect build outcome + failing logs
+        id: collect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p failure-report
+          # workflow_dispatch has no triggering run — resolve the latest build-apk run.
+          if [ -z "${RUN_ID:-}" ]; then
+            RUN_ID=$(gh run list --workflow build-apk.yml --limit 1 --json databaseId -q '.[0].databaseId')
+            RUN_CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q .conclusion)
+            RUN_BRANCH=$(gh run view "$RUN_ID" --json headBranch -q .headBranch)
+            RUN_SHA=$(gh run view "$RUN_ID" --json headSha -q .headSha)
+            RUN_URL=$(gh run view "$RUN_ID" --json url -q .url)
+          fi
+
+          TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          {
+            echo "ts=$TS"
+            echo "run_id=$RUN_ID"
+            echo "branch=$RUN_BRANCH"
+            echo "sha=$RUN_SHA"
+            echo "conclusion=$RUN_CONCLUSION"
+            echo "url=$RUN_URL"
+          } | tee failure-report/summary.txt
+
+          echo "conclusion=$RUN_CONCLUSION" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## build-apk: \`$RUN_CONCLUSION\`"
+            echo ""
+            echo "- branch: \`$RUN_BRANCH\`  sha: \`${RUN_SHA:0:7}\`"
+            echo "- run: $RUN_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$RUN_CONCLUSION" != "success" ]; then
+            echo "Build did not succeed — extracting failing logs."
+            gh run view "$RUN_ID" --log-failed > failure-report/failed-log.txt 2>/dev/null || \
+              gh run view "$RUN_ID" --log > failure-report/failed-log.txt 2>/dev/null || \
+              echo "(could not fetch logs)" > failure-report/failed-log.txt
+            # Compact grep of the usual Gradle/CMake/Kotlin failure markers.
+            grep -nE 'FAILURE:|error:|CMake Error|> Task .* FAILED|e: |Exception|What went wrong' \
+              failure-report/failed-log.txt | head -80 > failure-report/highlights.txt || true
+            {
+              echo ""
+              echo "<details><summary>failure highlights</summary>"
+              echo ""
+              echo '```'
+              head -60 failure-report/highlights.txt 2>/dev/null || true
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "(build succeeded — no failing logs)" > failure-report/highlights.txt
+          fi
+
+      - name: Upload failure-report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-report
+          path: failure-report/*
+          if-no-files-found: warn
+          retention-days: 30

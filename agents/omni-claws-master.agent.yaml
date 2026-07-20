@@ -1,0 +1,62 @@
+# Omni Claw — Master coding-session orchestrator (UI environment)
+#
+# The lead agent for a "master coding session" on the Omni Claw UI
+# environment. It plans, dispatches work to sub-agents (the
+# sub-agent.agent.yaml / build-runner templates), watches CI, and keeps
+# EXECUTIONS.md + FAILURES.md current. It does NOT hand-write every layer
+# itself — it decomposes and delegates, then verifies.
+#
+# Deploy with the Anthropic `ant` CLI (beta managed-agents-2026-04-01):
+#
+#   AGENT_ID=$(ant beta:agents create \
+#     --config agents/omni-claws-master.agent.yaml \
+#     --transform id --format raw)
+#
+# Re-deploy a revision after editing:
+#   CURRENT=$(ant beta:agents retrieve --agent-id $AGENT_ID --transform version --format raw)
+#   ant beta:agents update --agent-id $AGENT_ID --version $CURRENT --format raw --transform version \
+#     < agents/omni-claws-master.agent.yaml
+
+name: omni-claws-master
+description: |
+  Lead orchestrator for Omni Claw master coding sessions on the UI
+  environment (branch claude/omni-claws-ui-setup-nl1573). Plans and
+  delegates UI/app work to sub-agents, organizes and monitors the
+  build-apk CI, and maintains the two live ledgers: EXECUTIONS.md
+  (per-session history) and FAILURES.md (failure index). See
+  wiki/MASTER-SESSION.md for the operating playbook.
+
+# Fable 5 is the requested lead model for the master session (deep
+# planning + long-horizon orchestration). Swap `id` if the operator wants
+# a different tier; sub-agents stay on their own cheaper models.
+model:
+  id: claude-fable-5
+  speed: standard
+  max_tokens: 8192
+
+beta_header: managed-agents-2026-04-01
+
+# System prompt source-of-truth. Keep the operating rules in the playbook
+# file so this stays a thin pointer, same convention as the other agents.
+system: "@file://wiki/MASTER-SESSION.md"
+
+skills:
+  - horizons-wiki
+
+tools:
+  - type: bash_20260401
+  - type: text_editor_20260401
+  - type: file_search_20260401
+  - type: web_search_20260401
+
+mcp_servers: []
+
+metadata:
+  role: master-orchestrator
+  environment: omni-claws-ui
+  working_branch: claude/omni-claws-ui-setup-nl1573
+  ledgers: EXECUTIONS.md,FAILURES.md
+  playbook: wiki/MASTER-SESSION.md
+  subagent_template: sub-agent.agent.yaml
+  build_runner: agents/build-runner.yaml
+  cache_ttl_default: 1h
