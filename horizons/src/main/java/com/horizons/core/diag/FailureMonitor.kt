@@ -16,7 +16,7 @@ import java.util.TimeZone
  * The app already scatters failure traces across three places:
  *   - [Breadcrumb]       -> externalFilesDir/diag/{boot.log,crash.log}
  *   - [com.horizons.core.log.CrashRecorder] -> filesDir/crashes/crash_*.txt
- *   - [com.horizons.core.log.InteractionLogger] -> filesDir/logs/*.jsonl (kind="error")
+ *   - [com.horizons.core.log.InteractionLogger] -> filesDir/logs (JSONL, kind="error")
  *
  * FailureMonitor consolidates all of them plus any explicitly-recorded
  * failures into ONE adb-pullable location:
