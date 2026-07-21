@@ -77,7 +77,7 @@ fun HomeGrid(
 
     val npuReady = backendStatus.startsWith("Hexagon HTP") || backendStatus.startsWith("Adreno 830")
 
-    val stars = remember { generateStars(120) }
+    val stars = remember { generateStars(180) }
     var goatTaps by remember { mutableIntStateOf(0) }
     var showGoat by remember { mutableStateOf(false) }
     var goatReason by remember { mutableStateOf<String?>(null) }
@@ -107,7 +107,7 @@ fun HomeGrid(
         ) {
             Spacer(Modifier.height(12.dp))
 
-            // ── Banner — chunky monospace logo, one-line motto (spec §5) ────
+            // ── Banner — chunky monospace logo, one-line motto (spec §1) ────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -121,16 +121,18 @@ fun HomeGrid(
                             playGoatBleat()
                         }
                     },
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Logo — keep green, chunky monospace/terminal face
+                // Logo — centered, chunky monospace/terminal face, 1/3 bigger
                 Text(
-                    "MØ[)u14R_  11(",
+                    "MØ[)u14R_11(",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Black,
-                    fontSize = 34.sp,
+                    fontSize = 44.sp,
                     letterSpacing = 1.sp,
                     color = HorizonsColors.PrimaryTeal,
                     maxLines = 1,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 // Motto — ONE unbroken line, (Next-Gen Certified) in parens
@@ -142,8 +144,10 @@ fun HomeGrid(
                     letterSpacing = 0.sp,
                     color = HorizonsColors.PrimaryTeal,
                     maxLines = 1,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(Modifier.height(2.dp))
                 // Version — bottom-right
                 Text(
                     "HORIZONS // V4",
@@ -170,47 +174,19 @@ fun HomeGrid(
             )
 
 
-            // ── System Status Bar ───────────────────────────────────────────
-            Surface(
-                color = HorizonsColors.Surface.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(vertical = 10.dp),
-                ) {
-                    Text(
-                        "// SYSTEM_STATUS",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 9.sp,
-                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        StatusDot("ASR", HorizonsColors.StatusAsr, active = true)
-                        StatusDot("LLM", HorizonsColors.StatusLlm, active = npuReady)
-                        StatusDot("TTS", HorizonsColors.StatusTts, active = true)
-                        StatusDot("MLLM", HorizonsColors.StatusMllm, active = false)
-                        StatusDot("VAG", HorizonsColors.StatusVag, active = false)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // ── Input bar ───────────────────────────────────────────────────
+            // ── Input bar (ABOVE config nodes per spec §7) ─────────────────
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-                    .clickable { onTileClick(Panel.Chat) },
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { onTileClick(Panel.Chat) },
+                        )
+                    },
                 shape = RoundedCornerShape(24.dp),
                 color = HorizonsColors.Surface,
-                border = BorderStroke(1.dp, HorizonsColors.PrimaryTeal.copy(alpha = 0.2f)),
+                border = BorderStroke(1.dp, HorizonsColors.PrimaryTeal.copy(alpha = 0.35f)),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -234,6 +210,38 @@ fun HomeGrid(
                         fontSize = 18.sp,
                         color = HorizonsColors.PrimaryTeal,
                     )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── System Status Nodes (BELOW chat bar per spec §8) ───────────
+            Surface(
+                color = HorizonsColors.Surface.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(vertical = 10.dp),
+                ) {
+                    Text(
+                        "// SYSTEM_STATUS",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        color = HorizonsColors.PrimaryTeal.copy(alpha = 0.35f),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        StatusDot("ASR", HorizonsColors.StatusAsr, active = true)
+                        StatusDot("LLM", HorizonsColors.StatusLlm, active = npuReady)
+                        StatusDot("TTS", HorizonsColors.StatusTts, active = true)
+                        StatusDot("MLLM", HorizonsColors.StatusMllm, active = false)
+                        StatusDot("VAG", HorizonsColors.StatusVag, active = false)
+                    }
                 }
             }
 
@@ -356,10 +364,11 @@ private fun ClockWheel(
         }
 
         // Center Router hub — violet crystal + white sun aura
+        val hubSize = 150.dp
         Box(
             modifier = Modifier
-                .size(120.dp)
-                .offset(x = w * hubX - 60.dp, y = h * hubY - 60.dp)
+                .size(hubSize)
+                .offset(x = w * hubX - hubSize / 2, y = h * hubY - hubSize / 2)
                 .clickable { onTileClick(Panel.Router) },
             contentAlignment = Alignment.Center,
         ) {
@@ -371,7 +380,7 @@ private fun ClockWheel(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .width(160.dp)
-                .offset(x = w * hubX - 80.dp, y = h * hubY + 44.dp),
+                .offset(x = w * hubX - 80.dp, y = h * hubY + 58.dp),
         ) {
             Text(
                 "// CORE_HUB",
@@ -573,6 +582,27 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
         }
     }
 
+    // Extra telemetry circle clusters at different positions (spec §2)
+    val extraRingColor = Color(0xFF2DD4D9).copy(alpha = 0.03f)
+    // Cluster 1 — upper-left
+    val c1x = size.width * 0.18f
+    val c1y = size.height * 0.22f
+    for (i in 1..3) {
+        drawCircle(extraRingColor, radius = 30f + i * 28f, center = Offset(c1x, c1y), style = Stroke(0.7f))
+    }
+    // Cluster 2 — lower-right
+    val c2x = size.width * 0.82f
+    val c2y = size.height * 0.72f
+    for (i in 1..4) {
+        drawCircle(extraRingColor, radius = 22f + i * 24f, center = Offset(c2x, c2y), style = Stroke(0.6f))
+    }
+    // Cluster 3 — mid-left
+    val c3x = size.width * 0.12f
+    val c3y = size.height * 0.58f
+    for (i in 1..2) {
+        drawCircle(extraRingColor.copy(alpha = 0.025f), radius = 40f + i * 35f, center = Offset(c3x, c3y), style = Stroke(0.5f))
+    }
+
     // (Plasma cords are drawn per-tile in ClockWheel now, matching the
     //  clock-face positions — they used to live here for the old 2-row grid.)
 }
@@ -580,25 +610,45 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
 // ── Plasma cord — glowing tube from a tile-node into the hub ────────────────
 
 private fun DrawScope.drawPlasmaCord(from: Offset, hub: Offset, c: Color) {
-    // 4 stacked glow layers → soft outer halo down to a bright core
-    drawLine(c.copy(alpha = 0.04f), from, hub, 22f, StrokeCap.Round)
-    drawLine(c.copy(alpha = 0.08f), from, hub, 10f, StrokeCap.Round)
-    drawLine(c.copy(alpha = 0.16f), from, hub, 4f, StrokeCap.Round)
-    drawLine(c.copy(alpha = 0.32f), from, hub, 1.4f, StrokeCap.Round)
+    // Curved bezier — organic flow, not straight protractor lines
+    val midX = (from.x + hub.x) / 2f
+    val midY = (from.y + hub.y) / 2f
+    val dx = hub.x - from.x
+    val dy = hub.y - from.y
+    // Perpendicular offset for curve bulge
+    val perpX = -dy * 0.18f
+    val perpY = dx * 0.18f
+    val cp1 = Offset(from.x + dx * 0.3f + perpX, from.y + dy * 0.3f + perpY)
+    val cp2 = Offset(from.x + dx * 0.7f + perpX * 0.5f, from.y + dy * 0.7f + perpY * 0.5f)
 
-    // Beads running along the tube
+    // 4 stacked glow layers on the curved path
+    val widths = floatArrayOf(22f, 10f, 4f, 1.6f)
+    val alphas = floatArrayOf(0.05f, 0.10f, 0.18f, 0.35f)
+    for (layer in widths.indices) {
+        val path = Path().apply {
+            moveTo(from.x, from.y)
+            cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, hub.x, hub.y)
+        }
+        drawPath(path, c.copy(alpha = alphas[layer]), style = Stroke(width = widths[layer], cap = StrokeCap.Round))
+    }
+
+    // Beads along the bezier curve
     val steps = 7
     for (i in 1 until steps) {
         val t = i.toFloat() / steps
-        val nodeAlpha = 0.20f + sin(t * PI.toFloat()) * 0.30f
-        val nodePos = Offset(from.x + (hub.x - from.x) * t, from.y + (hub.y - from.y) * t)
-        drawCircle(c.copy(alpha = nodeAlpha * 0.7f), 3.5f, nodePos)
-        drawCircle(c.copy(alpha = nodeAlpha * 0.25f), 6.5f, nodePos, style = Stroke(0.8f))
+        val ti = 1f - t
+        // Cubic bezier point
+        val bx = ti * ti * ti * from.x + 3f * ti * ti * t * cp1.x + 3f * ti * t * t * cp2.x + t * t * t * hub.x
+        val by = ti * ti * ti * from.y + 3f * ti * ti * t * cp1.y + 3f * ti * t * t * cp2.y + t * t * t * hub.y
+        val nodeAlpha = 0.25f + sin(t * PI.toFloat()) * 0.30f
+        val nodePos = Offset(bx, by)
+        drawCircle(c.copy(alpha = nodeAlpha * 0.75f), 3.5f, nodePos)
+        drawCircle(c.copy(alpha = nodeAlpha * 0.25f), 7f, nodePos, style = Stroke(0.8f))
     }
 
     // Anchor node at the tile end
-    drawCircle(c.copy(alpha = 0.45f), 3.5f, from)
-    drawCircle(c.copy(alpha = 0.15f), 7f, from, style = Stroke(0.8f))
+    drawCircle(c.copy(alpha = 0.50f), 4f, from)
+    drawCircle(c.copy(alpha = 0.18f), 8f, from, style = Stroke(1f))
 }
 
 // ── 3D Hexagonal crystal ────────────────────────────────────────────────────
@@ -924,35 +974,55 @@ private fun DrawScope.drawTileIcon(type: TileType, color: Color) {
             )
         }
         TileType.SETTINGS -> {
-            // Gear with lightning bolt
-            val gearR = r * 0.6f
-            val teeth = 8
-            drawCircle(
-                color = color,
-                radius = gearR * 0.55f,
-                center = Offset(cx, cy),
-                style = Stroke(width = 2f),
+            // Sun/flash icon: solid circle + yellow bolt + dashed ring + blocky rays
+            val sunR = r * 0.38f
+            val ringR = r * 0.62f
+            val rayCount = 12
+            val rayInner = r * 0.70f
+            val rayOuter = r * 0.92f
+            val rayWidth = 3.2f
+
+            // Solid pink center circle
+            drawCircle(color = color, radius = sunR, center = Offset(cx, cy))
+
+            // Dashed circle ring — draw arc segments between the rays
+            val ringOval = androidx.compose.ui.geometry.Rect(
+                cx - ringR, cy - ringR, cx + ringR, cy + ringR,
             )
-            for (i in 0 until teeth) {
-                val angle = (i * 360f / teeth) * PI.toFloat() / 180f
-                val innerR = gearR * 0.7f
-                val outerR = gearR * 1.0f
-                drawLine(
-                    color = color,
-                    start = Offset(cx + cos(angle) * innerR, cy + sin(angle) * innerR),
-                    end = Offset(cx + cos(angle) * outerR, cy + sin(angle) * outerR),
-                    strokeWidth = 3f,
-                    cap = StrokeCap.Round,
+            for (i in 0 until rayCount) {
+                val startAngle = i * 360f / rayCount + 360f / rayCount * 0.25f
+                val sweepAngle = 360f / rayCount * 0.5f
+                drawArc(
+                    color = color.copy(alpha = 0.55f),
+                    startAngle = startAngle,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    topLeft = ringOval.topLeft,
+                    size = Size(ringOval.width, ringOval.height),
+                    style = Stroke(width = 1.5f, cap = StrokeCap.Butt),
                 )
             }
-            // Lightning bolt
-            val bolt = Path().apply {
-                moveTo(cx + 1f, cy - gearR * 0.35f)
-                lineTo(cx - 3f, cy + 1f)
-                lineTo(cx + 1f, cy + 1f)
-                lineTo(cx - 1f, cy + gearR * 0.35f)
+
+            // Blocky rectangular ray/tick marks at each position
+            for (i in 0 until rayCount) {
+                val angle = (i * 360f / rayCount) * PI.toFloat() / 180f
+                drawLine(
+                    color = color,
+                    start = Offset(cx + cos(angle) * rayInner, cy + sin(angle) * rayInner),
+                    end = Offset(cx + cos(angle) * rayOuter, cy + sin(angle) * rayOuter),
+                    strokeWidth = rayWidth,
+                    cap = StrokeCap.Butt,
+                )
             }
-            drawPath(bolt, color, style = Stroke(width = 1.5f, cap = StrokeCap.Round))
+
+            // Yellow lightning bolt inside the circle
+            val bolt = Path().apply {
+                moveTo(cx + sunR * 0.10f, cy - sunR * 0.70f)
+                lineTo(cx - sunR * 0.25f, cy + sunR * 0.05f)
+                lineTo(cx + sunR * 0.05f, cy + sunR * 0.05f)
+                lineTo(cx - sunR * 0.10f, cy + sunR * 0.70f)
+            }
+            drawPath(bolt, Color(0xFFF5C518), style = Stroke(width = 2f, cap = StrokeCap.Round))
         }
     }
 }
@@ -972,8 +1042,8 @@ private fun TileCard(
 ) {
     val cardBg = if (tileType == TileType.TERMINAL) HorizonsColors.TerminalCardBg
                  else Color(0xFF0A0E11)
-    val iconProtrude = 18.dp
-    val iconSize = 36.dp
+    val iconProtrude = 20.dp
+    val iconSize = 40.dp
 
     Box(modifier = modifier.clickable(onClick = onClick)) {
         // The card body — starts below the protruding icon
@@ -982,15 +1052,16 @@ private fun TileCard(
                 .fillMaxSize()
                 .padding(top = iconProtrude)
                 .drawBehind {
-                    // Backlit glow radiating from icon position (top-center)
+                    // Backlit glow radiating from icon position (top-center) — VIBRANT
                     val glowBrush = Brush.radialGradient(
                         colors = listOf(
-                            color.copy(alpha = 0.18f),
-                            color.copy(alpha = 0.06f),
+                            color.copy(alpha = 0.30f),
+                            color.copy(alpha = 0.12f),
+                            color.copy(alpha = 0.03f),
                             Color.Transparent,
                         ),
                         center = Offset(size.width / 2f, 0f),
-                        radius = size.width * 0.9f,
+                        radius = size.width * 1.1f,
                     )
                     drawRect(glowBrush)
                 },
@@ -1002,39 +1073,30 @@ private fun TileCard(
                 modifier = Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = iconProtrude + 2.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // TITLE — bold, letter-spaced
+                // TITLE — bold, letter-spaced, BIGGER per spec
                 Text(
                     name,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp,
+                    fontSize = 13.sp,
                     letterSpacing = 2.sp,
                     color = color,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                 )
-                // /slug
+                // /slug · subtitle
                 Text(
-                    slug,
+                    "$slug  ·  $subtitle",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 8.sp,
                     color = color.copy(alpha = 0.50f),
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
-                // subtitle
-                Text(
-                    subtitle,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 7.sp,
-                    color = color.copy(alpha = 0.35f),
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
+                    maxLines = 2,
                 )
                 Spacer(Modifier.weight(1f))
-                HorizontalDivider(color = color.copy(alpha = 0.12f))
+                HorizontalDivider(color = color.copy(alpha = 0.15f))
                 Spacer(Modifier.height(3.dp))
-                // $_prompt + ⚙ gear
+                // $_prompt + ⚙ gear — BRIGHTER per spec
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1043,13 +1105,13 @@ private fun TileCard(
                     Text(
                         cmdHint,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 7.sp,
-                        color = color.copy(alpha = 0.50f),
+                        fontSize = 8.sp,
+                        color = color.copy(alpha = 0.75f),
                     )
                     Text(
                         "⚙",
-                        fontSize = 9.sp,
-                        color = color.copy(alpha = 0.3f),
+                        fontSize = 10.sp,
+                        color = color.copy(alpha = 0.45f),
                     )
                 }
             }
@@ -1091,37 +1153,67 @@ private fun TileCard(
 @Composable
 private fun StatusDot(label: String, color: Color, active: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Canvas(modifier = Modifier.size(20.dp)) {
-            val dotC = if (active) color else color.copy(alpha = 0.15f)
-            val dotR = size.minDimension / 2f * 0.46f
+        Canvas(modifier = Modifier.size(42.dp)) {
+            val dotR = size.minDimension / 2f * 0.72f
             val center = Offset(size.width / 2f, size.height / 2f)
             if (active) {
-                // Radial glow layers
-                for (i in 3 downTo 0) {
+                // Outer glow halo
+                for (i in 4 downTo 0) {
                     drawCircle(
-                        color = dotC.copy(alpha = 0.07f + i * 0.05f),
-                        radius = dotR + i * 3.5f,
+                        color = color.copy(alpha = 0.06f + i * 0.03f),
+                        radius = dotR + i * 4f,
                         center = center,
                     )
                 }
-            }
-            // Core
-            drawCircle(dotC, dotR, center)
-            if (active) {
-                // Specular highlight
+                // Core sphere — 3D glossy gradient (bright center → darker edge)
                 drawCircle(
-                    Color.White.copy(alpha = 0.42f),
-                    dotR * 0.28f,
-                    Offset(center.x - dotR * 0.26f, center.y - dotR * 0.26f),
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            color.copy(alpha = 0.95f),
+                            color,
+                            color.copy(alpha = 0.6f),
+                        ),
+                        center = Offset(center.x - dotR * 0.2f, center.y - dotR * 0.2f),
+                        radius = dotR * 1.4f,
+                    ),
+                    radius = dotR,
+                    center = center,
+                )
+                // Specular highlight — upper-left for 3D gloss
+                drawCircle(
+                    Color.White.copy(alpha = 0.55f),
+                    dotR * 0.32f,
+                    Offset(center.x - dotR * 0.30f, center.y - dotR * 0.30f),
+                )
+                // Secondary glint
+                drawCircle(
+                    Color.White.copy(alpha = 0.20f),
+                    dotR * 0.15f,
+                    Offset(center.x - dotR * 0.10f, center.y - dotR * 0.50f),
+                )
+            } else {
+                // Inactive — muted sphere, keeps 3D shape
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            color.copy(alpha = 0.20f),
+                            color.copy(alpha = 0.10f),
+                            color.copy(alpha = 0.04f),
+                        ),
+                        center = Offset(center.x - dotR * 0.2f, center.y - dotR * 0.2f),
+                        radius = dotR * 1.4f,
+                    ),
+                    radius = dotR,
+                    center = center,
                 )
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             label,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             color = if (active) color else color.copy(alpha = 0.25f),
         )
     }
