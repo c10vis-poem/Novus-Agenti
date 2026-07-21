@@ -257,6 +257,98 @@ Amber accent (`TileArtifacts` — `#E8A838`). Card interior: near-black.
 
 ---
 
+## 4c · TERMINAL tile (6:00 position, matrix green)
+
+**Reference image:** Prior build closeup — terminal window icon with red/amber/
+green dots, `>_` prompt, green border. **Icon and size are perfect as shown.**
+
+### Icon
+
+The terminal window icon exactly as shown in the reference: rounded rect
+with a green border, three colored dots (red, amber, green) in the title
+bar, divider line under the title bar, `>_` prompt inside the window body.
+**Perfect as-is** — do not change the icon style or size. Same aspect ratio
+as all other tile icons.
+
+### Style changes from reference
+
+- **Backlighting** needs to be **brighter** than shown in the reference.
+- **Prompt box** (the bottom `$_` line area) needs to be **better defined
+  and brighter** — more contrast against the card background.
+- **Card background** is **deeper near-black** (`TerminalCardBg` `#060A07`)
+  — darker than all other tiles. This is intentional: Terminal green is
+  brighter matrix-green on a deeper black, distinct from Chat's softer
+  green.
+
+### Composition
+
+```
+    [TERMINAL WINDOW ICON protruding above]
+
+
+          T E R M I N A L
+
+        /shell  ·  commands
+
+    ─────────────────────────
+    $_bash                 ⚙
+```
+
+### Color
+
+Matrix green accent (`TileTerminal` — `#00FF41`). Card interior: deeper
+near-black (`#060A07`).
+
+---
+
+## 4d · MONITOR tile (12:00 position, material teal)
+
+**Reference image:** Monitor icon closeup — display/screen glyph (rounded
+rect, inner lines, V-stand/tail, badge in top-right). **Swap `AI` for `PC`
+on the badge.**
+
+### Icon
+
+The display/screen glyph as shown in the reference: rounded rectangle
+with 2-3 inner horizontal lines, V-shaped stand/tail underneath, circular
+badge in the top-right corner reading **`PC`** (NOT `AI`). Same aspect
+ratio / size proportions as the Terminal icon and all other tile icons.
+
+### Color
+
+**Material teal** (`TileMonitor` — `#2DD4D9`) — matches the logo teal.
+Card interior: near-black.
+
+### Composition
+
+```
+    [DISPLAY/PC ICON protruding above]
+
+
+          M O N I T O R
+
+       /cognito  ·  library
+
+    ─────────────────────────
+    $_browser              ⚙
+```
+
+Title font bigger than current build, same as all tiles.
+
+---
+
+## 4e · CHAT tile (2:00 position, soft green)
+
+*(Coming — operator providing next)*
+
+---
+
+## 4f · SETTINGS tile (4:00 position, pink/crimson)
+
+*(Coming — operator providing next)*
+
+---
+
 ## 5 · Center Hub — ROUTER
 
 *(Coming)*
