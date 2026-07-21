@@ -140,9 +140,113 @@ for:
 
 ---
 
-## 4 · Tiles — General
+## 4 · Tiles — General Style
 
-*(Sections for individual tiles coming — operator is providing them now)*
+**Reference image:** Prior build closeup (HORIZONS + ARTIFACTS tiles, session
+20) — the best example of what ALL tiles should look like.
+
+### Card style (applies to every tile)
+
+- **Dark black interior** on the card body — near-black, not translucent,
+  not hazy. The tile background should be a deep solid black that contrasts
+  sharply against the colored border/glow.
+- **Colored hue on the outside** — each tile's accent color forms a subtle
+  border/outline around the card edge.
+- **Backlight glow** — the icon's backlight radiates upward/outward from
+  behind the icon, which protrudes above the card's top edge. The glow
+  should be vibrant and directional (emanating from the icon position), not
+  a flat wash.
+- **No haze.** The current build has a washed-out haze over everything that
+  flattens the contrast. Remove it. The dark-to-bright contrast between
+  the black card interior and the colored accents/glow is critical.
+
+### Label sizing and formatting (applies to every tile)
+
+- **Title** (e.g. `HORIZONS`, `ARCHIVES`) — the font needs to be
+  **increased in size** from what's in the current build. Bold,
+  letter-spaced, monospace.
+- **Subtitle lines** — slug + descriptors (e.g. `/home · System view`),
+  rendered in the tile's accent color at reduced opacity.
+- **Prompt line** — should be **brighter** than currently rendered. Must
+  have an **underscore after the dollar sign**: `$_` not `$`. The gear
+  icon (`⚙`) sits on the far right of the prompt line.
+
+### Icon sizing
+
+Icons should be **properly sized** — matching the proportions shown in the
+prior build reference (HORIZONS and ARCHIVES closeup). They protrude above
+the card top edge with the backlit glow behind them. The current build's
+icons are **way too small**.
+
+---
+
+## 4a · HORIZONS tile (10:00 position, blue)
+
+**Reference images:**
+- Prior build closeup pic 1 — tile style/size reference (the arch-eye icon
+  with rays, `HORIZONS` label, `Home · System view`, `$ home`)
+- Prior build pic 2 (small thumbnail) — icon COLOR reference (amber sun,
+  blue horizon plane, pinkish-purple atmosphere arch)
+
+### Icon
+
+The icon matches the **style and size of pic 1** (the arch/eye shape with
+radiating rays above, half-circle horizon line below, dot in the center).
+The **color scheme matches pic 2:**
+- **Sun:** amber — can go **darker amber** than pic 2 shows, that's fine
+- **Atmosphere arch** (the pinkish-purple curved line above): stays the
+  same shade as pic 2
+- **Horizon plane** (the blue straight line at the bottom): stays the same
+  shade as pic 2, but the line in pic 1 is **a little too thin** — fatten
+  it up slightly
+
+### Composition (what the tile reads, top to bottom)
+
+```
+         [ICON protruding above]
+
+         HORIZONS
+
+      /home  ·  System
+                  view
+     ─────────────────────
+     $_about            ⚙
+```
+
+### Color
+
+Blue accent (`TileHorizons` — `#40C4FF`). Card interior: near-black.
+
+---
+
+## 4b · ARCHIVES tile (8:00 position, amber)
+
+**Reference image:** Prior build closeup pic 1 — the amber stacked-documents
+icon. **Color and icon are perfect as shown.** Only the label font size
+needs to increase.
+
+### Icon
+
+The stacked-documents / clipboard icon as shown in the reference — amber
+outlined, two overlapping rectangles with inner lines. **Perfect as-is** in
+style, size, and color. Do not change.
+
+### Composition (what the tile reads, top to bottom)
+
+```
+         [ICON protruding above]
+
+         ARCHIVES
+
+      /logs  ·  Files
+                ·  store
+     ─────────────────────
+     $_ls ./*.tar       ⚙
+```
+
+### Color
+
+Amber accent (`TileArtifacts` — `#E8A838`). Card interior: near-black.
 
 ---
 
