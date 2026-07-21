@@ -479,7 +479,33 @@ Stacked under the crystal:
 
 ## 6 · Connector Cords
 
-*(Coming)*
+**Reference images:**
+- Pic 1 — closeup of the plasma tube style: glowing curved conduits with
+  inner particle/data flow, nodes (small icon circles) along the path,
+  soft outer glow tapering to a bright core. Tubes curve organically, not
+  straight lines.
+- Pic 2 (Agent Platform) — the full hub with conduits flowing outward from
+  the center platform to external nodes, curving naturally around the
+  geometry.
+
+### Style
+
+**No straight solid lines coming out of a single point.** The current build
+looks like an elementary school kid traced them with a protractor — that is
+wrong. The cords must be:
+
+- **Curved / organic** — they flow from each tile toward the hub with
+  natural bends, not rigid straight-line segments.
+- **Plasma tube styling** — soft outer glow → bright inner core, like the
+  reference images. The glow is wide and diffuse on the outside, tight and
+  bright on the inside.
+- **Nodes/beads along the path** — small glowing circles spaced along
+  each cord, like data packets traveling through the tube.
+- **Each cord in its tile's accent color** — green for Terminal, amber for
+  Archives, pink for Settings, teal for Monitor, soft green for Chat,
+  blue for Horizons.
+- Cords connect from each of the 6 tiles into the center hub platform's
+  perimeter nodes.
 
 ---
 
