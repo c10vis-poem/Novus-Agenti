@@ -589,17 +589,41 @@ the spherical shape — not a flat dot.
 
 ## 10 · Panel Backgrounds (separate track — mostly shipped)
 
-Each of the 8 panels has a procedural background; **4 are also
-uploadable-wallpaper capable** (image fully replaces procedural, tiles go
-semi-transparent).
+Each of the 8 panels has its own background. **Nothing here is changing
+right now** — all 7 tile-panel backdrops already exist as designed;
+confirming the plan and clarifying which ones get uploadable-wallpaper
+support.
 
-| Panel | Procedural bg | Wallpaper? | Reference |
-|---|---|---|---|
-| Home | astral (deep black + stars + telemetry) | no | `01-target-full-home.webp` |
-| Terminal | Matrix rain (`fakesteak` fork) | no | `18-matrix-rain.png` |
-| Router | circuit-board / chip nodes | no | `05-router-circuit-blue-chip.jpg` |
-| Monitor | sliding oscilloscope (animated) | no | `17-oscilloscope.webp` |
-| Chat | wet blue-grey slate stone | yes | `14-stone-slab.webp` |
-| Horizons | butterfly nebula (gold/blue-white) | yes | `13-nebula-wallpaper.webp` |
-| Archives | vintage film strip | yes | `16-film-strip.jpg` |
-| Settings | brushed-steel vault door | yes | `15-vault-door.jpg` |
+### The four wallpaper-capable panels (this pass)
+
+These four just need **uploadable wallpaper added** — image fully replaces
+the procedural background, tiles go semi-transparent over it:
+
+| Panel | Procedural bg (kept as default) | Reference |
+|---|---|---|
+| Chat | wet blue-grey slate stone | ![chat slate](home-redesign-img/14-stone-slab.webp) |
+| Settings | brushed-steel vault door | ![settings vault](home-redesign-img/15-vault-door.jpg) |
+| Horizons | butterfly nebula (gold/blue-white) | ![horizons nebula](home-redesign-img/13-nebula-wallpaper.webp) |
+| Archives | vintage film strip | ![archives film](home-redesign-img/16-film-strip.jpg) |
+
+### The three interactive-background panels (defined LATER — not this pass)
+
+**Monitor, Router, and Terminal are NOT simple wallpaper swaps.** Their
+backgrounds are **interactive and must be rendered as one solitary unit**
+— i.e. the background itself is a live, animated/functional surface (matrix
+rain, oscilloscope trace, circuit-board pulse), not a static image tiles
+sit on top of. **We cannot just overlay a wallpaper tab on these three** —
+doing so would break the interactive rendering. These three get defined and
+built at a later date, separately from this wallpaper pass.
+
+| Panel | Interactive background | Reference |
+|---|---|---|
+| Terminal | Matrix rain (`fakesteak` fork) | ![matrix rain](home-redesign-img/18-matrix-rain.png) |
+| Router | circuit-board / chip nodes | ![router circuit](home-redesign-img/05-router-circuit-blue-chip.jpg) |
+| Monitor | sliding oscilloscope (animated) | ![monitor oscilloscope](home-redesign-img/17-oscilloscope.webp) |
+
+### Home (this spec's subject — not a "panel" background)
+
+| Screen | Procedural bg | Reference |
+|---|---|---|
+| Home | astral (deep black + stars + telemetry, see §2) | ![target home](home-redesign-img/01-target-full-home.webp) |
