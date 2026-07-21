@@ -494,7 +494,7 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-20 (session 19)
+## State of the Union — 2026-07-21 (session 20)
 
 This is the current-state doc, rewritten in place each session. The
 **running work list is `EXECUTIONS.md` — the build dock** (code-anchored,
@@ -505,6 +505,42 @@ history, not here.
 **Visual work is NOT tracked here.** The home-dock redesign lives only in
 `wiki/HOME-REDESIGN-SPEC.md` + `wiki/home-redesign-img/`, read only when doing
 V-track work. (Earlier SOTUs let a visual saga dominate this file; stripped.)
+
+### Session 20 — HomeGrid V-track: clock-face layout + tile card restyling
+
+Major rewrite of `HomeGrid.kt` to match `wiki/HOME-REDESIGN-SPEC.md`:
+
+- **Clock-face layout** — replaced old 2-row grid with `ClockWheel`
+  composable: 12 Monitor, 2 Chat, 4 Settings, 6 Terminal, 8 Archives,
+  10 Horizons, Router center hub. Fractional-position placement.
+- **TileCard restyled** — icon protrudes above card top edge with radial
+  backlit glow. Label stack: TITLE (bold, letter-spaced) → /slug →
+  subtitle → divider → $_prompt + ⚙ gear. Terminal tile gets deeper
+  near-black bg (`TerminalCardBg`).
+- **Correct labels per spec:** MONITOR /cognito library $_browser, CHAT
+  /interface tools $_model, SETTINGS /config vault $_utils, TERMINAL /shell
+  commands $_bash, ARCHIVES /logs artifacts $_files, HORIZONS /about credits
+  $_.home. ARCHIVES replaces old ARTIFACTS label.
+- **Icon swaps:** Monitor = display glyph + PC badge (not AI); Chat =
+  clean speech bubble (not hub-and-spoke).
+- **Router hub:** crystal shrunk (same color/facet graphics, only smaller),
+  white sun aura underneath, ROUTER label in WHITE, // CORE_HUB slug,
+  $_Statio. No /route.
+- **Banner:** monospace font, one-line motto with (Next-Gen Certified),
+  HORIZONS // V4 bottom-right.
+- **Plasma cords:** from each tile to hub, in tile's color, with beads.
+- **System bar padding:** statusBarsPadding() + navigationBarsPadding().
+- **HorizonsTheme:** distinct per-tile colors, NebulaPurple accent,
+  TerminalCardBg for Terminal's deeper black.
+
+**Still pending on V-track (next session):**
+- On-device screenshot verification vs. reference images
+- Background polish: "needs some stars and a couple more layered telemetry
+  circles" (current astral bg is close but sparse)
+- Bottom status nodes + chat bar: verify they match the vivid prior-build
+  style, not "washed out"
+- Chat bar hold-to-expand: 1/3 screen mini inference UI on long-press
+- Horizons icon amber sun: verify the amber color renders correctly on device
 
 ### Session 19 — canon made explicit + build dock created
 
