@@ -17,12 +17,10 @@
 > compared against the references before it's "done." The cloud build container
 > has **no Android SDK** — the operator is the on-device visual check.
 >
-> **Image asset note.** Some reference screenshots below were pasted inline
-> during a chat session and could not be auto-saved to the repo (Claude has no
-> mechanism to write a pasted chat image to disk on its own). Those are marked
-> **⚠ NOT YET SAVED** with a suggested filename — the operator needs to add
-> the actual file to `wiki/home-redesign-img/` under that name so the link
-> resolves. Everything else links directly to an existing file in that folder.
+> **Image assets.** All reference screenshots are stored in
+> `wiki/home-redesign-img/` with numbered filenames. Wallpaper variants and
+> panel background alternatives live in `wiki/home-redesign-img/wallpapers/`.
+> Every image link in this document resolves to an existing file.
 
 ---
 
@@ -30,12 +28,9 @@
 
 **Reference images — BOTH required for comparison, side by side:**
 
-1. ⚠ NOT YET SAVED — **current build** (session 20), what we have now
-   (left-aligned, wrong font, smaller logo). Suggested filename:
-   `25-s20-current-build-header.png`. **Claude has no mechanism to save a
-   chat-pasted image to disk** — the operator needs to add this file
-   directly to `wiki/home-redesign-img/` (via GitHub web upload or a
-   fetchable link) before this reference resolves.
+1. ![current build](home-redesign-img/37-s20-current-build-full-home.png) —
+   **current build** (session 20), what we have now (left-aligned, wrong
+   font, smaller logo).
 2. ![logo font target](home-redesign-img/19-logo-font.webp) — the TARGET
    font. **Only the font matters from this image** — the wet-stone/water-
    droplet backdrop behind the text is incidental (it's the same wallpaper
@@ -43,6 +38,10 @@
    NOT a requirement for the header and should not be read as one. Take
    the typeface only: `cat << 'EOF'` header line, the chunky blocky
    `M0[)u14R_11(` face, the dual-font slogan line, `EOF` / `v1.0` corners.
+3. ![logo font top crop](home-redesign-img/39-logo-font-top-crop.png) —
+   zoomed crop showing `cat << 'EOF'` and `M0Du14R_11(` at full size.
+4. ![logo font bottom crop](home-redesign-img/38-logo-font-bottom-crop.png) —
+   zoomed crop showing `*Pioneer_Tech, (Next-Gen Certified)`, `EOF`, `v1.0`.
 
 ### Size
 
@@ -93,16 +92,13 @@ and `11(` rendered slightly smaller.
 ## 2 · Background Color and Style
 
 **Reference images:**
-- ⚠ NOT YET SAVED — current build (session 20) full-home screenshot —
-  **trash, not acceptable.** Suggested filename:
-  `25-s20-current-build-full-home.png` (same shot as §1)
-- ⚠ NOT YET SAVED — prior build (session 20) full-home screenshot, the one
-  with the large crystal, vivid status nodes, plasma cords — **this is the
-  TARGET background quality.** Suggested filename:
-  `27-prior-build-full-home-target.png`
-- ⚠ NOT YET SAVED — V3 Horizons build with the grid overlay — **copy the
-  STARS ONLY from this image, NOT the grid.** Suggested filename:
-  `28-v3-horizons-grid-stars.png`
+- ![current build](home-redesign-img/37-s20-current-build-full-home.png) —
+  current build (session 20) full-home screenshot — **trash, not acceptable.**
+- ![prior build target](home-redesign-img/33-prior-build-full-home-target.png) —
+  prior build full-home screenshot, the one with the large crystal, vivid
+  status nodes, plasma cords — **this is the TARGET background quality.**
+- ![v3 build](home-redesign-img/26-v3-full-build.png) — V3 Horizons build —
+  **copy the STARS ONLY from this image, NOT the grid.**
 
 ### What's wrong (current build)
 
@@ -132,11 +128,11 @@ there, but **not too many more** — keep it subtle, not a galaxy.
 ## 3 · Aspect Ratio / Overall Proportions
 
 **Reference images:**
-- ⚠ NOT YET SAVED — current build (session 20) full-home screenshot, same
-  as §1/§2 — filename `25-s20-current-build-full-home.png`
-- ⚠ NOT YET SAVED — prior build (session 20) full-home screenshot, vivid
-  status nodes, large crystal — the **TARGET aspect ratio** — same as §2's
-  target shot — filename `27-prior-build-full-home-target.png`
+- ![current build](home-redesign-img/37-s20-current-build-full-home.png) —
+  current build (session 20) full-home screenshot, same as §1/§2
+- ![prior build target](home-redesign-img/33-prior-build-full-home-target.png) —
+  prior build full-home screenshot, vivid status nodes, large crystal —
+  the **TARGET aspect ratio** — same as §2's target shot
 
 ### Definition
 
@@ -219,9 +215,12 @@ icons are **way too small**.
 - ![horizons + archives tiles](home-redesign-img/11-horizons-archives-tiles.webp)
   — pic 1 — tile style/size reference (the arch-eye icon with rays,
   `HORIZONS` label, `Home · System view`, `$ home`)
-- ⚠ NOT YET SAVED — pic 2, small thumbnail — icon COLOR reference (amber
-  sun, blue horizon plane, pinkish-purple atmosphere arch). Suggested
-  filename: `29-horizons-icon-color-thumbnail.png`
+- ![horizons icon color](home-redesign-img/25-horizons-icon-color.jpg) —
+  pic 2, small thumbnail — icon COLOR reference (amber sun, blue horizon
+  plane, pinkish-purple atmosphere arch)
+- ![horizons zoomed](home-redesign-img/29-horizons-tile-zoomed.png) —
+  pic 3, operator-verified zoomed closeup showing exact label layout,
+  spacing, and composition at full render size
 
 ### Icon
 
@@ -294,9 +293,12 @@ Amber accent (`TileArtifacts` — `#E8A838`). Card interior: near-black.
 
 ## 4c · TERMINAL tile (6:00 position, matrix green)
 
-**Reference image:** ![terminal tile](home-redesign-img/09-terminal-tile.webp)
-— prior build closeup — terminal window icon with red/amber/green dots,
-`>_` prompt, green border. **Icon and size are perfect as shown.**
+**Reference images:**
+- ![terminal tile](home-redesign-img/09-terminal-tile.webp) — prior build
+  closeup — terminal window icon with red/amber/green dots, `>_` prompt,
+  green border. **Icon and size are perfect as shown.**
+- ![terminal closeup](home-redesign-img/30-terminal-tile-closeup.png) —
+  operator-verified closeup (session 20) — confirms icon is correct as-is
 
 ### Icon
 
@@ -339,9 +341,13 @@ near-black (`#060A07`).
 
 ## 4d · MONITOR tile (12:00 position, material teal)
 
-**Reference image:** ![monitor icon](home-redesign-img/02-monitor-icon.webp)
-— display/screen glyph (rounded rect, inner lines, V-stand/tail, badge in
-top-right). **Swap `AI` for `PC` on the badge.**
+**Reference images:**
+- ![monitor icon](home-redesign-img/02-monitor-icon.webp) — display/screen
+  glyph (rounded rect, inner lines, V-stand/tail, badge in top-right).
+  **Swap `AI` for `PC` on the badge.**
+- ![monitor closeup](home-redesign-img/32-monitor-icon-closeup.png) —
+  operator-verified closeup (session 20) — shows the display glyph with
+  AI badge (needs PC swap) at actual render size
 
 ### Icon
 
@@ -379,9 +385,9 @@ Title font bigger than current build, same as all tiles.
 - ![chat correct icon](home-redesign-img/04-chat-icon-correct.webp) —
   pic 1 — the exact chat icon target: clean speech bubble, soft green,
   no badge, no stand
-- ⚠ NOT YET SAVED — pic 2 — broader tile context showing icon size
-  relative to card, label spacing, Settings icon visible below.
-  Suggested filename: `30-chat-tile-broader-context.png`
+- ![v3 full build](home-redesign-img/26-v3-full-build.png) — pic 2 —
+  broader tile context showing icon size relative to card, label spacing,
+  all tiles visible
 
 ### Icon
 
@@ -423,10 +429,13 @@ Title font bigger than current build, same as all tiles.
 
 ## 4f · SETTINGS tile (4:00 position, pink/crimson)
 
-**Reference image:** ![settings tile](home-redesign-img/10-settings-tile.webp)
-— prior build closeup — pink/crimson sun icon with yellow lightning bolt
-inside a solid circle, surrounded by a dashed ring with protruding
-ray/tick marks. **Exactly what Settings should look like.**
+**Reference images:**
+- ![settings tile](home-redesign-img/10-settings-tile.webp) — prior build
+  closeup — pink/crimson sun icon with yellow lightning bolt inside a solid
+  circle, surrounded by a dashed ring with protruding ray/tick marks.
+  **Exactly what Settings should look like.**
+- ![settings closeup](home-redesign-img/31-settings-tile-closeup.png) —
+  operator-verified closeup (session 20) — confirms icon style is correct
 
 ### Icon
 
@@ -468,11 +477,12 @@ proportions as all other tile icons.
 ## 5 · Center Hub — ROUTER
 
 **Reference images:**
-- ⚠ NOT YET SAVED — pic 1 (prior build full screen, same shot as §2/§3's
-  target) — the **color, contrast, and hue target**. The violet crystal
+- ![router crystal closeup](home-redesign-img/34-router-crystal-closeup.png) —
+  pic 1 — the **color, contrast, and hue target**. The violet crystal
   with white sun glow underneath, the purple/white contrast against the
-  dark background — match this exactly. Filename:
-  `27-prior-build-full-home-target.png`
+  dark background — match this exactly.
+- ![prior build target](home-redesign-img/33-prior-build-full-home-target.png) —
+  prior build full screen (same shot as §2/§3's target) for overall context.
 - ![agent platform hub](home-redesign-img/06-agent-platform-hub.jpg) —
   pic 2 (Agent Platform reference) — the **geometry and style target**.
   The hexagonal faceted crystal centered on an elliptical platform base
@@ -522,14 +532,11 @@ Stacked under the crystal:
 ## 6 · Connector Cords
 
 **Reference images:**
-- ⚠ NOT YET SAVED — pic 1 — closeup of the plasma tube style: glowing
-  curved conduits with inner particle/data flow, nodes (small shield/lock
-  icon circles) along the path, soft outer glow tapering to a bright core.
-  Tubes curve organically, not straight lines. Closest existing repo asset
-  in the same family: ![ai orchestration hub](home-redesign-img/07-ai-orchestration-hub.webp)
-  — confirm with operator whether this is the same image before relying on
-  it; if not, suggested filename for the actual pasted pic:
-  `31-plasma-tube-shield-nodes-closeup.png`
+- ![plasma tube shield nodes](home-redesign-img/35-plasma-tube-shield-nodes.png) —
+  pic 1 — closeup of the plasma tube style: glowing curved conduits with
+  inner particle/data flow, nodes (small shield/lock icon circles) along
+  the path, soft outer glow tapering to a bright core. Tubes curve
+  organically, not straight lines.
 - ![agent platform hub](home-redesign-img/06-agent-platform-hub.jpg) —
   pic 2 (Agent Platform) — the full hub with conduits flowing outward from
   the center platform to external nodes, curving naturally around the
@@ -558,10 +565,10 @@ wrong. The cords must be:
 
 ## 7 · Chat Bar / Input
 
-**Reference image:** ⚠ NOT YET SAVED — prior build closeup — teal-bordered
-rounded pill bar with `⊕` icon on left, `tap_or_hold ask //` placeholder
-with blinking cursor, `↑` arrow on right. Suggested filename:
-`32-chat-bar-closeup.png`
+**Reference image:** ![status nodes + chat bar](home-redesign-img/36-status-nodes-chatbar-closeup.png) —
+prior build closeup — teal-bordered rounded pill bar with `⊕` icon on
+left, `tap_or_hold ask //` placeholder with blinking cursor, `↑` arrow on
+right. Also shows the status nodes directly above.
 
 ### Style
 
@@ -587,10 +594,10 @@ expansion.
 
 ## 8 · Configuration Nodes (System Status)
 
-**Reference image:** ⚠ NOT YET SAVED — prior build closeup — `// SYSTEM_STATUS`
-header, five large 3D glossy spheres (ASR green, LLM blue, TTS amber, MLLM
-purple, VAG pink), labels underneath each. Suggested filename:
-`33-status-nodes-closeup.png`
+**Reference image:** ![status nodes closeup](home-redesign-img/36-status-nodes-chatbar-closeup.png) —
+prior build closeup — `// SYSTEM_STATUS` header, five large 3D glossy
+spheres (ASR green, LLM blue, TTS amber, MLLM purple, VAG pink), labels
+underneath each. Chat bar visible below.
 
 ### Style
 
