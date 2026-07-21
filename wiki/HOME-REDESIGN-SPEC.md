@@ -203,15 +203,22 @@ The **color scheme matches pic 2:**
 ### Composition (what the tile reads, top to bottom)
 
 ```
-         [ICON protruding above]
+    [ICON protruding above card edge]
 
-         HORIZONS
 
-      /home  ·  System
-                   view
-     ─────────────────────
-     $_about            ⚙
+        H O R I Z O N S
+
+       /home  ·  System
+              view
+
+    ─────────────────────────
+    $_about                ⚙
 ```
+
+Match the reference screenshot's spacing exactly: generous vertical
+space between the title and subtitle, subtitle and divider, divider
+and prompt line. Title is centered, subtitle is centered, prompt line
+is left-aligned with gear right-aligned on the same baseline.
 
 ### Color
 
