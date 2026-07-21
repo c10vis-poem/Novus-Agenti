@@ -339,7 +339,47 @@ Title font bigger than current build, same as all tiles.
 
 ## 4e · CHAT tile (2:00 position, soft green)
 
-*(Coming — operator providing next)*
+**Reference images:**
+- Pic 1 — the exact chat icon target: clean speech bubble, soft green,
+  no badge, no stand
+- Pic 2 — broader tile context showing icon size relative to card, label
+  spacing, Settings icon visible below
+
+### Icon
+
+**Picture 1 is exactly what the Chat icon should look like.** Clean speech
+bubble: rounded rectangle with 2-3 inner horizontal lines, small triangular
+tail on the bottom-left pointing down. **No AI badge, no V-shaped stand** —
+this is the speech bubble icon, NOT the monitor/display glyph. Same aspect
+ratio / size proportions as all other tile icons.
+
+### Color
+
+**Soft green** (`TileChat` — `#4FE9A6`). This is its OWN green — distinct
+from Terminal's brighter matrix green (`#00FF41`). Do NOT equalize them.
+Card interior: near-black.
+
+### Style
+
+- **Backlighting brighter** than current build — match the green glow.
+- Same tile card style as all others (dark black interior, colored border,
+  protruding icon with backlit glow).
+
+### Composition
+
+```
+    [SPEECH BUBBLE ICON protruding above]
+
+
+            C H A T
+
+      /interface  ·  tools
+
+    ─────────────────────────
+    $_model                ⚙
+```
+
+Title font bigger than current build, same as all tiles.
 
 ---
 
