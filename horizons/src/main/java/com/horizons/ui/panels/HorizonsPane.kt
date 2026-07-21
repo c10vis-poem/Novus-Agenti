@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizons.HorizonsApplication
 import com.horizons.ui.AstralSpaceBackground
+import com.horizons.ui.PanelWallpaperBackground
+import com.horizons.ui.WallpaperPickerButtons
+import com.horizons.core.state.AppStateStore
 import com.horizons.ui.theme.HorizonsColors
 
 @Composable
@@ -41,7 +44,7 @@ fun HorizonsPane(
     val backendStatus by app.llmRuntime.backendStatus.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
-    AstralSpaceBackground()
+    PanelWallpaperBackground(AppStateStore.KEY_WALLPAPER_HORIZONS) { AstralSpaceBackground() }
     SelectionContainer {
     Column(
         modifier = Modifier
@@ -70,13 +73,15 @@ fun HorizonsPane(
                 fontSize = 12.sp,
                 color = HorizonsColors.TileHorizons.copy(alpha = 0.5f),
             )
+            Spacer(Modifier.weight(1f))
+            WallpaperPickerButtons(AppStateStore.KEY_WALLPAPER_HORIZONS, HorizonsColors.TileHorizons)
         }
 
         HorizontalDivider(color = HorizonsColors.TileHorizons.copy(alpha = 0.2f))
 
         // Build info
         Surface(
-            color = HorizonsColors.Surface,
+            color = HorizonsColors.Surface.copy(alpha = 0.78f),
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -101,7 +106,7 @@ fun HorizonsPane(
         )
 
         Surface(
-            color = HorizonsColors.Surface,
+            color = HorizonsColors.Surface.copy(alpha = 0.78f),
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -124,7 +129,7 @@ fun HorizonsPane(
         )
 
         Surface(
-            color = HorizonsColors.Surface,
+            color = HorizonsColors.Surface.copy(alpha = 0.78f),
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.fillMaxWidth(),
         ) {
