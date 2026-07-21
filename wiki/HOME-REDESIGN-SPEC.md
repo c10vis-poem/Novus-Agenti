@@ -208,7 +208,7 @@ The **color scheme matches pic 2:**
          HORIZONS
 
       /home  ·  System
-                  ·  view
+                   view
      ─────────────────────
      $_about            ⚙
 ```
