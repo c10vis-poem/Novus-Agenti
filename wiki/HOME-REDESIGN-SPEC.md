@@ -428,7 +428,52 @@ proportions as all other tile icons.
 
 ## 5 · Center Hub — ROUTER
 
-*(Coming)*
+**Reference images:**
+- Pic 1 (prior build full screen) — the **color, contrast, and hue target**.
+  The violet crystal with white sun glow underneath, the purple/white
+  contrast against the dark background — match this exactly.
+- Pic 2 (Agent Platform reference) — the **geometry and style target**. The
+  hexagonal faceted crystal centered on an elliptical platform base with
+  nodes arranged around the perimeter, connected by glowing lines. Match
+  this structure.
+
+### Crystal
+
+The hexagonal faceted gem — **violet** with a **white sun/glow permeating
+from underneath** (not a dome, not concentric rings). Match the color and
+hue from pic 1 exactly — the purple contrast of the crystal against the
+dark background, the warmth of the white center glow. The crystal should be
+shaped like the Agent Platform gem in pic 2 — a proper 3D hexagonal faceted
+gem, not an oversized "wizard hat."
+
+### Platform base
+
+Model after pic 2's elliptical platform: a glowing oval/elliptical base
+underneath the crystal with **6 nodes** around the perimeter (one per tile
+— no 3:00 or 9:00 nodes since there are only 6 tiles at 12/2/4/6/8/10).
+Connected by faint glowing perimeter lines. **No bubble/dome** over the
+top — just the crystal sitting on the open platform.
+
+### Size
+
+Small enough to **label properly with good spacing** — not stupid big. The
+current build's hub is too small; the prior build's crystal was slightly
+too large. This should be in between, leaning toward the prior build but
+with room for the label text underneath without crowding.
+
+### Label
+
+Stacked under the crystal:
+```
+    // CORE_HUB
+      ROUTER        (WHITE, not purple)
+     $_Statio
+```
+
+- `// CORE_HUB` — small slug text, violet/purple at reduced opacity
+- `ROUTER` — bold, **WHITE** (the one exception to purple headers)
+- `$_Statio` — small, violet/purple at reduced opacity
+- **No `/route`.**
 
 ---
 
