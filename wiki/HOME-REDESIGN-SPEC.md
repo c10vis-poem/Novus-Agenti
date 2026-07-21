@@ -511,13 +511,64 @@ wrong. The cords must be:
 
 ## 7 · Chat Bar / Input
 
-*(Coming)*
+**Reference image:** Prior build closeup — teal-bordered rounded pill bar
+with `⊕` icon on left, `tap_or_hold ask //` placeholder with blinking
+cursor, `↑` arrow on right.
+
+### Style
+
+Match the reference exactly: rounded pill shape, teal border, dark
+interior, monospace placeholder text. The `⊕` icon on the left, the `↑`
+send arrow on the right.
+
+### Position
+
+**Chat bar goes ABOVE the configuration nodes** — the reference image
+shows it below, but it must be swapped: chat bar on top, status nodes on
+the bottom. Everything else about the bar (size, style, color, design)
+stays identical to the reference.
+
+### Hold-to-expand
+
+**Hold** the chat bar → it expands to a **~1/3-screen mini inference UI**
+(not just a navigate-to-Chat shortcut). Tap opens the Chat panel as
+normal. This is why the wheel sits slightly high — to leave room for the
+expansion.
 
 ---
 
 ## 8 · Configuration Nodes (System Status)
 
-*(Coming)*
+**Reference image:** Prior build closeup — `// SYSTEM_STATUS` header,
+five large 3D glossy spheres (ASR green, LLM blue, TTS amber, MLLM
+purple, VAG pink), labels underneath each.
+
+### Style
+
+**Match the reference exactly.** The status dots must be:
+
+- **Large** — not tiny little dots. Match the size shown in the reference.
+- **3D glossy spheres** — brightly colored with a specular highlight
+  (light reflection on the upper-left), giving them a dimensional,
+  polished look. **NOT matte, NOT flat, NOT 2D circles.**
+- **Brightly colored** — vivid, saturated colors that pop against the dark
+  background. Green (ASR), blue (LLM), amber/orange (TTS), purple (MLLM),
+  hot pink (VAG).
+- The `// SYSTEM_STATUS` header text sits above the spheres in monospace
+  at reduced opacity.
+- Labels (`ASR`, `LLM`, `TTS`, `MLLM`, `VAG`) sit below each sphere in
+  their matching color, bold monospace.
+
+### Position
+
+**Below the chat bar** (chat bar is above, status nodes are at the very
+bottom of the screen, just above the gesture bar padding).
+
+### Active vs inactive
+
+When a module is active, its sphere is fully lit with the 3D glossy
+effect. When inactive, it dims to a muted/desaturated version but keeps
+the spherical shape — not a flat dot.
 
 ---
 
