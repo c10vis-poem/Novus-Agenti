@@ -28,14 +28,21 @@
 
 ## 1 · Header / Logo
 
-**Reference images:**
-- ⚠ NOT YET SAVED — current build (session 20) full-home screenshot, what
-  we have now. Suggested filename: `25-s20-current-build-full-home.png`
-- ![logo font target](home-redesign-img/19-logo-font.webp) — the TARGET font
-  (chunky blocky terminal face, `cat << 'EOF'` header, wet stone background)
-- ⚠ NOT YET SAVED — prior build slogan closeup, dual-font `*Pioneer_Tech,`
-  + `(Next-Gen Certified)` + `EOF` / `v1.0`. Suggested filename:
-  `26-slogan-dual-font-closeup.png`
+**Reference images — BOTH required for comparison, side by side:**
+
+1. ⚠ NOT YET SAVED — **current build** (session 20), what we have now
+   (left-aligned, wrong font, smaller logo). Suggested filename:
+   `25-s20-current-build-header.png`. **Claude has no mechanism to save a
+   chat-pasted image to disk** — the operator needs to add this file
+   directly to `wiki/home-redesign-img/` (via GitHub web upload or a
+   fetchable link) before this reference resolves.
+2. ![logo font target](home-redesign-img/19-logo-font.webp) — the TARGET
+   font. **Only the font matters from this image** — the wet-stone/water-
+   droplet backdrop behind the text is incidental (it's the same wallpaper
+   asset used for the Chat panel background, `14-stone-slab.webp`); it is
+   NOT a requirement for the header and should not be read as one. Take
+   the typeface only: `cat << 'EOF'` header line, the chunky blocky
+   `M0[)u14R_11(` face, the dual-font slogan line, `EOF` / `v1.0` corners.
 
 ### Size
 
