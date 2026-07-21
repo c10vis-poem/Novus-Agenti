@@ -385,7 +385,44 @@ Title font bigger than current build, same as all tiles.
 
 ## 4f · SETTINGS tile (4:00 position, pink/crimson)
 
-*(Coming — operator providing next)*
+**Reference image:** Prior build closeup — pink/crimson sun icon with yellow
+lightning bolt inside a solid circle, surrounded by a dashed ring with
+protruding ray/tick marks. **Exactly what Settings should look like.**
+
+### Icon
+
+The sun/flash icon exactly as shown in the reference: a **solid pink circle**
+with a **yellow lightning bolt** inside it, surrounded by a **dashed circle
+ring** with **protruding rectangular ray/tick marks** radiating outward at
+regular intervals (like a sun with blocky rays). Same aspect ratio / size
+proportions as all other tile icons.
+
+### Color
+
+**Pink/crimson** (`TileSettings` — `#FF5577`). The lightning bolt inside is
+**yellow/amber**. Card interior: near-black.
+
+### Style
+
+- `SETTINGS` title font **bigger** than current build, same as all tiles.
+- **Prompt box** needs to be **brighter, better outlined** — more contrast
+  against the card background.
+- Same tile card style as all others (dark black interior, colored border,
+  protruding icon with backlit glow).
+
+### Composition
+
+```
+    [SUN/FLASH ICON protruding above]
+
+
+        S E T T I N G S
+
+       /config  ·  vault
+
+    ─────────────────────────
+    $_utils                ⚙
+```
 
 ---
 
