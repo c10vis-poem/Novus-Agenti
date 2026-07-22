@@ -92,20 +92,36 @@ and `11(` rendered slightly smaller.
 ## 2 · Background Color and Style
 
 **Reference images:**
-- ![current build](home-redesign-img/37-s20-current-build-full-home.png) —
-  current build (session 20) full-home screenshot — **trash, not acceptable.**
 - ![prior build target](home-redesign-img/33-prior-build-full-home-target.png) —
-  prior build full-home screenshot, the one with the large crystal, vivid
-  status nodes, plasma cords — **this is the TARGET background quality.**
+  prior build full-home screenshot, vivid status nodes, plasma cords —
+  **this is the TARGET background quality.**
 - ![v3 build](home-redesign-img/26-v3-full-build.png) — V3 Horizons build —
   **copy the STARS ONLY from this image, NOT the grid.**
+- `TODO: operator add` — session 21 current build screenshot (washed-out
+  gray background, tiny tiles, truncated names — what NOT to do)
+- `TODO: operator add` — session 21 standby screen screenshot (near-black
+  with good stars — the background darkness + star quality to match)
 
-### What's wrong (current build)
+### What's wrong (session 21 current build)
 
-The background has a haze/wash to it that flattens everything. It looks
-washed out and lifeless compared to the prior builds.
+The background is a washed-out foggy gray (`#1A222A`/`#222C34` gradient)
+with "obsidian facet" overlays that add MORE haze. It flattens everything
+and kills the contrast. Stars and telemetry circles exist in the code but
+are invisible under the gray wash. **The standby screen's near-black
+background with visible stars is almost exactly what the home screen should
+look like** — that's how dark the base needs to be.
 
-### What's right (prior build, pic 2)
+Background base was fixed to near-black (`#080C10` range) in commit
+`f16ff33` — needs on-device re-verify.
+
+### What stays (session 21 current build)
+
+- **Stars are good** when visible — the standby screen proves the star
+  rendering works fine, they just get lost in the gray wash. Once the
+  background is near-black, the stars should show through.
+- **Star count and distribution** are fine as-is.
+
+### What's right (prior build target)
 
 - The **center hue of the white sun** radiating from behind the crystal —
   that exact warmth and glow must be replicated.
@@ -116,7 +132,7 @@ washed out and lifeless compared to the prior builds.
   keep these, and add **2-3 more layered telemetry circles in varying sizes**,
   **not all in the same spot** — spread them around at different positions.
 
-### Stars (from V3 build, pic 3)
+### Stars (from V3 build)
 
 Copy the **star field only** from the V3 build — the mild, scattered pinpoint
 stars across the dark background. **Do NOT copy the grid overlay** from that
@@ -162,9 +178,18 @@ for:
 3. **Chat bar goes ABOVE the configuration nodes** — in pic 2 the chat bar
    is below the config nodes. Swap that: chat bar on top, config nodes on
    the bottom. Everything else about pic 2's chat bar and config nodes
-   (size, style, color, design) stays identical.
+   (size, style, color, design) stays identical. **This is already done
+   correctly in the current build (session 21) — keep it.**
 4. **System bar padding** — keep the top padding (status bar) and bottom
    padding (gesture bar) that the current build has. Don't lose that.
+
+### Session 21 on-device findings — what's wrong with aspect ratio NOW
+
+Everything is compressed vertically — tiles are cramped together, not enough
+breathing room. The current build (session 21) looks nothing like the prior
+build's proportions. Tile cards are tiny (108×130dp), icons are tiny (40dp),
+status nodes are tiny (42dp). The whole screen feels squeezed instead of
+spread out and spacious like the prior build target.
 
 ---
 
@@ -206,6 +231,28 @@ Icons should be **properly sized** — matching the proportions shown in the
 prior build reference (HORIZONS and ARCHIVES closeup). They protrude above
 the card top edge with the backlit glow behind them. The current build's
 icons are **way too small**.
+
+### Session 21 on-device findings — what's broken on tiles NOW
+
+**COMPLETE ICON REBUILD NEEDED.** Every icon is:
+- Way too small (40dp) — they should dominate the top of the card
+- All different sizes from each other — they must all be the SAME size
+- Wrong style — flat/thin wireframe strokes instead of the prior build's
+  filled/shaded/detailed rendering
+- Colors are close to correct but not shaded right
+
+**Card size is wrong.** Cards are 108×130dp — too small. Tile names truncate
+on device (HORIZ, ARCHIV, SETTIN, TERMIN). Scale the WHOLE card up
+proportionally (keep same aspect ratio) to match the prior build. Scale the
+font up to match — do NOT shrink text to fit a small card.
+
+**Prompt box is missing.** The `$_` command text and gear icon just float
+bare at the card bottom. Each tile needs a distinct outlined/bordered prompt
+box at the bottom.
+
+**Text layout is broken.** Only title and command show — slug and subtitle
+lines are missing or crammed onto one line. Each card must show all five
+elements: title → slug → subtitle → divider → prompt box.
 
 ---
 
@@ -527,6 +574,13 @@ Stacked under the crystal:
 - `$_Statio` — small, violet/purple at reduced opacity
 - **No `/route`.**
 
+### Session 21 on-device findings — what's broken on the hub NOW
+
+The crystal renders as a **tilted wizard-hat prism** — wrong shape, wrong
+proportions. It needs to be a proper 3D hexagonal faceted gem, centered and
+upright. No elliptical platform base is rendered. The cords don't match the
+prior build's glowing tube style on device.
+
 ---
 
 ## 6 · Connector Cords
@@ -625,6 +679,13 @@ bottom of the screen, just above the gesture bar padding).
 When a module is active, its sphere is fully lit with the 3D glossy
 effect. When inactive, it dims to a muted/desaturated version but keeps
 the spherical shape — not a flat dot.
+
+### Session 21 on-device findings — what's broken NOW
+
+Status nodes are 42dp — way too small. The `Surface` container behind them
+is a washed-out gray instead of dark/near-black. The spheres need to be
+MUCH bigger to match the prior build's vivid, large 3D orbs. The chat bar
+styling also doesn't match the prior build's clean teal-bordered dark look.
 
 ---
 
