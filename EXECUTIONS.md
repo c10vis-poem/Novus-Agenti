@@ -109,87 +109,31 @@ only after the flip.
 
 ## V — Visual track (home dock). Pursue to 100% alongside mechanical.
 
-Full visual spec: **`wiki/HOME-REDESIGN-SPEC.md`** (read it THOROUGHLY before
-touching `HomeGrid.kt`). Reference images: **`wiki/home-redesign-img/`**.
-**Every pass ends with an on-device screenshot vs. the references before "done."**
+**The spec is `wiki/HOME-REDESIGN-SPEC.md` — read it in full before touching
+`HomeGrid.kt`.** Reference images in `wiki/home-redesign-img/`. Every change
+ends with an on-device screenshot vs. the references.
 
-### The rule (session 21, operator-confirmed)
+**The rule:** the prior build (![33](home-redesign-img/33-prior-build-full-home-target.png))
+is the target for EVERYTHING — proportions, spacing, tile size, icon size/style,
+status nodes, background darkness, aspect ratio. The **only** layout change:
+chat bar above config nodes (already done). Do not redesign from scratch.
 
-The prior build is the target. **The ONLY layout change from the prior build is:
-chat bar renders ABOVE config nodes (already done, V.11).** Everything else —
-tiles, icons, crystal, cords, status nodes, background, aspect ratio — matches
-the prior build exactly. Do NOT redesign from scratch; match what worked.
+**What's broken (session 21).** The spec (§2–§8) has full details per element.
+This is just the status checklist:
 
-**Key reference images (all in `wiki/home-redesign-img/`):**
-- ![prior build target](home-redesign-img/33-prior-build-full-home-target.png) — THE full-screen layout/aspect-ratio/background/crystal/status-nodes target. Match this for overall proportions.
-- ![horizons tile](home-redesign-img/07-horizons-tile.webp) ![chat tile](home-redesign-img/08-chat-tile.webp) ![terminal tile](home-redesign-img/09-terminal-tile.webp) ![settings tile](home-redesign-img/10-settings-tile.webp) ![monitor tile](home-redesign-img/11-monitor-tile.webp) ![artifacts tile](home-redesign-img/12-artifacts-tile.webp) — prior build tile closeups. THE tile detail target: icon style, card size, text layout, prompt box, backlighting.
-- ![agent platform hub](home-redesign-img/06-agent-platform-hub.jpg) — crystal geometry/style target (hexagonal faceted gem on elliptical platform).
-- ![router crystal closeup](home-redesign-img/34-router-crystal-closeup.png) — crystal color/hue target (violet + white sun glow underneath).
-- ![logo font](home-redesign-img/19-logo-font.webp) ![logo top crop](home-redesign-img/39-logo-font-top-crop.png) ![logo bottom crop](home-redesign-img/38-logo-font-bottom-crop.png) — logo font target.
-- ![v3 build stars](home-redesign-img/26-v3-full-build.png) — star field reference (copy the STARS and telemetry circles from this, NOT the grid).
-
-### On-device findings (session 21) — what's broken
-
-| # | Element | What's wrong | Fix (with reference image) |
+| # | What | Status | One-line |
 |---|---|---|---|
-| V.1 | **Background** | Was a washed-out foggy gray gradient (`#1A222A`/`#222C34`) with obsidian facets adding haze. Stars and telemetry circles exist in the code but get lost in the wash. | Near-black base (`#080C10` range) — fixed in commit `f16ff33`, needs on-device re-verify. The home screen MUST have: (1) **stars** — subtle pinpoint star field like the standby screen and the V3 build ref ![v3 stars](home-redesign-img/26-v3-full-build.png), and (2) **telemetry circles** — faint concentric rings around the hub area + 2–3 extra clusters at varying positions around the screen (not all centered on hub). Both are in the code but invisible under the old gray wash. |
-### Per-tile spec (V.2–V.5 combined)
-
-**Card size/shape/text:** scale the WHOLE card up proportionally to match the
-prior build (same aspect ratio, don't just widen). Font size matches the prior
-build — do NOT shrink text to fit a small card. All icons rebuilt from scratch —
-same size as each other, large, filled/shaded/detailed (not thin wireframe),
-vivid backlit glow. Each card has a bordered prompt box at the bottom. Every
-tile must look identical to its reference image below except where noted.
-
-**HORIZONS** — ![horizons tile](home-redesign-img/07-horizons-tile.webp)
-Identical to this except: title `HORIZONS`, slug `/about`, subtitle `credits`,
-prompt `$_.home` ⚙. Icon: same shape/size as reference (arch + horizon line +
-sun) but three DISTINCT colors — pinkish-purple arch, blue horizon flatline,
-amber sun.
-
-**MONITOR** — ![monitor tile](home-redesign-img/11-monitor-tile.webp) ![monitor closeup](home-redesign-img/32-monitor-tile-closeup.png)
-Identical to this except: title `MONITOR`, slug `/cognito`, subtitle `library`,
-prompt `$_browser` ⚙. Icon: display/PC monitor glyph with "PC" badge (not an
-AI icon) — same style and size as reference.
-
-**CHAT** — ![chat tile](home-redesign-img/08-chat-tile.webp)
-Identical to this except: title `CHAT`, slug `/interface`, subtitle `tools`,
-prompt `$_model` ⚙. Icon: clean speech bubble (not hub-and-spoke) — same style
-and size as reference.
-
-**SETTINGS** — ![settings tile](home-redesign-img/10-settings-tile.webp) ![settings closeup](home-redesign-img/31-settings-tile-closeup.png)
-Identical to this except: title `SETTINGS`, slug `/config`, subtitle `vault`,
-prompt `$_utils` ⚙. Icon: solid pink circle + yellow lightning bolt inside +
-dashed circle ring + blocky rectangular rays — exactly as shown in reference.
-
-**TERMINAL** — ![terminal tile](home-redesign-img/09-terminal-tile.webp) ![terminal closeup](home-redesign-img/30-terminal-tile-closeup.png)
-Identical to this except: title `TERMINAL`, slug `/shell`, subtitle `commands`,
-prompt `$_bash` ⚙. Icon: terminal window with `>_` prompt — same style and
-size as reference. Card background uses deeper near-black (`TerminalCardBg`
-`#060A07`).
-
-**ARCHIVES** — ![artifacts tile](home-redesign-img/12-artifacts-tile.webp)
-Identical to this except: title `ARCHIVES` (not ARTIFACTS), slug `/logs`,
-subtitle `artifacts`, prompt `$_files` ⚙. Icon: stacked documents/clipboard —
-same style and size as reference.
-### Router hub (V.6 + V.8 + V.12 combined)
-
-**Color and graphics target:** ![router crystal closeup](home-redesign-img/34-router-crystal-closeup.png) — match this exact violet hue + white sun glow permeating from underneath. This is the color/shading/contrast to hit.
-
-**Size and shape target:** ![prior build](home-redesign-img/33-prior-build-full-home-target.png) — match the crystal size and proportions from this full-screen shot. Big enough to be the centerpiece, not so big it crowds tiles. Centered, upright — NOT a tilted wizard hat.
-
-**Platform base target:** ![agent platform hub](home-redesign-img/06-agent-platform-hub.jpg) — hexagonal faceted gem sitting on a glowing elliptical platform base with 6 nodes around the perimeter (one per tile). Connected by faint glowing perimeter lines. No dome.
-
-**Cord target:** ![prior build](home-redesign-img/33-prior-build-full-home-target.png) — glowing colored plasma tubes from each tile to the hub. Each cord is the tile's accent color. Visible glow layers + energy beads traveling along them. Curved, organic flow.
-
-**Labels:** `// CORE_HUB` (small slug, violet, reduced opacity) → `ROUTER` (bold, **WHITE** — the one exception to colored headers) → `$_Statio` (small, violet, reduced opacity).
-| V.6 | **Hub crystal + platform + cords** | Crystal renders as a tilted wizard-hat prism. No platform base. Cords don't match prior build. | See Router section below. |
-| V.7 | **Status nodes + chat bar** | 42dp spheres too small, container washed-out gray. Chat bar styling doesn't match. | This is exactly what the status nodes and chat bar should look like: ![config nodes + chat bar target](home-redesign-img/33-prior-build-full-home-target.png) — brightly colored 3D glossy spheres at this exact size ratio, vivid specular highlights + glow halos. Container background dark/near-black, NOT gray. Chat bar matches the prior build's clean teal-bordered dark style at this exact size. |
-| V.8 | **Plasma cords** | Bezier curves in code but don't match prior build on device. | See Router section below. |
-| V.9 | **Aspect ratio** | Everything is compressed vertically. Tiles are cramped together, not enough breathing room. | When it's all said and done, the basic size, proportions, and spacing should all be almost identical to this: ![aspect ratio target](home-redesign-img/33-prior-build-full-home-target.png) — how big tiles are relative to the hub, how much space between the clock wheel and the bottom bar, how spread out elements are across the full screen. |
-| V.10 | **Logo font** | Using system monospace instead of the chunky blocky terminal face shown in the reference. | Match the font from `19-logo-font.webp` / `39-logo-font-top-crop.png`. This is a specific chunky/blocky typeface, not generic monospace. May require bundling a custom font asset (e.g. a `.ttf` in `res/font/`). |
-| V.11 | **Chat bar position** | Chat bar renders above config nodes. | **CORRECT — this is the one change from the prior build. Keep it.** |
+| V.1 | Background | Fixed to `#080C10` (commit `f16ff33`), **needs re-verify** | Was gray wash. Must also show **stars** (like standby screen / ![26](home-redesign-img/26-v3-full-build.png)) + **telemetry circles** (faint rings around hub + 2–3 extra clusters elsewhere). |
+| V.2 | Tile card size | **BROKEN** | 108×130dp is way too small — names truncate. Scale whole card up proportionally to match prior build; scale font UP to match, never shrink text. |
+| V.3 | Tile icons | **BROKEN — full rebuild** | All icons are tiny (40dp), different sizes, flat wireframe. Must be large, uniform size, filled/shaded/detailed, with backlit glow. See per-tile refs in spec §4a–§4f. |
+| V.4 | Tile text layout | **BROKEN** | Missing slug + subtitle lines. Each card: title → slug → subtitle → divider → bordered prompt box (`$_command` ⚙). See spec §4. |
+| V.5 | Hub crystal | **BROKEN** | Renders as tilted wizard-hat prism. Must be a proper 3D hexagonal faceted gem, upright, on elliptical platform. See spec §5. |
+| V.6 | Plasma cords | **BROKEN** | Don't match prior build. Must be curved glowing tubes with energy beads, each in its tile's color. See spec §6 + ![35](home-redesign-img/35-plasma-tube-shield-nodes.png). |
+| V.7 | Status nodes | **BROKEN** | 42dp is too small, container is gray. Must be large vivid 3D glossy spheres on dark/near-black bg. See spec §8. |
+| V.8 | Chat bar style | **BROKEN** | Doesn't match prior build's clean teal-bordered dark look. See spec §7. |
+| V.9 | Aspect ratio | **BROKEN** | Everything compressed vertically, cramped. Match prior build's spacious proportions. See spec §3. |
+| V.10 | Logo font | **BROKEN** | System monospace instead of the chunky blocky face from ![19](home-redesign-img/19-logo-font.webp). May need a bundled `.ttf`. See spec §1. |
+| V.11 | Chat bar position | **DONE** | Above config nodes — correct, keep it. |
 
 ---
 
