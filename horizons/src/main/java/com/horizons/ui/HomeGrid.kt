@@ -487,55 +487,21 @@ private fun generateStars(count: Int): List<Star> {
 }
 
 private fun DrawScope.drawAstralBackground(stars: List<Star>) {
-    // Obsidian base — deep volcanic glass gradient, darker than flat #222C34
+    // Near-black base — matches the standby screen's deep black, NOT gray
     drawRect(
         brush = Brush.verticalGradient(
-            colors = listOf(Color(0xFF1A222A), Color(0xFF222C34), Color(0xFF141B21)),
+            colors = listOf(Color(0xFF080C10), Color(0xFF0A0E12), Color(0xFF060A0E)),
         ),
     )
-
-    // Obsidian facets — large angular glass shards, barely visible
-    val facetRng = java.util.Random(137)
-    for (i in 0 until 6) {
-        val fx = facetRng.nextFloat() * size.width
-        val fy = facetRng.nextFloat() * size.height
-        val fw = (0.25f + facetRng.nextFloat() * 0.35f) * size.width
-        val fh = (0.15f + facetRng.nextFloat() * 0.25f) * size.height
-        val skew = (facetRng.nextFloat() - 0.5f) * fw * 0.6f
-        val facet = Path().apply {
-            moveTo(fx, fy)
-            lineTo(fx + fw, fy + skew * 0.3f)
-            lineTo(fx + fw * 0.75f + skew, fy + fh)
-            lineTo(fx - fw * 0.1f + skew * 0.5f, fy + fh * 0.85f)
-            close()
-        }
-        drawPath(
-            facet,
-            brush = Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF2A3640).copy(alpha = 0.20f),
-                    Color(0xFF0D1216).copy(alpha = 0.12f),
-                ),
-                start = Offset(fx, fy),
-                end = Offset(fx + fw, fy + fh),
-            ),
-        )
-        // Specular glint along the facet's top edge — light catching glass
-        drawLine(
-            color = Color(0xFF9FCAD6).copy(alpha = 0.06f + facetRng.nextFloat() * 0.05f),
-            start = Offset(fx, fy),
-            end = Offset(fx + fw, fy + skew * 0.3f),
-            strokeWidth = 0.8f,
-        )
-    }
 
     val cx = size.width / 2f
     val cy = size.height * 0.42f
 
+    // Stars — pinpoint field, subtle, like the standby screen
     stars.forEach { star ->
         val isTeal = star.alpha > 0.5f
-        val color = if (isTeal) Color(0xFF2DD4D9).copy(alpha = star.alpha * 0.6f)
-        else Color.White.copy(alpha = star.alpha * 0.5f)
+        val color = if (isTeal) Color(0xFF2DD4D9).copy(alpha = star.alpha * 0.45f)
+        else Color.White.copy(alpha = star.alpha * 0.40f)
         drawCircle(
             color = color,
             radius = star.radius,
@@ -543,68 +509,32 @@ private fun DrawScope.drawAstralBackground(stars: List<Star>) {
         )
     }
 
-    // Orbital rings around center hub
-    val ringColor = Color(0xFF2DD4D9).copy(alpha = 0.04f)
-    for (i in 1..5) {
-        val r = 60f + i * 55f
+    // Faint telemetry rings around center hub
+    val ringColor = Color(0xFF2DD4D9).copy(alpha = 0.03f)
+    for (i in 1..4) {
+        val r = 80f + i * 65f
         drawCircle(
             color = ringColor,
             radius = r,
             center = Offset(cx, cy),
-            style = Stroke(width = 0.8f),
+            style = Stroke(width = 0.6f),
         )
-    }
-
-    // Telemetry / chart lines — faint radial spokes
-    val spokeColor = Color(0xFF2DD4D9).copy(alpha = 0.025f)
-    for (angle in 0 until 360 step 30) {
-        val rad = angle * PI.toFloat() / 180f
-        val len = 320f
-        drawLine(
-            color = spokeColor,
-            start = Offset(cx, cy),
-            end = Offset(cx + cos(rad) * len, cy + sin(rad) * len),
-            strokeWidth = 0.6f,
-        )
-    }
-
-    // Small chart circles at intersections
-    val dotColor = Color(0xFF2DD4D9).copy(alpha = 0.06f)
-    for (ring in 2..4) {
-        val r = 60f + ring * 55f
-        for (angle in listOf(0, 60, 120, 180, 240, 300)) {
-            val rad = angle * PI.toFloat() / 180f
-            drawCircle(
-                color = dotColor,
-                radius = 2.5f,
-                center = Offset(cx + cos(rad) * r, cy + sin(rad) * r),
-            )
-        }
     }
 
     // Extra telemetry circle clusters at different positions (spec §2)
-    val extraRingColor = Color(0xFF2DD4D9).copy(alpha = 0.03f)
-    // Cluster 1 — upper-left
+    val extraRingColor = Color(0xFF2DD4D9).copy(alpha = 0.025f)
     val c1x = size.width * 0.18f
     val c1y = size.height * 0.22f
     for (i in 1..3) {
-        drawCircle(extraRingColor, radius = 30f + i * 28f, center = Offset(c1x, c1y), style = Stroke(0.7f))
+        drawCircle(extraRingColor, radius = 30f + i * 28f, center = Offset(c1x, c1y), style = Stroke(0.5f))
     }
-    // Cluster 2 — lower-right
     val c2x = size.width * 0.82f
     val c2y = size.height * 0.72f
-    for (i in 1..4) {
-        drawCircle(extraRingColor, radius = 22f + i * 24f, center = Offset(c2x, c2y), style = Stroke(0.6f))
-    }
-    // Cluster 3 — mid-left
-    val c3x = size.width * 0.12f
-    val c3y = size.height * 0.58f
-    for (i in 1..2) {
-        drawCircle(extraRingColor.copy(alpha = 0.025f), radius = 40f + i * 35f, center = Offset(c3x, c3y), style = Stroke(0.5f))
+    for (i in 1..3) {
+        drawCircle(extraRingColor, radius = 22f + i * 24f, center = Offset(c2x, c2y), style = Stroke(0.5f))
     }
 
-    // (Plasma cords are drawn per-tile in ClockWheel now, matching the
-    //  clock-face positions — they used to live here for the old 2-row grid.)
+    // (Plasma cords are drawn per-tile in ClockWheel now.)
 }
 
 // ── Plasma cord — glowing tube from a tile-node into the hub ────────────────
@@ -1073,7 +1003,7 @@ private fun TileCard(
                 modifier = Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = iconProtrude + 2.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // TITLE — bold, letter-spaced, BIGGER per spec
+                // TITLE — bold, letter-spaced
                 Text(
                     name,
                     fontFamily = FontFamily.Monospace,
