@@ -494,7 +494,7 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-20 (session 19)
+## State of the Union — 2026-07-21 (session 20)
 
 This is the current-state doc, rewritten in place each session. The
 **running work list is `EXECUTIONS.md` — the build dock** (code-anchored,
@@ -505,6 +505,42 @@ history, not here.
 **Visual work is NOT tracked here.** The home-dock redesign lives only in
 `wiki/HOME-REDESIGN-SPEC.md` + `wiki/home-redesign-img/`, read only when doing
 V-track work. (Earlier SOTUs let a visual saga dominate this file; stripped.)
+
+### Session 20 — HomeGrid V-track: clock-face layout + tile card restyling
+
+Major rewrite of `HomeGrid.kt` to match `wiki/HOME-REDESIGN-SPEC.md`:
+
+- **Clock-face layout** — replaced old 2-row grid with `ClockWheel`
+  composable: 12 Monitor, 2 Chat, 4 Settings, 6 Terminal, 8 Archives,
+  10 Horizons, Router center hub. Fractional-position placement.
+- **TileCard restyled** — icon protrudes above card top edge with radial
+  backlit glow. Label stack: TITLE (bold, letter-spaced) → /slug →
+  subtitle → divider → $_prompt + ⚙ gear. Terminal tile gets deeper
+  near-black bg (`TerminalCardBg`).
+- **Correct labels per spec:** MONITOR /cognito library $_browser, CHAT
+  /interface tools $_model, SETTINGS /config vault $_utils, TERMINAL /shell
+  commands $_bash, ARCHIVES /logs artifacts $_files, HORIZONS /about credits
+  $_.home. ARCHIVES replaces old ARTIFACTS label.
+- **Icon swaps:** Monitor = display glyph + PC badge (not AI); Chat =
+  clean speech bubble (not hub-and-spoke).
+- **Router hub:** crystal shrunk (same color/facet graphics, only smaller),
+  white sun aura underneath, ROUTER label in WHITE, // CORE_HUB slug,
+  $_Statio. No /route.
+- **Banner:** monospace font, one-line motto with (Next-Gen Certified),
+  HORIZONS // V4 bottom-right.
+- **Plasma cords:** from each tile to hub, in tile's color, with beads.
+- **System bar padding:** statusBarsPadding() + navigationBarsPadding().
+- **HorizonsTheme:** distinct per-tile colors, NebulaPurple accent,
+  TerminalCardBg for Terminal's deeper black.
+
+**Still pending on V-track (next session):**
+- On-device screenshot verification vs. reference images
+- Background polish: "needs some stars and a couple more layered telemetry
+  circles" (current astral bg is close but sparse)
+- Bottom status nodes + chat bar: verify they match the vivid prior-build
+  style, not "washed out"
+- Chat bar hold-to-expand: 1/3 screen mini inference UI on long-press
+- Horizons icon amber sun: verify the amber color renders correctly on device
 
 ### Session 19 — canon made explicit + build dock created
 
@@ -558,12 +594,10 @@ or retire it with the operator before assuming a single active branch.
 - **NpuManager lock, Game SDK boost, and the manifest permission/feature
   entries are all already wired** — see `§Android App / Battery Rules`.
   This file used to claim otherwise for several sessions; corrected.
-- **Vision lives in the same daemon/process as the LLM**; STT+TTS are a
-  separate media daemon. `NpuClient.kt` carries an `image_b64` field
-  end-to-end to `ort_engine`; `DaemonTtsClient` is the TTS half of the
-  media-daemon client, mirroring `DaemonSttClient`. Neither GenieX nor a
-  real media-daemon binary exist as processes yet — this is contract +
-  scaffold work, not full runtime implementation.
+- **Vision lives in the same daemon/process as the LLM**; STT+TTS run
+  **in-process** (session 19b — the media-daemon contract was deleted, see
+  Pending #2). `NpuClient.kt` carries an `image_b64` field end-to-end to
+  `ort_engine`. GenieX still doesn't exist as a process yet.
 - **Known gap**: `daemon/src/http_server.cpp` reads a single `recv()` into
   an 8KB buffer — image payloads (100KB+) will be truncated until it reads
   until Content-Length. Documented inline in that file.
@@ -609,11 +643,14 @@ or retire it with the operator before assuming a single active branch.
    `/storage/emulated/0/Download/` as of 2026-07-13 — don't re-download,
    re-verify what's there first. Once wired, update `compile/manifest.yaml`'s
    `daemon_binaries.genie_x.status` (currently "not yet forked/wired").
-2. **Real media-daemon binary** — Moonshine STT + Kokoro/Sherpa TTS as a
-   detached process on `127.0.0.1:8091`; currently only client-side
-   contracts exist (`DaemonSttClient`, `DaemonTtsClient`), nothing binds
-   that port yet. Also update `compile/manifest.yaml` once this exists —
-   it's not currently listed there at all.
+2. **~~Real media-daemon binary~~ — RESOLVED session 19b: no media daemon.**
+   The voice layer is one in-process path: Moonshine STT + Kokoro TTS via
+   the bundled sherpa-onnx AAR, Silero VAD on both ends (endpointing +
+   barge-in), models user-imported from device storage (never downloaded).
+   `DaemonSttClient`/`DaemonTtsClient` deleted. In-proc is required by the
+   system surfaces anyway (`HorizonsTtsService` system TTS engine,
+   accessibility dock, assistant) and costs ~400–500MB native on a 16GB
+   device — no OOM risk; the 9B LLM stays out-of-process behind the Router.
 3. **Fix `http_server.cpp`'s recv() truncation** before vision can actually
    round-trip end to end.
 4. **Define precise boot/loading-phase sequencing for the UI build** — the
@@ -689,8 +726,7 @@ wiki/
 horizons/                        Android app
   fgs/CliffordService.kt         Watchdog daemon
   core/llm/NpuClient.kt          model+vision daemon client
-  core/stt/DaemonSttClient.kt    media daemon client (STT half)
-  core/tts/DaemonTtsClient.kt    media daemon client (TTS half, contract only)
+  core/stt/MoonshineSttEngine.kt in-process Moonshine STT (sherpa-onnx)
   core/shell/DaemonLauncher.kt
   core/agent/AgentLoop.kt
   uilocal/LocalHomeActivity.kt   local UI fork (session 16), additive

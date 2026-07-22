@@ -48,7 +48,7 @@ class HorizonsTtsService : TextToSpeechService() {
 
         val engine = tts
         try {
-            val kokoroEngine = getKokoroEngine(engine) ?: run {
+            val kokoroEngine = engine.engineOrNull ?: run {
                 Log.w(TAG, "Kokoro engine not initialized — cannot synthesize")
                 callback.error()
                 return
@@ -86,16 +86,6 @@ class HorizonsTtsService : TextToSpeechService() {
         } catch (e: Exception) {
             Log.e(TAG, "synthesize failed", e)
             callback.error()
-        }
-    }
-
-    private fun getKokoroEngine(client: SherpaOnnxTtsClient): com.k2fsa.sherpa.onnx.OfflineTts? {
-        return try {
-            val field = SherpaOnnxTtsClient::class.java.getDeclaredField("engine")
-            field.isAccessible = true
-            field.get(client) as? com.k2fsa.sherpa.onnx.OfflineTts
-        } catch (_: Exception) {
-            null
         }
     }
 

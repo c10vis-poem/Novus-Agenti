@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.horizons.ChatMessage
 import com.horizons.HorizonsApplication
 import com.horizons.core.shell.DaemonLauncher
-import com.horizons.core.stt.DaemonSttClient
+import com.horizons.core.voice.KokoroSetupState
 import com.horizons.ui.theme.HorizonsColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -55,7 +55,7 @@ private enum class DaemonReadiness { CHECKING, READY, LOADING, OFFLINE }
 /**
  * The local UI fork's home screen (session 16). Two independent, non-blocking
  * status rows — model+vision daemon (127.0.0.1:$ENGINE_PORT) and the media
- * (STT/TTS) daemon (127.0.0.1:8091) — plus a chat surface wired straight to
+ * (STT/TTS) layer running in-process — plus a chat surface wired straight to
  * [HorizonsApplication.llmRuntime] via sendChat(). Neither daemon's state gates
  * the chat input: sending before either daemon is ready just surfaces the same
  * honest "[not ready]" messages NpuClient/the fallback runtime already emit.
@@ -66,14 +66,22 @@ fun LocalHomeScreen(modifier: Modifier = Modifier) {
     val app = context.applicationContext as HorizonsApplication
 
     var modelDaemon by remember { mutableStateOf(DaemonReadiness.CHECKING) }
-    var mediaDaemon by remember { mutableStateOf(DaemonReadiness.CHECKING) }
 
     LaunchedEffect(Unit) {
         while (true) {
             modelDaemon = probeDaemon("http://127.0.0.1:${DaemonLauncher.ENGINE_PORT}/health")
-            mediaDaemon = probeDaemon("${DaemonSttClient.DEFAULT_BASE}/health")
             delay(3_000)
         }
+    }
+
+    // Voice layer runs in-process (Moonshine STT + Kokoro TTS via sherpa-onnx) —
+    // no media daemon, no port probe; readiness comes straight from the engines.
+    val sttReady by app.stt.ready.collectAsState()
+    val kokoroState by app.kokoroManager.state.collectAsState()
+    val mediaDaemon = when {
+        sttReady && kokoroState is KokoroSetupState.Ready -> DaemonReadiness.READY
+        sttReady || kokoroState is KokoroSetupState.Ready -> DaemonReadiness.LOADING
+        else -> DaemonReadiness.OFFLINE
     }
 
     val messages by app.chatMessages.collectAsState()
@@ -107,8 +115,8 @@ fun LocalHomeScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f),
             )
             DaemonStatusChip(
-                label = "Media (STT/TTS)",
-                sublabel = DaemonSttClient.DEFAULT_BASE.removePrefix("http://"),
+                label = "Voice (STT/TTS)",
+                sublabel = "in-process · Moonshine + Kokoro",
                 state = mediaDaemon,
                 modifier = Modifier.weight(1f),
             )

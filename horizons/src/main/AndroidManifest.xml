@@ -92,6 +92,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Crash diagnostic — plain Views, no Compose. Separate launcher icon
+             so the user can read boot.log / crash.log even when the main app dies. -->
+        <activity
+            android:name=".CrashDiagnosticActivity"
+            android:exported="true"
+            android:label="Horizons Diag"
+            android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".tiles.TerminalTile"
             android:icon="@android:drawable/ic_menu_manage"
@@ -243,6 +256,7 @@
                 <data android:pathPattern=".*\\.dlc" />
                 <data android:pathPattern=".*\\.pte" />
                 <data android:pathPattern=".*\\.qnn" />
+                <data android:pathPattern=".*\\.tar\\.bz2" />
                 <data android:mimeType="*/*" />
             </intent-filter>
 

@@ -24,8 +24,8 @@ import com.horizons.ui.theme.HorizonsColors
  * status rows (model+vision, media) fill in independently as they come up.
  *
  * This activity is additive — MainActivity/HomeGrid are untouched. It exists
- * to iterate on the split-daemon architecture (see NpuClient / DaemonSttClient /
- * DaemonTtsClient docs) without disturbing the working UI.
+ * to iterate on the daemon architecture (model+vision daemon via NpuClient;
+ * voice runs in-process — Moonshine STT + Kokoro TTS) without disturbing the working UI.
  */
 class LocalHomeActivity : ComponentActivity() {
 

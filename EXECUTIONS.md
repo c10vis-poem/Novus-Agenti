@@ -47,7 +47,7 @@ Clifford a dumb supervisor of what the fuse started — never an auto-starter.**
 |---|---|---|---|---|
 | 0.1 | Boots empty; a landed model is *acknowledged, never grabbed* until the user flips it. | `HorizonsApplication.resolveNpuModelPath()` :362–401 — after the user-pin check, **falls through to auto-detection**, scanning `models/`, `filesDir`, `/Download` for the newest LLM file and returning it. | **CONTRADICTS** | Delete the auto-detection fallback. Return a path **only** if `KEY_ACTIVE_MODEL` is pinned AND readable; otherwise `null`. Detection may inform the *Monitor UI* ("available to plug in") but must never feed the launcher. |
 | 0.2 | Runtimes spin up only on an explicit fuse flip. | `CliffordService` CRS loop :116–203 `ensureDaemonRunning()` auto-launches whenever `resolveNpuModelPath()` ≠ null; Clifford is started at boot from `HorizonsApplication.onCreate()` :309. | **CONTRADICTS** | Clifford must launch **only** a runtime the Router marked RUNNING. Gate `ensureDaemonRunning()` behind "is there a RUNNING RouterConfig?" Once 0.1 lands (null until pinned) this is half-fixed, but make it explicit: no RUNNING config ⇒ Clifford supervises nothing. |
-| 0.3 | The STT/TTS media layer is a **separate** persistent layer, not part of the model-runtime fuse pipeline (its own deal; see 00-TILE-HUB-ARCHITECTURE §"Separate layer"). | `onCreate()` :322–327 `kokoroManager.ensureReady()` (TTS) + :346 `stt.probe()` + :315 `cloudRuntime.refreshStatus()`. | **VERIFY (separate track, NOT a canon violation)** | Do NOT force through the fuse box. Only question is boot-lightness: confirm whether eager TTS/STT init measurably slows/destabilizes boot; if so make it lazy, else leave it. This is the media track, decided separately from P0.1/0.2. |
+| 0.3 | The STT/TTS media layer is a **separate** persistent layer, not part of the model-runtime fuse pipeline (its own deal; see 00-TILE-HUB-ARCHITECTURE §"Separate layer"). | **DONE (session 19b):** voice layer is ONE in-process path — Moonshine STT + Kokoro TTS via sherpa-onnx + Silero VAD on both ends (endpoint + barge-in). The dead media-daemon contract (`DaemonSttClient`/`DaemonTtsClient`, :8091) is deleted; `KokoroModelManager` no longer downloads (user imports the archive from device storage). Boot: `ensureReady()` is now a disk check only; Moonshine loads on IO thread only if its files are imported. | **DONE** | Remaining: operator loads the Kokoro + Moonshine archives on device and verifies mic → VAD stop → transcript → reply → TTS, and barge-in mid-sentence. |
 | 0.4 | — | `CliffordService.start()` at `onCreate()` :309 | **KEEP (as supervisor)** | Clifford-as-FGS is fine and needed for perf-lock + crash recovery. It's the *auto-launch behavior* (0.2) that's wrong, not Clifford's existence. |
 
 **P0 exit test:** fresh install, GGUF present in Download, **no** config flipped →
@@ -109,14 +109,31 @@ only after the flip.
 
 ## V — Visual track (home dock). Pursue to 100% alongside mechanical.
 
-Spec + reference images: **`wiki/HOME-REDESIGN-SPEC.md`** + `wiki/home-redesign-img/`.
-Do NOT restate visual detail here or in canon. Order, per spec §12 ledger:
-banner font/motto → tile icon+label swaps (Monitor PC-not-AI, Chat speech-bubble,
-ARCHIVES-not-ARTIFACTS, amber Horizons sun) → tile spacing (spread 2/4/8/10) →
-Router hub (shrink crystal to small violet bevel gem + white sun aura, white
-`ROUTER` label, plasma cords) → nebula-purple header colors → background polish →
-chat-bar hold-to-⅓ mini UI. **Every pass ends with an on-device screenshot vs.
-the reference before it's "done."**
+**The spec is `wiki/HOME-REDESIGN-SPEC.md` — read it in full before touching
+`HomeGrid.kt`.** Reference images in `wiki/home-redesign-img/`. Every change
+ends with an on-device screenshot vs. the references.
+
+**The rule:** the prior build (![33](home-redesign-img/33-prior-build-full-home-target.png))
+is the target for EVERYTHING — proportions, spacing, tile size, icon size/style,
+status nodes, background darkness, aspect ratio. The **only** layout change:
+chat bar above config nodes (already done). Do not redesign from scratch.
+
+**What's broken (session 21).** The spec (§2–§8) has full details per element.
+This is just the status checklist:
+
+| # | What | Status | One-line |
+|---|---|---|---|
+| V.1 | Background | Fixed to `#080C10` (commit `f16ff33`), **needs re-verify** | Was gray wash. Must also show **stars** (like standby screen / ![26](home-redesign-img/26-v3-full-build.png)) + **telemetry circles** (faint rings around hub + 2–3 extra clusters elsewhere). |
+| V.2 | Tile card size | **BROKEN** | 108×130dp is way too small — names truncate. Scale whole card up proportionally to match prior build; scale font UP to match, never shrink text. |
+| V.3 | Tile icons | **BROKEN — full rebuild** | All icons are tiny (40dp), different sizes, flat wireframe. Must be large, uniform size, filled/shaded/detailed, with backlit glow. See per-tile refs in spec §4a–§4f. |
+| V.4 | Tile text layout | **BROKEN** | Missing slug + subtitle lines. Each card: title → slug → subtitle → divider → bordered prompt box (`$_command` ⚙). See spec §4. |
+| V.5 | Hub crystal | **BROKEN** | Renders as tilted wizard-hat prism. Must be a proper 3D hexagonal faceted gem, upright, on elliptical platform. See spec §5. |
+| V.6 | Plasma cords | **BROKEN** | Don't match prior build. Must be curved glowing tubes with energy beads, each in its tile's color. See spec §6 + ![35](home-redesign-img/35-plasma-tube-shield-nodes.png). |
+| V.7 | Status nodes | **BROKEN** | 42dp is too small, container is gray. Must be large vivid 3D glossy spheres on dark/near-black bg. See spec §8. |
+| V.8 | Chat bar style | **BROKEN** | Doesn't match prior build's clean teal-bordered dark look. See spec §7. |
+| V.9 | Aspect ratio | **BROKEN** | Everything compressed vertically, cramped. Match prior build's spacious proportions. See spec §3. |
+| V.10 | Logo font | **BROKEN** | System monospace instead of the chunky blocky face from ![19](home-redesign-img/19-logo-font.webp). May need a bundled `.ttf`. See spec §1. |
+| V.11 | Chat bar position | **DONE** | Above config nodes — correct, keep it. |
 
 ---
 

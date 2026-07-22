@@ -21,6 +21,9 @@ import kotlinx.coroutines.withContext
 class SherpaOnnxTtsClient(private val modelDir: String) {
 
     @Volatile private var engine: OfflineTts? = null
+
+    /** The loaded Kokoro engine, or null before [init]. Used by HorizonsTtsService. */
+    val engineOrNull: OfflineTts? get() = engine
     @Volatile private var audioTrack: AudioTrack? = null
     @Volatile private var stopRequested = false
 

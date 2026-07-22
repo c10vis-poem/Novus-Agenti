@@ -272,23 +272,17 @@ class HorizonsAccessibilityService : AccessibilityService() {
     // ── Mic ───────────────────────────────────────────────────────────────────
 
     private fun handleMic() {
-        if (isRecording) { stopMicAndProcess(); return }
+        // Second tap while listening = wrap up now; otherwise VAD ends the
+        // recording when your voice stops (voiceLoop.recordOnce endpointing).
+        if (isRecording) { app.voiceLoop.finishListening(); return }
         isRecording = true
         scope.launch {
-            if (app.audioRecorder.start().isFailure) { isRecording = false; return@launch }
-            kotlinx.coroutines.delay(8_000L)
-            if (isRecording) stopMicAndProcess()
-        }
-    }
-
-    private fun stopMicAndProcess() {
-        if (!isRecording) return
-        isRecording = false
-        scope.launch {
-            val pcm = app.audioRecorder.stop().getOrElse {
-                Log.w(TAG, "mic stop failed: ${it.message}"); return@launch
+            val pcm = try {
+                app.voiceLoop.recordOnce()
+            } finally {
+                isRecording = false
             }
-            if (pcm.isEmpty()) return@launch
+            if (pcm == null || pcm.isEmpty()) return@launch
             val transcript = app.transcribeAudio(pcm, AudioRecorder.SAMPLE_RATE)
             if (transcript.isBlank() || transcript.startsWith("[")) {
                 Log.w(TAG, "Transcription failed: $transcript"); return@launch

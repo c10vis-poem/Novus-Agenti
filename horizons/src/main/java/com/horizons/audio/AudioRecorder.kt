@@ -12,6 +12,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
@@ -32,6 +35,17 @@ class AudioRecorder(private val context: Context) {
     private val accumulator = ArrayList<ShortArray>()
     private var accumulatedSize: Int = 0
     private var readBufferSize: Int = 0
+
+    /**
+     * Live PCM chunks, emitted as they are read from the mic while recording.
+     * Lets VAD (endpointing + barge-in) observe audio WITHOUT stop/restarting
+     * the recorder. Chunks are also accumulated for [stop] as before.
+     */
+    private val _chunks = MutableSharedFlow<ShortArray>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val chunks: SharedFlow<ShortArray> = _chunks
 
     fun isRecording(): Boolean = running.get()
 
@@ -82,7 +96,11 @@ class AudioRecorder(private val context: Context) {
             try {
                 while (running.get()) {
                     val n = rec.read(buf, 0, buf.size)
-                    if (n > 0) { accumulator.add(buf.copyOf(n)); accumulatedSize += n }
+                    if (n > 0) {
+                        val chunk = buf.copyOf(n)
+                        accumulator.add(chunk); accumulatedSize += n
+                        _chunks.tryEmit(chunk)
+                    }
                     else if (n < 0) { Log.w(TAG, "AudioRecord.read error $n"); running.set(false); break }
                 }
             } catch (t: Throwable) { Log.e(TAG, "Reader loop crashed", t); running.set(false) }
