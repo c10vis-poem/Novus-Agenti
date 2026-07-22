@@ -9,6 +9,8 @@ object HorizonsColors {
     val HighlightTeal = Color(0xFF4FE7EC)
     val IconBackplate = Color(0xFF050709)
     val ActionYellow  = Color(0xFFF5C518)
+    val NebulaPurple  = Color(0xFF7B61FF)
+    val TerminalCardBg = Color(0xFF0A1A0F)
 
     val TileHorizons  = Color(0xFF2DD4D9)  // teal/cyan
     val TileMonitor   = Color(0xFF2DD4D9)  // teal/green
