@@ -121,25 +121,18 @@ tiles, icons, crystal, cords, status nodes, background, aspect ratio — matches
 the prior build exactly. Do NOT redesign from scratch; match what worked.
 
 **Key reference images (all in `wiki/home-redesign-img/`):**
-- `33-prior-build-full-home-target.png` — THE full-screen layout/aspect-ratio/
-  background/crystal/status-nodes target. Match this for overall proportions.
-- Tile closeups from the prior build (pics 1–12) — THE tile detail target.
-  Specifically: `07-horizons-tile.webp`, `08-chat-tile.webp`,
-  `09-terminal-tile.webp`, `10-settings-tile.webp`, `11-monitor-tile.webp`,
-  `12-artifacts-tile.webp` — each shows exact icon style, card size, text
-  layout, prompt box, backlighting.
-- `06-agent-platform-hub.jpg` — crystal geometry/style target (hexagonal
-  faceted gem on elliptical platform).
-- `34-router-crystal-closeup.png` — crystal color/hue target (violet +
-  white sun glow underneath).
-- `19-logo-font.webp` + `38-logo-font-bottom-crop.png` +
-  `39-logo-font-top-crop.png` — logo font target.
+- ![prior build target](home-redesign-img/33-prior-build-full-home-target.png) — THE full-screen layout/aspect-ratio/background/crystal/status-nodes target. Match this for overall proportions.
+- ![horizons tile](home-redesign-img/07-horizons-tile.webp) ![chat tile](home-redesign-img/08-chat-tile.webp) ![terminal tile](home-redesign-img/09-terminal-tile.webp) ![settings tile](home-redesign-img/10-settings-tile.webp) ![monitor tile](home-redesign-img/11-monitor-tile.webp) ![artifacts tile](home-redesign-img/12-artifacts-tile.webp) — prior build tile closeups. THE tile detail target: icon style, card size, text layout, prompt box, backlighting.
+- ![agent platform hub](home-redesign-img/06-agent-platform-hub.jpg) — crystal geometry/style target (hexagonal faceted gem on elliptical platform).
+- ![router crystal closeup](home-redesign-img/34-router-crystal-closeup.png) — crystal color/hue target (violet + white sun glow underneath).
+- ![logo font](home-redesign-img/19-logo-font.webp) ![logo top crop](home-redesign-img/39-logo-font-top-crop.png) ![logo bottom crop](home-redesign-img/38-logo-font-bottom-crop.png) — logo font target.
+- ![v3 build stars](home-redesign-img/26-v3-full-build.png) — star field reference (copy the STARS and telemetry circles from this, NOT the grid).
 
 ### On-device findings (session 21) — what's broken
 
 | # | Element | What's wrong | Fix (with reference image) |
 |---|---|---|---|
-| V.1 | **Background** | Was a washed-out foggy gray gradient (`#1A222A`/`#222C34`) with obsidian facets adding haze. | Fixed to near-black (`#080C10` range) in commit `f16ff33`. The app's standby screen already renders near-black with good stars — the home screen should match that darkness. Needs on-device re-verify. |
+| V.1 | **Background** | Was a washed-out foggy gray gradient (`#1A222A`/`#222C34`) with obsidian facets adding haze. Stars and telemetry circles exist in the code but get lost in the wash. | Near-black base (`#080C10` range) — fixed in commit `f16ff33`, needs on-device re-verify. The home screen MUST have: (1) **stars** — subtle pinpoint star field like the standby screen and the V3 build ref ![v3 stars](home-redesign-img/26-v3-full-build.png), and (2) **telemetry circles** — faint concentric rings around the hub area + 2–3 extra clusters at varying positions around the screen (not all centered on hub). Both are in the code but invisible under the old gray wash. |
 | V.2 | **Tile card size** | Cards too narrow (108dp) — tile names truncate on device: HORIZ, ARCHIV, SETTIN, TERMIN. | Widen cards so full names render: HORIZONS, ARCHIVES, TERMINAL, SETTINGS. Ref: prior build tiles in `33-prior-build-full-home-target.png` show wider, more horizontal cards. |
 | V.3 | **Tile icons — COMPLETE REBUILD** | Every icon is way too small (40dp), they're all different sizes from each other, and none match the prior build's style. The colors are the only thing close to correct but even those aren't shaded right — flat/thin strokes instead of the prior build's filled/shaded/detailed rendering. This is a full icon rebuild, not a tweak. | **Every icon must be rebuilt from scratch to match the prior build's tile closeups (`07`–`12`).** All icons must be the SAME size as each other (large — dominating the top of the card, not tiny afterthoughts). Match the prior build's filled/shaded/detailed rendering style with vivid backlit glow, not thin wireframe strokes. **Horizons icon specifically:** same shape as prior build (arch + horizon line + sun) but three DISTINCT colors — pinkish-purple arch, blue horizon flatline, amber sun (three different colors, not monochrome). |
 | V.4 | **Tile prompt box** | `$_` command text and gear icon float bare at the card bottom — no visual container. | Each tile needs a distinct outlined/bordered prompt box at the bottom containing the command hint + gear icon. Contents per tile: MONITOR `$_browser`, CHAT `$_model`, SETTINGS `$_utils`, TERMINAL `$_bash`, ARCHIVES `$_files`, HORIZONS `$_.home`. Gear icon right-aligned inside the box. Ref: prior build tiles show this box clearly. |
