@@ -494,7 +494,7 @@ and the voice loop (`.gameBoosted()`).
 
 ---
 
-## State of the Union — 2026-07-20 (session 19)
+## State of the Union — 2026-07-23 (session 20)
 
 This is the current-state doc, rewritten in place each session. The
 **running work list is `EXECUTIONS.md` — the build dock** (code-anchored,
@@ -502,33 +502,46 @@ prioritized: "go here, do this"); this SOTU points at it, it is the work
 authority, not the old "Pending" list below. Historical detail lives in git
 history, not here.
 
-**Visual work is NOT tracked here.** The home-dock redesign lives only in
-`wiki/HOME-REDESIGN-SPEC.md` + `wiki/home-redesign-img/`, read only when doing
-V-track work. (Earlier SOTUs let a visual saga dominate this file; stripped.)
+### Session 20 — HomeGrid visual rebuild prep
 
-### Session 19 — canon made explicit + build dock created
+The operator perfected the HomeGrid visual in Google AI Studio's React/TS
+simulator (`HomeGridSim.tsx`). The exported Kotlin was an **intermediate
+version** (~75% complete) — later visual refinements in the simulator were
+never back-ported. On-device the APK renders "the same slop as previous
+builds": truncated tile names, tiny dim crystal, thin plasma cords, wrong
+icon designs, wrong colors on Chat and Horizons tiles.
 
-The operator supplied the missing canon (3 workbench docs + the home-dock
-visual spec) that pins down **how the app works under the hood**, not just
-what it is. This session:
+**Operator directive:** build HomeGrid.kt **from scratch** next session.
+Do NOT patch or layer on top of the existing code. Start at zero on the
+visual render.
 
-- **Folded the canon into first-read** — the 3 workbench docs are now
-  `knowledge/omni-claw-defined/workbench/*.md`, plus a new
-  `workbench/00-TILE-HUB-ARCHITECTURE.md` that **explicitly defines each
-  tile's function and how it wires to the center-hub Router** (this was
-  never written down; the old code only *assumed* it). Read the workbench
-  folder as canon.
-- **Created the build dock** — `EXECUTIONS.md` is now the code-anchored,
-  prioritized work list (repurposed from the earlier scaffolding file).
-- **Found the boot regression + a core contradiction:** the app carries
-  **two conflicting runtime models** — the canon fuse-box (built as UI +
-  validation only, never executes) and a legacy `CliffordService`
-  auto-launcher that **auto-starts the daemon at boot** (via
-  `resolveNpuModelPath()` auto-detecting a model in `/Download`), which is
-  the "won't boot" regression and a direct canon violation. Details +
-  fixes in the build dock (P0/P1).
-- **Stripped the visual saga** out of this file; it lives only in
-  `wiki/HOME-REDESIGN-SPEC.md` now. JSONL is grep-only; MD is first-read.
+This session:
+- **Downloaded `HomeGridSim.tsx`** (51,863 bytes) from Google Drive and
+  saved it to `wiki/HomeGridSim.tsx` — this is the SOLE visual authority
+- **Created `wiki/HOMEGRID-REBUILD-SPEC.md`** — a detailed diff of every
+  visual difference between the simulator (correct) and the current Kotlin
+  (wrong), with 12 specific items: wrong tile colors, wrong status node
+  colors, completely different crystal (needs platform/pedestal/socket nodes/
+  gradient facets), different plasma cord structure (3-layer not 4, no beads,
+  quadratic not cubic, connect to socket nodes not hub center), wrong chat
+  icon (needs 2 lines not 3 dots), wrong settings icon (8 ticks not 12,
+  filled bolt not stroked), wrong archives icon (needs "A" badge), tile
+  name truncation fix (reduce font/spacing), missing hub label background
+  card, telemetry rings need dashes not solid strokes, prompt box needs
+  border styling
+- **Both repos** (`Novus-Agenti` PR #27, `Horizon-s-home-grid` PR #1) have
+  the intermediate HomeGrid.kt from the AI Studio export — these will be
+  replaced by the from-scratch rebuild
+
+**NEXT SESSION MUST:**
+1. Read `wiki/HOMEGRID-REBUILD-SPEC.md` (the visual diff spec)
+2. Read `wiki/HomeGridSim.tsx` (the React simulator — visual authority)
+3. Delete `HomeGrid.kt` and write it from zero, translating every SVG/CSS
+   construct from the simulator into Compose Canvas equivalents
+4. Update `HorizonsTheme.kt` colors (Chat=#4FE9A6, Horizons=#40C4FF,
+   status nodes: ASR=#00FF41, TTS=#E8A838, MLLM=#AA77FF, VAG=#FF5577)
+5. Preserve non-visual wiring (Panel refs, backend status, goat easter egg)
+6. Build APK, user screenshots on device for verification
 
 **Standing rule (operator):** every session gets the app running AND looking
 right, both to 100% — no "get it close." Every visual change ends with a real
@@ -539,49 +552,19 @@ on-device screenshot vs. the reference.
 `tools/failures.sh`. Master-session scaffold — `agents/omni-claws-master.agent.yaml`
 + `wiki/MASTER-SESSION.md`.
 
-**Branch note:** `claude/app-redesign-layered-t55d47` is where the visual
-spec + reference images came from (now copied into this branch). Reconcile
-or retire it with the operator before assuming a single active branch.
+### Current state (daemon/runtime track, separate from the visual rebuild above)
 
-### Current state (session 16 carryover — daemon/runtime track, separate from the UI reconstruction above)
-
-- **App/UI-fork track is the one active branch** (`claude/notice-agent-ui-local-xa14op`).
+- **App/UI-fork track** (`claude/notice-agent-ui-local-xa14op`).
   Horizons app is code-complete UI (Compose, 6 panels, home grid, chat,
   terminal, browser tab); daemon/watchdog architecture (`CliffordService`,
-  `DaemonLauncher`) is real and working; a new additive local-first UI fork
+  `DaemonLauncher`) is real and working; local-first UI fork
   (`com.horizons.uilocal.LocalHomeActivity`) boots without gating on the
-  model daemon and shows independent status for the model+vision daemon vs.
-  the media (STT/TTS) daemon.
-- **Compile pipeline is dormant** — fallback only, see
-  `wiki/COMPILE-PIPELINE.md`. Don't trigger Job 8 without a confirmed hard
-  failure on the primary GGUF/GenieX path.
-- **NpuManager lock, Game SDK boost, and the manifest permission/feature
-  entries are all already wired** — see `§Android App / Battery Rules`.
-  This file used to claim otherwise for several sessions; corrected.
-- **Vision lives in the same daemon/process as the LLM**; STT+TTS are a
-  separate media daemon. `NpuClient.kt` carries an `image_b64` field
-  end-to-end to `ort_engine`; `DaemonTtsClient` is the TTS half of the
-  media-daemon client, mirroring `DaemonSttClient`. Neither GenieX nor a
-  real media-daemon binary exist as processes yet — this is contract +
-  scaffold work, not full runtime implementation.
-- **Known gap**: `daemon/src/http_server.cpp` reads a single `recv()` into
-  an 8KB buffer — image payloads (100KB+) will be truncated until it reads
-  until Content-Length. Documented inline in that file.
-- **Doc/knowledge/folder restructure (this session)**: `knowledge/daemon-reference/`
-  + `knowledge/claude-code-reference/` (moved from `wiki/`), `knowledge/qairt-sdk/htp.jsonl`
-  (new — completes that topic's triplet), `wiki/COMPILE-PIPELINE.md` and
-  `wiki/JOB_EXECUTION_LOG.md` (new, replacing several older files),
-  `skills/project-memory/SKILL.md` redesigned around the knowledge/ corpus
-  instead of being a redundant CLAUDE.md/SOTU re-read. `rules/CACHE_PROMPT_RULES.md`
-  merged into this file's Cache Prompting section (no longer a separate
-  file). `models/` + `scripts/` merged into `compile/` (same dormant-pipeline
-  domain). Top-level folder count: 13 → 12 (`compile/` absorbed two).
-  `RESOURCE-DOCS-WIKI.md` (402KB duplicate of the knowledge/ corpus) deleted.
-  `knowledge/device-inventory/DEVICE-INVENTORY.md` recovered from the
-  deleted `wiki/APP-SOTU-AUDIT.md` — that file bundled a real device
-  inventory (SDKs, model files, Termux toolchain, 2026-07-13 snapshot)
-  together with a now-stale status narrative; only the factual inventory
-  was worth keeping, so it's preserved here rather than lost entirely.
+  model daemon.
+- **Visual track** (`claude/google-ai-studio-export-5zxrqz`) — the branch
+  where the HomeGrid rebuild will land. PR #27 open as draft.
+- **Compile pipeline is dormant** — fallback only.
+- **NpuManager lock, Game SDK boost, manifest** — all already wired.
+- **Known gap**: `daemon/src/http_server.cpp` recv() truncation for images.
 
 ### Standing decisions — LAW, not to re-litigate
 
