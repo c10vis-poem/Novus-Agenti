@@ -23,4 +23,7 @@ object HorizonsColors {
     val StatusTts     = Color(0xFFFFB74D)  // orange
     val StatusMllm    = Color(0xFFCE93D8)  // purple
     val StatusVag     = Color(0xFFFF4081)  // pink
+
+    val NebulaPurple  = Color(0xFFAA77FF)  // purple nebula accent
+    val TerminalCardBg = Color(0xFF0A120A) // near-black terminal card bg
 }
